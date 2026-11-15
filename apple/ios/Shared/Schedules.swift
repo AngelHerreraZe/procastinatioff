@@ -15,15 +15,15 @@ extension DeviceActivityEvent.Name {
     static let passUsed = Self("passUsed")
 }
 
-/// Horarios que se aplican con la app cerrada (la extensión `ActivityMonitor` los ejecuta).
+/// Schedules applied with the app closed (the `ActivityMonitor` extension runs them).
 enum Schedules {
     static let center = DeviceActivityCenter()
 
-    /// DORMIR todos los días (cruza medianoche; ⚠️ confirmar en el spike D). Las noches previas a un
-    /// día libre las salta la extensión.
+    /// SLEEP every day (crosses midnight; VERIFY: confirm in spike D). The extension skips the nights before a
+    /// free day.
     static func scheduleSleep(bedtimeMin: Int, wakeMin: Int) throws {
         center.stopMonitoring([.sleep])
-        guard bedtimeMin != wakeMin else { return } // sin periodo de sueño
+        guard bedtimeMin != wakeMin else { return } // no sleep period
         let schedule = DeviceActivitySchedule(
             intervalStart: DateComponents(hour: bedtimeMin / 60, minute: bedtimeMin % 60),
             intervalEnd: DateComponents(hour: wakeMin / 60, minute: wakeMin % 60),
@@ -31,8 +31,8 @@ enum Schedules {
         try center.startMonitoring(.sleep, during: schedule)
     }
 
-    /// Permiso de N minutos de USO: ventana mínima de 15 min + evento al alcanzar N minutos.
-    /// Si no se eligió "todo" en el selector, el permiso dura la ventana de 15 min.
+    /// Pass of N minutes of USE: minimum 15-min window + an event when N minutes are reached.
+    /// If "everything" was not chosen in the picker, the pass lasts the 15-min window.
     static func startPass(minutes: Int, everything: FamilyActivitySelection) throws {
         let cal = Calendar.current
         let now = Date()

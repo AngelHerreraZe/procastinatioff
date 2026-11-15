@@ -1,5 +1,9 @@
 package dev.procastinacioff.app.ui
 
+import android.content.Context
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,12 +46,12 @@ private fun Bullets(title: String, items: List<String>) {
     items.forEach { Text("• $it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
 
-/** Invitar a mi compañero de rendición de cuentas. Explica, antes de nada, qué verá y qué no. */
+/** Invite my accountability partner. Explains, first of all, what they will and will not see. */
 @Composable
 fun PartnerScreen(onInvite: () -> Unit, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var linked by remember { mutableStateOf<Int?>(null) } // compañeros vinculados (null = sin buzón)
+    var linked by remember { mutableStateOf<Int?>(null) } // paired partners (null = no mailbox)
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -55,60 +59,63 @@ fun PartnerScreen(onInvite: () -> Unit, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Compañero de rendición de cuentas", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Alguien de confianza que recibe un aviso si te saltas las reglas. Elige a alguien que te apoye, no que te vigile.")
-        Bullets("Verá:", listOf(
-            "Si desactivas la protección, cambias la hora o intentas desinstalar.",
-            "Si usas la emergencia.",
-            "Cuántas metas cumpliste cada día (solo el número).",
+        Text(stringResource(R.string.partner_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.partner_lead))
+        Bullets(stringResource(R.string.partner_will_see), listOf(
+            stringResource(R.string.partner_sees_tamper),
+            stringResource(R.string.partner_sees_emergency),
+            stringResource(R.string.partner_sees_count),
         ))
-        Bullets("Nunca verá:", listOf("Tus metas ni sus nombres.", "Qué apps usas, tus mensajes, tu ubicación ni fotos."))
-        Text("Solo desde hoy: no recibe nada de los días anteriores.", style = MaterialTheme.typography.bodySmall)
+        Bullets(stringResource(R.string.partner_never_sees), listOf(stringResource(R.string.partner_never_goals), stringResource(R.string.partner_never_apps)))
+        Text(stringResource(R.string.partner_from_today), style = MaterialTheme.typography.bodySmall)
         ErrorText(error)
         linked?.let { n ->
-            Text(if (n > 0) "Tienes $n ${if (n == 1) "compañero vinculado" else "compañeros vinculados"}." else "Aún no se ha unido nadie.")
+            Text(if (n > 0) pluralStringResource(R.plurals.partners_linked, n, n) else stringResource(R.string.partner_nobody))
         }
-        PrimaryButton(if (linked == null) "Invitar a mi compañero" else "Invitar a otra persona", enabled = !busy) {
+        PrimaryButton(stringResource(if (linked == null) R.string.partner_invite else R.string.partner_invite_other), enabled = !busy) {
             busy = true
             scope.launch {
-                // Crea el buzón (una vez) y lo conecta al mismo relay que el perfil.
+                // Creates the mailbox (once) and connects it to the profile's relay.
                 error = withContext(Dispatchers.IO) {
                     val url = CoreHolder.get(ctx).relayUrl()
                     if (url == null) {
-                        "Primero conecta un servidor de sincronización en tu perfil."
+                        ctx.getString(R.string.partner_needs_sync)
                     } else {
                         runCatching {
                             val box = CoreHolder.partnerBox(ctx)
                             if (box.members().isEmpty()) box.createPartnerMailbox(CoreHolder.clock(), Build.MODEL.take(64))
                             if (box.relayUrl() == null) box.connectRelay(url)
-                        }.exceptionOrNull()?.userMessage()
+                        }.exceptionOrNull()?.userMessage(ctx)
                     }
                 }
                 busy = false
                 if (error == null) onInvite()
             }
         }
-        TextButton(onClick = onBack) { Text("Volver") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
     }
 }
 
-private val DATE = SimpleDateFormat("EEE d 'de' MMM, HH:mm", Locale("es"))
-private val DAY = SimpleDateFormat("EEEE d 'de' MMMM", Locale("es"))
+private fun format(skeleton: String, ms: Long): String =
+    SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), skeleton), Locale.getDefault()).format(Date(ms))
 
-private fun describe(a: PartnerAlertView): Pair<String, String> = when (val alert = a.alert) {
-    is PartnerAlert.Emergency -> "Usó la emergencia" to DATE.format(Date(a.happenedAtMs))
-    is PartnerAlert.Tamper -> when (alert.what) {
-        TamperKind.PERMISSION_REVOKED -> "Desactivó un permiso de protección"
-        TamperKind.SERVICE_STOPPED -> "La protección estuvo detenida"
-        TamperKind.CLOCK_CHANGED -> "Cambió la hora del dispositivo"
-        TamperKind.UNINSTALL_ATTEMPT -> "Intentó desinstalar la app"
-        TamperKind.SAFE_MODE -> "Arrancó en modo seguro"
-        TamperKind.DEVICE_SILENT -> "Un dispositivo dejó de reportar"
-    } to DATE.format(Date(a.happenedAtMs))
-    is PartnerAlert.DailySummary -> "Cumplió ${alert.completed} de ${alert.total} metas" to DAY.format(Date(a.happenedAtMs))
+private fun describe(ctx: Context, a: PartnerAlertView): Pair<String, String> = when (val alert = a.alert) {
+    is PartnerAlert.Emergency -> ctx.getString(R.string.partner_alert_emergency) to format("EEEdMMMjmm", a.happenedAtMs)
+    is PartnerAlert.Tamper -> ctx.getString(
+        when (alert.what) {
+            TamperKind.PERMISSION_REVOKED -> R.string.tamper_permission_revoked
+            TamperKind.SERVICE_STOPPED -> R.string.tamper_service_stopped
+            TamperKind.CLOCK_CHANGED -> R.string.tamper_clock_changed
+            TamperKind.UNINSTALL_ATTEMPT -> R.string.tamper_uninstall_attempt
+            TamperKind.SAFE_MODE -> R.string.tamper_safe_mode
+            TamperKind.DEVICE_SILENT -> R.string.tamper_device_silent
+        },
+    ) to format("EEEdMMMjmm", a.happenedAtMs)
+    is PartnerAlert.DailySummary ->
+        ctx.resources.getQuantityString(R.plurals.partner_alert_summary, alert.total.toInt(), alert.completed.toInt(), alert.total.toInt()) to format("EEEEdMMMM", a.happenedAtMs)
 }
 
-/** Lo que ve el compañero: solo avisos y números, nunca metas ni textos. */
+/** What the partner sees: only alerts and numbers, never goals or texts. */
 @Composable
 fun WatchScreen() {
     val ctx = LocalContext.current
@@ -126,14 +133,14 @@ fun WatchScreen() {
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Persona a la que acompañas", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.watch_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "Solo ves esto: avisos de manipulación, emergencias y cuántas metas cumplió cada día. Nunca sus metas, apps, mensajes ni ubicación.",
+            stringResource(R.string.watch_lead),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (alerts.isEmpty()) Text("Todavía no hay avisos.")
+        if (alerts.isEmpty()) Text(stringResource(R.string.watch_empty))
         alerts.forEach { a ->
-            val (what, `when`) = describe(a)
+            val (what, `when`) = describe(ctx, a)
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(what, fontWeight = FontWeight.SemiBold)

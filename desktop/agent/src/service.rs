@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Servicio de Windows. **No acepta STOP**: `sc stop` devuelve error. Solo un administrador puede
-//! matarlo (y eso se detecta como manipulación).
+//! Windows service. **Does not accept STOP**: `sc stop` returns an error. Only an administrator can
+//! kill it (and that is detected as tampering).
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -32,7 +32,7 @@ pub fn run_dispatcher() -> windows_service::Result<()> {
 
 fn service_main(_args: Vec<OsString>) {
     if let Err(e) = run() {
-        tracing::error!(error = %e, "el servicio terminó con error");
+        tracing::error!(error = %e, "the service ended with an error");
     }
 }
 
@@ -52,7 +52,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_handler = stop.clone();
     let status_handle = service_control_handler::register(SERVICE_NAME, move |control| match control {
-        // Solo el apagado del equipo detiene el servicio
+        // Only shutting down the computer stops the service
         ServiceControl::Shutdown => {
             stop_handler.store(true, Ordering::Relaxed);
             ServiceControlHandlerResult::NoError
@@ -60,10 +60,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
         _ => ServiceControlHandlerResult::NotImplemented,
     })?;
-    status_handle.set_service_status(status(ServiceState::Running, ServiceControlAccept::SHUTDOWN))?; // sin STOP
+    status_handle.set_service_status(status(ServiceState::Running, ServiceControlAccept::SHUTDOWN))?; // no STOP
 
     let data_dir = PathBuf::from(DATA_DIR);
-    let install_dir = std::env::current_exe()?.parent().ok_or("sin carpeta de instalación")?.to_path_buf();
+    let install_dir = std::env::current_exe()?.parent().ok_or("no install folder")?.to_path_buf();
     let secrets = Arc::new(DpapiStore::new(data_dir.join("secrets"))?);
     let core = Core::open(data_dir.join("core.db").to_string_lossy().into(), secrets)?;
     enforce::check_downtime(&core, &data_dir);
@@ -80,7 +80,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::spawn(move || enforce::sync_loop(core, shared, stop));
     }
     {
-        // Modo familiar: filtro web si este PC es de un menor (comprueba el rol cada minuto)
+        // Family mode: web filter if this PC belongs to a minor (checks the role every minute)
         let (core, data_dir, stop) = (core.clone(), data_dir.clone(), stop.clone());
         std::thread::spawn(move || family::run(core, data_dir, stop));
     }
@@ -89,14 +89,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::spawn(move || {
             let rt = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
                 Ok(rt) => rt,
-                Err(e) => return tracing::error!(error = %e, "sin runtime para el IPC"),
+                Err(e) => return tracing::error!(error = %e, "no runtime for the IPC"),
             };
             if let Err(e) = rt.block_on(ipc_server::serve(core, shared, install_dir)) {
-                tracing::error!(error = %e, "servidor IPC caído");
+                tracing::error!(error = %e, "IPC server down");
             }
         });
     }
-    enforce::run(core, shared, stop, install_dir, data_dir); // bloquea hasta el apagado
+    enforce::run(core, shared, stop, install_dir, data_dir); // blocks until shutdown
 
     status_handle.set_service_status(status(ServiceState::Stopped, ServiceControlAccept::empty()))?;
     Ok(())

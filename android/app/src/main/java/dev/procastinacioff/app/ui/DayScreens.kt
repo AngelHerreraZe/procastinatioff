@@ -1,5 +1,8 @@
 package dev.procastinacioff.app.ui
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,11 +68,13 @@ import uniffi.procastinacioff_core.Status
 
 private const val ALL_DAYS: UByte = 0x7Fu
 
-private fun actionLabel(g: GoalProgress, def: Goal?): String =
-    if (def?.methods?.contains(Method.FOCUS_SESSION) == true) (if (g.focusMinutes > 0u) "Continuar" else "Empezar")
-    else "Marcar como hecha"
+@Composable
+private fun actionLabel(g: GoalProgress, def: Goal?): String = stringResource(
+    if (def?.methods?.contains(Method.FOCUS_SESSION) == true) (if (g.focusMinutes > 0u) R.string.action_continue else R.string.action_start)
+    else R.string.mark_done,
+)
 
-// ───────────────────────── Hoy (01 Calma) ─────────────────────────
+// ───────────────────────── Today (01 Calm) ─────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,34 +103,36 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Column { Text("Hoy"); Text(todayText(), style = MaterialTheme.typography.bodySmall) } },
+                title = { Column { Text(stringResource(R.string.today)); Text(todayText(), style = MaterialTheme.typography.bodySmall) } },
                 actions = {
-                    if (!st.freeDay && !st.needsPlan) TextButton(onClick = onPlan) { Text("Añadir meta") }
+                    if (!st.freeDay && !st.needsPlan) TextButton(onClick = onPlan) { Text(stringResource(R.string.add_goal)) }
                     if (minor) {
-                        // El dispositivo de un menor no vincula ni tiene compañero: eso lo decide el tutor
-                        TextButton(onClick = onTutor) { Text("Tu tutor") }
+                        // A minor's device does not pair nor have a partner: the guardian decides that
+                        TextButton(onClick = onTutor) { Text(stringResource(R.string.your_guardian)) }
                     } else {
-                        TextButton(onClick = onPair) { Text("Vincular") }
-                        TextButton(onClick = onPartner) { Text("Compañero") }
-                        onFamily?.let { TextButton(onClick = it) { Text("Familia") } }
+                        TextButton(onClick = onPair) { Text(stringResource(R.string.pair_short)) }
+                        TextButton(onClick = onPartner) { Text(stringResource(R.string.partner_short)) }
+                        onFamily?.let { TextButton(onClick = it) { Text(stringResource(R.string.family_short)) } }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
         bottomBar = {
-            // Zona del pulgar: una acción principal, el permiso y la emergencia
+            // Thumb zone: one main action, the pass and the emergency
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ErrorText(error)
                 if (state is DayState.Focus) {
-                    PrimaryButton("Volver a la tarea") { onFocus(state.goalId) }
+                    PrimaryButton(stringResource(R.string.back_to_task)) { onFocus(state.goalId) }
                 } else if (canWork && next != null && nextDef != null) {
                     val left = next.targetMinutes.toInt() - next.focusMinutes.toInt()
-                    val extra = if (next.targetMinutes > 0u) " · faltan ${duration(maxOf(0, left))}" else ""
-                    PrimaryButton("${actionLabel(next, nextDef)}: ${next.title}$extra") { onStart(nextDef) }
+                    val action = actionLabel(next, nextDef)
+                    val label = if (next.targetMinutes > 0u) stringResource(R.string.primary_action_left, action, next.title, duration(maxOf(0, left)))
+                    else stringResource(R.string.primary_action, action, next.title)
+                    PrimaryButton(label) { onStart(nextDef) }
                 }
                 if (state is DayState.Locked || state is DayState.Focus) {
-                    SecondaryButton("Usar un permiso (${st.permitsLeft})", enabled = st.permitsLeft > 0u) {
+                    SecondaryButton(stringResource(R.string.use_pass_count, st.permitsLeft.toInt()), enabled = st.permitsLeft > 0u) {
                         scope.launch { error = coreAction(ctx) { it.startPass(dev.procastinacioff.app.core.CoreHolder.clock()) } }
                     }
                     EmergencySection {
@@ -139,19 +146,18 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Latidos cruzados: un dispositivo que deja de reportar se nota en los demás
+            // Cross heartbeats: a device that stops reporting shows up on the others
             items(silentDevices(snap), key = { it.deviceId }) { d ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Text(
-                        "«${d.label}» no reporta ${hoursAgo(d.lastSeenMs, snap.nowMs)}. Si lo apagaste, no pasa nada; " +
-                            "si no, revisa que la app siga activa allí.",
+                        stringResource(R.string.device_silent, d.label, hoursAgo(ctx, d.lastSeenMs, snap.nowMs)),
                         Modifier.padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
             }
             item { StatusCard(st, snap.nowMs, pending.size, next?.title) }
             if (st.goals.isNotEmpty()) {
-                item { Text("Metas de hoy", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
+                item { Text(stringResource(R.string.today_goals), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
                 items(st.goals, key = { it.goalId }) { g ->
                     val def = snap.goals.firstOrNull { it.id == g.goalId }
                     GoalRow(g, if (!g.completed && canWork && def != null) actionLabel(g, def) else null) { def?.let(onStart) }
@@ -165,42 +171,41 @@ fun HomeScreen(
 private fun StatusCard(st: Status, now: Long, pending: Int, nextTitle: String?) {
     val state = st.state
     val title = when (state) {
-        is DayState.Locked -> if (pending == 1) "Bloqueado · falta 1 meta" else "Bloqueado · faltan $pending metas"
-        is DayState.Pass -> "Permiso activo · quedan ${minutesUntil(state.untilMs, now)} min"
-        is DayState.Emergency -> "Emergencia · quedan ${minutesUntil(state.untilMs, now)} min"
-        is DayState.Focus -> "Enfoque en marcha"
-        is DayState.Free -> if (st.freeDay) "Día libre" else "Libre"
-        is DayState.Sleep -> "Hora de dormir"
+        is DayState.Locked -> pluralStringResource(R.plurals.title_locked, pending, pending)
+        is DayState.Pass -> stringResource(R.string.title_pass, minutesUntil(state.untilMs, now))
+        is DayState.Emergency -> stringResource(R.string.title_emergency, minutesUntil(state.untilMs, now))
+        is DayState.Focus -> stringResource(R.string.title_focus)
+        is DayState.Free -> stringResource(if (st.freeDay) R.string.title_free_day else R.string.title_free)
+        is DayState.Sleep -> stringResource(R.string.bedtime_title)
     }
     val sentence = when (state) {
-        is DayState.Locked -> nextTitle?.let { "Completa ${if (pending == 1) "la meta que falta" else "$pending metas"} para desbloquear. Sigue con «$it»." } ?: ""
-        is DayState.Pass -> "Cuando termine, vuelve el bloqueo."
-        is DayState.Emergency -> "Todo está disponible. Queda registrado."
-        is DayState.Focus -> "Solo están disponibles las apps de tu tarea."
-        is DayState.Free -> if (st.freeDay) "Hoy no hay metas ni bloqueo en ningún dispositivo."
-        else st.sleepAtMs?.let { "Libre hasta las ${hhmm(it)}." } ?: "Libre hasta mañana."
-        is DayState.Sleep -> "Las llamadas siguen funcionando."
+        is DayState.Locked -> nextTitle?.let { pluralStringResource(R.plurals.sentence_locked, pending, pending, it) } ?: ""
+        is DayState.Pass -> stringResource(R.string.sentence_pass)
+        is DayState.Emergency -> stringResource(R.string.sentence_emergency)
+        is DayState.Focus -> stringResource(R.string.focus_only_task_apps)
+        is DayState.Free -> if (st.freeDay) stringResource(R.string.sentence_free_day)
+        else st.sleepAtMs?.let { stringResource(R.string.sentence_free_until, hhmm(it)) } ?: stringResource(R.string.sentence_free_tomorrow)
+        is DayState.Sleep -> stringResource(R.string.calls_keep_working)
     }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
             if (sentence.isNotEmpty()) Text(sentence, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val chips = buildList {
-                st.sleepAtMs?.let { add("Dormir a las ${hhmm(it)}") }
-                if (!st.freeDay) add("${st.permitsLeft} ${if (st.permitsLeft.toInt() == 1) "permiso" else "permisos"}")
-            }
+            val sleepChip = st.sleepAtMs?.let { stringResource(R.string.sleep_at, hhmm(it)) }
+            val passChip = if (st.freeDay) null else pluralStringResource(R.plurals.passes, st.permitsLeft.toInt(), st.permitsLeft.toInt())
+            val chips = listOfNotNull(sleepChip, passChip)
             if (chips.isNotEmpty()) Text(chips.joinToString(" · "), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
 
-// ───────────────────────── Plan del día ─────────────────────────
+// ───────────────────────── Day plan ─────────────────────────
 
 private data class PlanRow(val goal: Goal, val locked: Boolean)
 
 /**
- * Se abre solo al primer desbloqueo tras la hora de dormir. Las metas fijas ya vienen incluidas
- * (se pueden subir, no quitar). Tras confirmar, el plan solo se puede endurecer hasta mañana.
+ * Opens by itself at the first unlock after bedtime. The fixed goals are already included
+ * (they can be raised, not removed). Once confirmed, the plan can only be tightened until tomorrow.
  */
 @Composable
 fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: () -> Unit) {
@@ -225,10 +230,9 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(todayText(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(if (adding) "Añadir metas a hoy" else "Buenos días", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(if (adding) R.string.plan_title_adding else R.string.plan_title_morning), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
-            if (adding) "Puedes añadir metas o subir objetivos. Lo que ya está no se puede quitar hasta mañana."
-            else "Define tus metas de hoy. Al confirmarlas quedan fijas hasta mañana: después solo podrás añadir o subirlas.",
+            stringResource(if (adding) R.string.plan_lead_adding else R.string.plan_lead_morning),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         rows.forEachIndexed { i, r ->
@@ -239,7 +243,8 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             KindChip(r.goal.kind)
                             Text(
-                                if (r.goal.targetMinutes > 0u) duration(r.goal.targetMinutes.toInt()) else "${r.goal.targetCount} veces",
+                                if (r.goal.targetMinutes > 0u) duration(r.goal.targetMinutes.toInt())
+                                else pluralStringResource(R.plurals.times, r.goal.targetCount.toInt(), r.goal.targetCount.toInt()),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -247,34 +252,34 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
                     if (r.goal.targetMinutes > 0u) {
                         TextButton(onClick = {
                             rows[i] = r.copy(goal = r.goal.copy(targetMinutes = (r.goal.targetMinutes.toInt() + 5).coerceAtMost(600).toUShort()))
-                        }) { Text("+5 min") }
+                        }) { Text(stringResource(R.string.plus_5_min)) }
                     }
-                    if (!r.locked) TextButton(onClick = { rows.removeAt(i) }) { Text("Quitar") }
+                    if (!r.locked) TextButton(onClick = { rows.removeAt(i) }) { Text(stringResource(R.string.remove)) }
                 }
             }
         }
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Añadir una meta", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(title, { title = it.take(80) }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.plan_add_title), style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(title, { title = it.take(80) }, label = { Text(stringResource(R.string.name)) }, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = key, onClick = { key = true }, label = { Text("Desbloquea") })
-                    FilterChip(selected = !key, onClick = { key = false }, label = { Text("Hábito") })
+                    FilterChip(selected = key, onClick = { key = true }, label = { Text(stringResource(R.string.kind_key)) })
+                    FilterChip(selected = !key, onClick = { key = false }, label = { Text(stringResource(R.string.kind_habit)) })
                     if (check.usesMinutes) {
                         OutlinedTextField(
                             minutes, { minutes = it.filter(Char::isDigit).take(3) },
-                            label = { Text("Minutos") },
+                            label = { Text(stringResource(R.string.minutes)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.width(120.dp),
                         )
                     }
                 }
-                Text("Cómo se comprueba", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.how_checked), style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Check.entries.forEach { c -> FilterChip(selected = check == c, onClick = { check = c }, label = { Text(c.label) }) }
+                    Check.entries.forEach { c -> FilterChip(selected = check == c, onClick = { check = c }, label = { Text(stringResource(c.label)) }) }
                 }
-                SecondaryButton("Añadir", enabled = title.isNotBlank()) {
+                SecondaryButton(stringResource(R.string.add), enabled = title.isNotBlank()) {
                     val m = if (check.usesMinutes) (minutes.toIntOrNull() ?: 0).coerceIn(0, 600) else 0
                     rows += PlanRow(
                         Goal(
@@ -287,7 +292,7 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
                     title = ""
                 }
                 Text(
-                    "Toda meta se puede marcar como hecha con una espera de 60 s. La cámara nunca graba: solo cuenta si se cumplió.",
+                    stringResource(R.string.plan_note),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -295,22 +300,22 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
 
         ErrorText(error)
         val hasKey = rows.any { it.goal.kind == GoalKind.KEY }
-        if (!hasKey) Text("Necesitas al menos una meta que desbloquee.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        PrimaryButton(if (adding) "Guardar cambios" else "Empezar el día", enabled = hasKey) {
+        if (!hasKey) Text(stringResource(R.string.plan_need_key), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PrimaryButton(stringResource(if (adding) R.string.save_changes else R.string.start_the_day), enabled = hasKey) {
             scope.launch {
                 error = coreAction(ctx) { it.planDay(dev.procastinacioff.app.core.CoreHolder.clock(), rows.map { r -> r.goal }) }
                 if (error == null) onDone()
             }
         }
-        if (adding) TextButton(onClick = onCancel) { Text("Cancelar") }
+        if (adding) TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
     }
 }
 
-// ───────────────────────── Foco (08) ─────────────────────────
+// ───────────────────────── Focus (08) ─────────────────────────
 
 /**
- * La siguiente acción, enorme. Meta con tiempo → sesión de ENFOQUE (el núcleo mide los minutos).
- * Meta sin tiempo → declaración con fricción: escribir qué hiciste + 60 s (el texto no se guarda).
+ * The next action, huge. Timed goal → FOCUS session (the core measures the minutes).
+ * Untimed goal → declaration with friction: write what you did + 60 s (the text is not saved).
  */
 @Composable
 fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
@@ -331,7 +336,7 @@ fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
     val done = minOf(progress?.focusMinutes?.toInt() ?: 0, target)
     val remaining = maxOf(0, target - done)
 
-    // Cámara: solo en el APK verificador (sin Internet). Aquí solo llegan los 5 campos del resultado.
+    // Camera: only in the verifier APK (no Internet). Only the result's 5 fields arrive here.
     val cameraMethod = def?.methods?.firstOrNull { it in CAMERA_METHODS }
     val verifier = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         scope.launch {
@@ -341,7 +346,7 @@ fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
     }
 
     if (!focusing) LaunchedEffect(goalId) { while (left > 0) { delay(1_000); left-- } }
-    // Si la meta ya está hecha o la sesión terminó en otro dispositivo, volver al día
+    // If the goal is already done or the session ended on another device, go back to the day
     LaunchedEffect(progress?.completed, st.state) {
         if (progress?.completed == true || (def?.methods?.contains(Method.FOCUS_SESSION) == true && !focusing && st.state !is DayState.Locked)) onBack()
     }
@@ -351,44 +356,48 @@ fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("Ver todo el día") }
-            if (keys.isNotEmpty()) Text("Paso $step de ${keys.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onBack) { Text(stringResource(R.string.see_whole_day)) }
+            if (keys.isNotEmpty()) Text(stringResource(R.string.step_of, step, keys.size), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = MaterialTheme.shapes.large,
         ) {
             Column(Modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Ahora", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                Text(progress?.title ?: "Tu meta", fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.now), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                Text(progress?.title ?: stringResource(R.string.your_goal), fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold)
                 if (focusing) {
-                    Text("Siéntate, abre lo que necesitas y sigue. Solo están disponibles las apps de esta tarea.", fontSize = 18.sp)
+                    Text(stringResource(R.string.focus_instruction), fontSize = 18.sp)
+                    val remainingLabel = pluralStringResource(R.plurals.minutes_left, remaining, remaining)
                     Text(
-                        "$remaining min",
+                        duration(remaining),
                         fontSize = 72.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.semantics {
-                            contentDescription = "Quedan $remaining minutos"
+                            contentDescription = remainingLabel
                             if (remaining % 5 == 0 || remaining <= 1) liveRegion = LiveRegionMode.Polite
                         },
                     )
-                    ProgressBar(done, target, "Progreso", thick = true)
-                    Text("$done de $target min", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PrimaryButton(if (remaining == 0) "Terminar: meta cumplida" else "Terminar sesión por ahora", big = true) {
+                    ProgressBar(done, target, stringResource(R.string.progress), thick = true)
+                    Text(stringResource(R.string.progress_minutes, done, target), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PrimaryButton(stringResource(if (remaining == 0) R.string.finish_done else R.string.finish_for_now), big = true) {
                         scope.launch {
                             error = coreAction(ctx) { it.endFocus(dev.procastinacioff.app.core.CoreHolder.clock()) }
                             if (error == null) onBack()
                         }
                     }
                 } else {
-                    Text("Escribe en una frase lo que hiciste. Después de 60 s podrás marcarla como hecha.", fontSize = 18.sp)
+                    Text(stringResource(R.string.declare_instruction), fontSize = 18.sp)
                     OutlinedTextField(
                         note, { note = it.take(300) },
-                        label = { Text("Lo que hiciste") },
-                        supportingText = { Text("No se guarda ni se envía: solo cuenta como «autodeclarada».") },
+                        label = { Text(stringResource(R.string.what_you_did)) },
+                        supportingText = { Text(stringResource(R.string.declare_note)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    PrimaryButton(if (left > 0) "Espera $left s" else "Marcar como hecha", enabled = left == 0 && note.trim().length >= 10, big = true) {
+                    PrimaryButton(
+                        if (left > 0) stringResource(R.string.wait_seconds, left) else stringResource(R.string.mark_done),
+                        enabled = left == 0 && note.trim().length >= 10, big = true,
+                    ) {
                         scope.launch {
                             error = coreAction(ctx) {
                                 it.completeGoal(
@@ -402,21 +411,23 @@ fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
                 }
                 if (cameraMethod != null) {
                     SecondaryButton(
-                        when (cameraMethod) {
-                            Method.POSE_REPS -> "Contar repeticiones con la cámara"
-                            Method.FOOD_PHOTO -> "Foto del plato en vivo"
-                            Method.PAGE_OCR, Method.SUMMARY -> "Fotografiar las páginas y resumir"
-                            else -> "Comprobar la lectura con la cámara"
-                        },
+                        stringResource(
+                            when (cameraMethod) {
+                                Method.POSE_REPS -> R.string.camera_count_reps
+                                Method.FOOD_PHOTO -> R.string.camera_food
+                                Method.PAGE_OCR, Method.SUMMARY -> R.string.camera_pages
+                                else -> R.string.camera_reading
+                            },
+                        ),
                     ) {
                         if (!verifierIsGenuine(ctx)) {
-                            error = "Instala el verificador de ProcastinaciOFF (no tiene acceso a Internet) para usar la cámara."
+                            error = ctx.getString(R.string.install_verifier)
                         } else {
                             verifierIntent(goalId, cameraMethod, def?.targetMinutes?.toInt() ?: 0)?.let { verifier.launch(it) }
                         }
                     }
                     Text(
-                        "La cámara solo se usa en el verificador, que no tiene Internet. Nada se graba.",
+                        stringResource(R.string.camera_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -424,13 +435,13 @@ fun FocusScreen(goalId: String, snap: Snapshot, onBack: () -> Unit) {
                 ErrorText(error)
             }
         }
-        after?.let { Text("Después: ${it.title}", fontWeight = FontWeight.SemiBold) }
-        habit?.let { Text("Sin prisa: ${it.title} (hábito)", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        after?.let { Text(stringResource(R.string.next_goal, it.title), fontWeight = FontWeight.SemiBold) }
+        habit?.let { Text(stringResource(R.string.no_rush_habit, it.title), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (focusing) {
             FilledTonalButton(
                 onClick = { scope.launch { error = coreAction(ctx) { it.startPass(dev.procastinacioff.app.core.CoreHolder.clock()) } } },
                 enabled = st.permitsLeft > 0u,
-            ) { Text("Permiso (${st.permitsLeft})") }
+            ) { Text(stringResource(R.string.pass_count, st.permitsLeft.toInt())) }
             EmergencySection {
                 scope.launch { error = coreAction(ctx) { it.emergency(dev.procastinacioff.app.core.CoreHolder.clock()) } }
             }

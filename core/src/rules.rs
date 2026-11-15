@@ -2,22 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Reglas del día. `estado = f(configuración, eventos, ahora)`: función pura, sin reloj,
-//! disco ni red. Prioridad: EMERGENCIA > DORMIR > PERMISO > LIBRE > ENFOQUE > BLOQUEADO.
+//! Day rules. `state = f(configuration, events, now)`: a pure function, without clock,
+//! disk or network. Priority: EMERGENCY > SLEEP > PASS > FREE > FOCUS > LOCKED.
 
 use crate::clock::{Clock, DAY_MS, MINUTE_MS, day_start_ms, in_sleep, weekday_index};
 use crate::model::{ALL_DAYS, Config, DayState, EventKind, Fact, Goal, GoalKind, GoalProgress, Method, Status};
 use crate::strictness::{effective_from, goal_kept_or_harder, is_stricter_or_equal};
 
-/// Límites del plan del día (cada plan viaja en un evento de 64 KB como máximo).
+/// Limits of the day plan (each plan travels in an event of at most 64 KB).
 pub const MAX_PLAN_GOALS: usize = 20;
 pub const MAX_TITLE_CHARS: usize = 80;
 pub const MAX_ID_CHARS: usize = 32;
 
-/// Historial de configuraciones: cada una con el instante desde el que rige.
+/// Configuration history: each one with the instant it takes effect.
 #[derive(Debug, Clone, Default)]
 pub struct ConfigHistory {
-    entries: Vec<(i64, Config)>, // ordenado por instante
+    entries: Vec<(i64, Config)>, // sorted by instant
 }
 
 impl ConfigHistory {
@@ -26,23 +26,23 @@ impl ConfigHistory {
         self.entries.sort_by_key(|(t, _)| *t);
     }
 
-    /// Configuración vigente en `ms` (la última cuyo inicio sea <= ms).
+    /// Configuration in force at `ms` (the last one starting <= ms).
     pub fn active_at(&self, ms: i64) -> Option<&Config> {
         self.entries.iter().rev().find(|(t, _)| *t <= ms).map(|(_, c)| c)
     }
 
-    /// Configuraciones que rigen en algún momento desde `ms`: la vigente y las ya programadas.
+    /// Configurations in force at some point from `ms`: the current one and those already scheduled.
     fn in_force_from(&self, ms: i64) -> impl Iterator<Item = &Config> {
         let first = self.entries.iter().rposition(|(t, _)| *t <= ms).unwrap_or(0);
         self.entries[first..].iter().map(|(_, c)| c)
     }
 
-    /// 🔒 Reconstruye el historial SIN fiarse de cuándo dice el autor que rige cada cambio
-    /// (un cliente modificado podría declarar "rige ya" al relajar). Función de los hechos en su
-    /// orden canónico: todos los dispositivos llegan al mismo resultado.
-    /// - Tutor (perfil familiar): rige cuando declare (relajar es inmediato), nunca antes de firmarlo.
-    /// - Menor (perfil familiar): solo cuenta si endurece TODO lo vigente o programado; si no, se ignora.
-    /// - Perfil personal: relajar rige, como pronto, desde el próximo despertar (anti-impulso).
+    /// SECURITY: Rebuilds the history WITHOUT trusting when the author says each change takes effect
+    /// (a modified client could declare "effective now" when relaxing). A function of the facts in
+    /// their canonical order: every device reaches the same result.
+    /// - Guardian (family profile): effective when they declare (relaxing is immediate), never before signing.
+    /// - Minor (family profile): only counts if it tightens EVERYTHING in force or scheduled; otherwise ignored.
+    /// - Personal profile: relaxing takes effect at the next wake-up at the earliest (anti-impulse).
     pub fn from_facts_checked(facts: &[Fact], family: bool, utc_offset_min: i32) -> Self {
         let mut h = Self::default();
         for f in facts {
@@ -63,7 +63,7 @@ impl ConfigHistory {
         h
     }
 
-    /// (Perfil familiar) ¿Puede un menor proponer `config` ahora? Solo si endurece todo lo vigente.
+    /// (Family profile) May a minor propose `config` now? Only if it tightens everything in force.
     pub fn minor_may_set(&self, config: &Config, now_ms: i64) -> bool {
         self.in_force_from(now_ms).all(|c| is_stricter_or_equal(config, c))
     }
@@ -71,47 +71,73 @@ impl ConfigHistory {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, uniffi::Error)]
 pub enum Denied {
-    #[error("no hay configuración")]
+    #[error("no configuration")]
     NotConfigured,
-    #[error("no disponible en el estado actual")]
+    #[error("not available in the current state")]
     WrongState,
-    #[error("no quedan permisos hoy")]
+    #[error("no passes left today")]
     NoPermitsLeft,
-    #[error("espera {minutes} min antes del siguiente permiso")]
+    #[error("wait {minutes} min before the next pass")]
     Cooldown { minutes: u16 },
-    #[error("meta desconocida o inactiva hoy")]
+    #[error("unknown goal or not active today")]
     UnknownGoal,
-    #[error("método no aceptado para esta meta")]
+    #[error("method not accepted for this goal")]
     MethodNotAllowed,
-    #[error("la meta ya está cumplida")]
+    #[error("goal already completed")]
     AlreadyCompleted,
-    #[error("el plan tiene metas mal formadas")]
+    #[error("the plan has malformed goals")]
     InvalidPlan,
-    #[error("el plan de hoy solo se puede endurecer")]
+    #[error("today's plan can only be made stricter")]
     PlanLaxer,
-    #[error("el plan necesita al menos una meta que desbloquee")]
+    #[error("the plan needs at least one unlocking goal")]
     NoKeyGoal,
-    #[error("solo tu tutor puede relajar las reglas; puedes pedírselo")]
+    #[error("only your guardian can relax the rules; you can ask them")]
     GuardianOnly,
+    #[error("invalid domain")]
+    InvalidDomain,
+    #[error("too many requests awaiting an answer")]
+    TooManyRequests,
 }
 
-/// ¿Es día libre el día que empieza en `day_start`?
+impl Denied {
+    /// Stable code that every UI translates (`denied.<code>` in the locale files).
+    /// Never rename a code: translations depend on it.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotConfigured => "not_configured",
+            Self::WrongState => "wrong_state",
+            Self::NoPermitsLeft => "no_permits_left",
+            Self::Cooldown { .. } => "cooldown",
+            Self::UnknownGoal => "unknown_goal",
+            Self::MethodNotAllowed => "method_not_allowed",
+            Self::AlreadyCompleted => "already_completed",
+            Self::InvalidPlan => "invalid_plan",
+            Self::PlanLaxer => "plan_laxer",
+            Self::NoKeyGoal => "no_key_goal",
+            Self::GuardianOnly => "guardian_only",
+            Self::InvalidDomain => "invalid_domain",
+            Self::TooManyRequests => "too_many_requests",
+        }
+    }
+}
+
+/// Is the day starting at `day_start` a free day?
 fn is_free_day(cfg: &Config, day_start: i64, offset: i32) -> bool {
     cfg.free_days & (1u8 << weekday_index(day_start, offset)) != 0
 }
 
-/// La noche que termina en el próximo despertar es libre si mañana es día libre.
+/// The night ending at the next wake-up is free if tomorrow is a free day.
 fn night_is_free(cfg: &Config, day_start: i64, offset: i32) -> bool {
     is_free_day(cfg, day_start + DAY_MS, offset)
 }
 
-/// Eventos con instante en [from, to).
+/// Events with an instant in [from, to).
 fn window(facts: &[Fact], from: i64, to: i64) -> impl Iterator<Item = &Fact> {
     facts.iter().filter(move |f| f.at_ms >= from && f.at_ms < to)
 }
 
-/// Plan del día: el primero registrado; los siguientes solo cuentan si lo endurecen
-/// (así dos dispositivos sin conexión, o uno manipulado, no pueden aflojarlo).
+/// Day plan: the first one recorded; later ones only count if they tighten it
+/// (so two offline devices, or a tampered one, cannot loosen it).
 fn day_plan(facts: &[Fact], day_start: i64, now: i64) -> Option<Vec<Goal>> {
     let mut plan: Option<Vec<Goal>> = None;
     for f in window(facts, day_start, now + 1) {
@@ -125,8 +151,8 @@ fn day_plan(facts: &[Fact], day_start: i64, now: i64) -> Option<Vec<Goal>> {
     plan
 }
 
-/// Metas de hoy: las fijas de la configuración para este día de la semana (endurecidas por
-/// el plan si este lo hace) más las que el plan añade. Día libre → ninguna.
+/// Today's goals: the configuration's fixed ones for this weekday (tightened by
+/// the plan if it does so) plus those the plan adds. Free day → none.
 fn day_goals(cfg: &Config, plan: Option<&[Goal]>, day_start: i64, offset: i32) -> Vec<Goal> {
     if is_free_day(cfg, day_start, offset) {
         return vec![];
@@ -145,8 +171,8 @@ fn day_goals(cfg: &Config, plan: Option<&[Goal]>, day_start: i64, offset: i32) -
     out
 }
 
-/// Minutos de ENFOQUE acumulados en una meta dentro de la ventana (pares inicio/fin;
-/// si hay un inicio abierto cuenta hasta `now`).
+/// FOCUS minutes accumulated on a goal within the window (start/end pairs;
+/// an open start counts until `now`).
 fn focus_minutes(facts: &[Fact], goal_id: &str, from: i64, now: i64) -> u16 {
     let mut total_ms = 0i64;
     let mut open: Option<i64> = None;
@@ -190,14 +216,14 @@ fn progress(goals: &[Goal], facts: &[Fact], day_start: i64, now: i64) -> Vec<Goa
         .collect()
 }
 
-/// Permisos que se pierden hoy por lo ocurrido ayer.
+/// Passes lost today because of what happened yesterday.
 fn penalty(cfg: &Config, facts: &[Fact], day_start: i64, offset: i32) -> u8 {
     let prev_start = day_start - DAY_MS;
     let emergencies =
         window(facts, prev_start, day_start).filter(|f| matches!(f.kind, EventKind::EmergencyStarted)).count() as u32;
     let mut total = emergencies * cfg.emergency_penalty as u32;
     if cfg.habit_penalty && !rest_day(facts, prev_start, day_start - 1) {
-        // ponytail: usa la configuración de hoy para juzgar los hábitos de ayer.
+        // ponytail: uses today's configuration to judge yesterday's habits.
         let goals = day_goals(cfg, day_plan(facts, prev_start, day_start - 1).as_deref(), prev_start, offset);
         let failed = progress(&goals, facts, prev_start, day_start - 1)
             .iter()
@@ -208,12 +234,12 @@ fn penalty(cfg: &Config, facts: &[Fact], day_start: i64, offset: i32) -> u8 {
     total.min(u8::MAX as u32) as u8
 }
 
-/// El tutor concedió hoy un día de descanso.
+/// The guardian granted a rest day today.
 fn rest_day(facts: &[Fact], day_start: i64, now: i64) -> bool {
     window(facts, day_start, now + 1).any(|f| matches!(f.kind, EventKind::RestDayGranted))
 }
 
-/// Permisos extra concedidos por un tutor en [from, to), con su duración.
+/// Extra passes granted by a guardian in [from, to), with their duration.
 fn grants(facts: &[Fact], from: i64, to: i64) -> impl Iterator<Item = u16> + '_ {
     window(facts, from, to).filter_map(|f| match f.kind {
         EventKind::GrantPermit { minutes } => Some(minutes),
@@ -221,14 +247,14 @@ fn grants(facts: &[Fact], from: i64, to: i64) -> impl Iterator<Item = u16> + '_ 
     })
 }
 
-/// Permisos del día que empieza en `start` (sin la bolsa semanal): diarios − penalización + concedidos.
+/// Passes of the day starting at `start` (without the weekly pool): daily − penalty + granted.
 fn allowance(cfg: &Config, facts: &[Fact], start: i64, end: i64, offset: i32) -> u32 {
     cfg.permits_per_day.saturating_sub(penalty(cfg, facts, start, offset)) as u32
         + grants(facts, start, end).count() as u32
 }
 
-/// Permisos que quedan en la bolsa semanal: se gasta con lo usado por encima de lo de cada día
-/// en los últimos 7 días (ventana móvil, contando hoy).
+/// Passes left in the weekly pool: spent by whatever was used above each day's allowance
+/// over the last 7 days (rolling window, including today).
 fn bonus_left(cfg: &Config, facts: &[Fact], day_start: i64, now: i64, offset: i32) -> u32 {
     if cfg.weekly_bonus_permits == 0 {
         return 0;
@@ -251,7 +277,7 @@ fn passes_today(facts: &[Fact], day_start: i64, now: i64) -> impl Iterator<Item 
     })
 }
 
-/// Próximo inicio de DORMIR que se aplicará.
+/// Next start of SLEEP that will apply.
 fn sleep_at(cfg: &Config, day_start: i64, offset: i32) -> Option<i64> {
     let (b, w) = (cfg.schedule.bedtime.minutes as i64, cfg.schedule.wake.minutes as i64);
     if b == w || night_is_free(cfg, day_start, offset) {
@@ -260,20 +286,20 @@ fn sleep_at(cfg: &Config, day_start: i64, offset: i32) -> Option<i64> {
     Some(day_start + (b - w).rem_euclid(24 * 60) * MINUTE_MS)
 }
 
-/// Metas de hoy con su definición completa (para prellenar el plan del día en la UI).
+/// Today's goals with their full definition (to prefill the day plan in the UI).
 pub fn today_goals(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Vec<Goal> {
     let Some(cfg) = history.active_at(clock.now_ms) else { return vec![] };
     let day_start = day_start_ms(&cfg.schedule, clock);
     day_goals(cfg, day_plan(facts, day_start, clock.now_ms).as_deref(), day_start, clock.utc_offset_min)
 }
 
-/// Estado completo del día. Función pura: misma entrada → misma salida.
+/// Full state of the day. Pure function: same input → same output.
 pub fn status(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Option<Status> {
     let now = clock.now_ms;
     let offset = clock.utc_offset_min;
     let cfg = history.active_at(now)?;
     let day_start = day_start_ms(&cfg.schedule, clock);
-    // Día libre de la configuración o día de descanso concedido hoy por un tutor
+    // Free day from the configuration or rest day granted today by a guardian
     let free_day = is_free_day(cfg, day_start, offset) || rest_day(facts, day_start, now);
     let plan = day_plan(facts, day_start, now);
     let needs_plan = !free_day && plan.is_none();
@@ -308,7 +334,7 @@ fn compute_state(
 ) -> DayState {
     let now = clock.now_ms;
 
-    // 1. EMERGENCIA: la última emergencia sigue vigente (puede venir de antes de dormir).
+    // 1. EMERGENCY: the last emergency is still running (it may come from before bedtime).
     let emergency_ms = cfg.emergency_minutes as i64 * MINUTE_MS;
     if let Some(f) = facts.iter().rev().find(|f| f.at_ms <= now && matches!(f.kind, EventKind::EmergencyStarted)) {
         let until = f.at_ms + emergency_ms;
@@ -317,12 +343,12 @@ fn compute_state(
         }
     }
 
-    // 2. DORMIR, salvo la noche previa a un día libre
+    // 2. SLEEP, except the night before a free day
     if in_sleep(&cfg.schedule, clock.minute_of_day()) && !night_is_free(cfg, day_start, clock.utc_offset_min) {
         return DayState::Sleep;
     }
 
-    // 3. PERMISO activo
+    // 3. Active PASS
     if let Some((at, minutes)) = passes_today(facts, day_start, now).last() {
         let until = at + minutes as i64 * MINUTE_MS;
         if until > now {
@@ -330,12 +356,12 @@ fn compute_state(
         }
     }
 
-    // 4. LIBRE: día libre, o plan definido y todas sus metas llave cumplidas
+    // 4. FREE: free day, or plan set and all its key goals completed
     if free_day || (!needs_plan && goals.iter().filter(|g| g.kind == GoalKind::Key).all(|g| g.completed)) {
         return DayState::Free;
     }
 
-    // 5. ENFOQUE: hay una sesión abierta (el último evento de foco de hoy es un inicio)
+    // 5. FOCUS: there is an open session (today's last focus event is a start)
     let last_focus = window(facts, day_start, now + 1)
         .filter(|f| matches!(f.kind, EventKind::FocusStarted { .. } | EventKind::FocusEnded { .. }))
         .last();
@@ -343,13 +369,13 @@ fn compute_state(
         return DayState::Focus { goal_id: goal_id.clone() };
     }
 
-    // 6. BLOQUEADO
+    // 6. LOCKED
     DayState::Locked
 }
 
-// ───────────────────────── Comandos ─────────────────────────
-// Validan una acción del usuario y devuelven el evento a registrar.
-// No guardan nada: el que llama (api.rs) firma y persiste.
+// ───────────────────────── Commands ─────────────────────────
+// They validate a user action and return the event to record.
+// They store nothing: the caller (api.rs) signs and persists.
 
 pub fn cmd_start_pass(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Result<EventKind, Denied> {
     let st = status(history, facts, clock).ok_or(Denied::NotConfigured)?;
@@ -367,7 +393,7 @@ pub fn cmd_start_pass(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> 
             return Err(Denied::Cooldown { minutes: wait });
         }
     }
-    // Se gastan primero los diarios, luego los concedidos por el tutor (con su duración) y al final la bolsa.
+    // Daily passes are spent first, then those granted by the guardian (with their duration) and finally the pool.
     let used = passes_today(facts, st.day_start_ms, clock.now_ms).count();
     let daily = cfg.permits_per_day.saturating_sub(penalty(cfg, facts, st.day_start_ms, clock.utc_offset_min)) as usize;
     let minutes = used
@@ -398,7 +424,7 @@ pub fn cmd_start_focus(
     Ok(EventKind::FocusStarted { goal_id: goal_id.to_owned() })
 }
 
-/// Cierra la sesión de ENFOQUE. Si se alcanzaron los minutos, también registra la meta cumplida.
+/// Closes the FOCUS session. If the minutes were reached, it also records the completed goal.
 pub fn cmd_end_focus(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Result<Vec<EventKind>, Denied> {
     let st = status(history, facts, clock).ok_or(Denied::NotConfigured)?;
     let DayState::Focus { goal_id } = st.state else { return Err(Denied::WrongState) };
@@ -423,7 +449,7 @@ pub fn cmd_complete_goal(
 ) -> Result<EventKind, Denied> {
     let goal = find_goal(history, facts, clock, goal_id)?;
     if !goal.methods.contains(&method) || method == Method::FocusSession {
-        // FocusSession solo se completa vía cmd_end_focus (el núcleo mide el tiempo).
+        // FocusSession is only completed via cmd_end_focus (the core measures the time).
         return Err(Denied::MethodNotAllowed);
     }
     let st = status(history, facts, clock).ok_or(Denied::NotConfigured)?;
@@ -452,8 +478,8 @@ fn valid_goal(g: &Goal) -> bool {
     id_ok && (1..=MAX_TITLE_CHARS).contains(&title_chars) && g.target_count >= 1 && !g.methods.is_empty()
 }
 
-/// Define (o endurece) las metas de hoy. Se pide al primer desbloqueo tras la hora de dormir.
-/// `goals` es la lista completa del día; las fijas de la configuración se mantienen aunque falten.
+/// Sets (or tightens) today's goals. Asked at the first unlock after bedtime.
+/// `goals` is the full list for the day; the configuration's fixed ones are kept even if missing.
 pub fn cmd_plan_day(
     history: &ConfigHistory,
     facts: &[Fact],
@@ -471,7 +497,7 @@ pub fn cmd_plan_day(
     }
     for g in &mut goals {
         g.title = g.title.trim().to_owned();
-        g.weekdays = ALL_DAYS; // en un plan diario no aplica; así "endurecer" nunca falla por la máscara
+        g.weekdays = ALL_DAYS; // not applicable to a daily plan; this way "tightening" never fails because of the mask
     }
     if let Some(current) = day_plan(facts, st.day_start_ms, clock.now_ms)
         && !current.iter().all(|g| goal_kept_or_harder(g, &goals))
@@ -491,13 +517,13 @@ mod tests {
     use crate::clock::local_at;
     use crate::model::{Config, Method};
 
-    /// 2026-03-09 (lunes) a la hora local indicada, con desfase 0.
+    /// 2026-03-09 (Monday) at the given local time, with offset 0.
     fn at(h: i64, m: i64) -> Clock {
         let monday_midnight = 1_773_014_400_000; // 2026-03-09 00:00 UTC
         Clock { now_ms: monday_midnight + (h * 60 + m) * MINUTE_MS, utc_offset_min: 0 }
     }
 
-    /// Lunes + `days` días a la hora indicada.
+    /// Monday + `days` days at the given time.
     fn on(days: i64, h: i64, m: i64) -> Clock {
         Clock { now_ms: at(h, m).now_ms + days * DAY_MS, utc_offset_min: 0 }
     }
@@ -512,7 +538,7 @@ mod tests {
         facts.push(Fact::new(clock.now_ms, kind));
     }
 
-    /// Acepta las metas fijas del día (lo que hace la UI al pulsar "Empezar el día").
+    /// Accepts the day's fixed goals (what the UI does on "Start the day").
     fn plan(h: &ConfigHistory, facts: &mut Vec<Fact>, clock: Clock) {
         let ev = cmd_plan_day(h, facts, clock, vec![]).unwrap();
         record(facts, clock, ev);
@@ -569,15 +595,15 @@ mod tests {
     fn focus_session_completes_goal_and_frees_the_day() {
         let (h, mut f) = setup();
         plan(&h, &mut f, at(7, 59));
-        let ev = cmd_start_focus(&h, &f, at(8, 0), "leer-30").unwrap();
+        let ev = cmd_start_focus(&h, &f, at(8, 0), "read-30").unwrap();
         record(&mut f, at(8, 0), ev);
-        assert_eq!(status(&h, &f, at(8, 10)).unwrap().state, DayState::Focus { goal_id: "leer-30".into() });
+        assert_eq!(status(&h, &f, at(8, 10)).unwrap().state, DayState::Focus { goal_id: "read-30".into() });
         for ev in cmd_end_focus(&h, &f, at(8, 31)).unwrap() {
             record(&mut f, at(8, 31), ev);
         }
-        // "comer-sano" es hábito: no impide pasar a LIBRE
+        // "eat-healthy" is a habit: it does not prevent reaching FREE
         assert_eq!(status(&h, &f, at(8, 32)).unwrap().state, DayState::Free);
-        // …pero al llegar la noche, se duerme igual
+        // …but when night comes, sleep happens anyway
         assert_eq!(status(&h, &f, at(22, 31)).unwrap().state, DayState::Sleep);
     }
 
@@ -588,13 +614,13 @@ mod tests {
             &mut f,
             at(8, 0),
             EventKind::GoalCompleted {
-                goal_id: "leer-30".into(),
+                goal_id: "read-30".into(),
                 method: Method::HonorDeclaration,
                 score: 100,
                 minutes: 30,
             },
         );
-        assert_eq!(status(&h, &f, at(8, 1)).unwrap().state, DayState::Locked, "falta definir el plan");
+        assert_eq!(status(&h, &f, at(8, 1)).unwrap().state, DayState::Locked, "the plan is still missing");
         plan(&h, &mut f, at(8, 2));
         assert_eq!(status(&h, &f, at(8, 3)).unwrap().state, DayState::Free);
     }
@@ -602,9 +628,9 @@ mod tests {
     #[test]
     fn short_focus_does_not_complete_goal() {
         let (h, mut f) = setup();
-        record(&mut f, at(8, 0), EventKind::FocusStarted { goal_id: "leer-30".into() });
+        record(&mut f, at(8, 0), EventKind::FocusStarted { goal_id: "read-30".into() });
         let evs = cmd_end_focus(&h, &f, at(8, 10)).unwrap();
-        assert_eq!(evs, vec![EventKind::FocusEnded { goal_id: "leer-30".into() }]);
+        assert_eq!(evs, vec![EventKind::FocusEnded { goal_id: "read-30".into() }]);
     }
 
     #[test]
@@ -613,7 +639,7 @@ mod tests {
         record(&mut f, at(23, 0), EventKind::EmergencyStarted);
         assert!(matches!(status(&h, &f, at(23, 10)).unwrap().state, DayState::Emergency { .. }));
         assert_eq!(status(&h, &f, at(23, 16)).unwrap().state, DayState::Sleep);
-        // Martes: 3 permisos − 1 (emergencia) − 1 (hábito "comer-sano" incumplido el lunes) = 1
+        // Tuesday: 3 passes − 1 (emergency) − 1 (habit "eat-healthy" missed on Monday) = 1
         assert_eq!(status(&h, &f, on(1, 9, 0)).unwrap().permits_left, 1);
     }
 
@@ -621,11 +647,12 @@ mod tests {
     fn honor_declaration_completes_habit_but_not_twice_beyond_target() {
         let (h, mut f) = setup();
         for minute in [0, 1] {
-            let ev = cmd_complete_goal(&h, &f, at(13, minute), "comer-sano", Method::HonorDeclaration, 100, 0).unwrap();
+            let ev =
+                cmd_complete_goal(&h, &f, at(13, minute), "eat-healthy", Method::HonorDeclaration, 100, 0).unwrap();
             record(&mut f, at(13, minute), ev);
         }
         assert_eq!(
-            cmd_complete_goal(&h, &f, at(20, 0), "comer-sano", Method::HonorDeclaration, 100, 0),
+            cmd_complete_goal(&h, &f, at(20, 0), "eat-healthy", Method::HonorDeclaration, 100, 0),
             Err(Denied::AlreadyCompleted)
         );
     }
@@ -636,7 +663,7 @@ mod tests {
         assert_eq!(cmd_start_pass(&h, &f, at(23, 30)), Err(Denied::WrongState));
     }
 
-    // ── Días libres (ejemplo: sábado y domingo) ──
+    // ── Free days (example: Saturday and Sunday) ──
 
     #[test]
     fn free_days_have_no_goals_nor_lock() {
@@ -652,14 +679,14 @@ mod tests {
     #[test]
     fn night_before_a_free_day_has_no_sleep_but_sunday_night_does() {
         let (h, f) = setup();
-        // Viernes 23:00: mañana es sábado (libre) → sin DORMIR. El viernes sigue pidiendo sus metas.
+        // Friday 23:00: tomorrow is Saturday (free) → no SLEEP. Friday still asks for its goals.
         let friday_night = status(&h, &f, on(4, 23, 0)).unwrap();
         assert_eq!(friday_night.state, DayState::Locked);
         assert_eq!(friday_night.sleep_at_ms, None);
-        // Sábado 23:30 y domingo 03:00: libres
+        // Saturday 23:30 and Sunday 03:00: free
         assert_eq!(status(&h, &f, on(5, 23, 30)).unwrap().state, DayState::Free);
         assert_eq!(status(&h, &f, on(6, 3, 0)).unwrap().state, DayState::Free);
-        // Domingo 23:00: mañana es lunes → DORMIR
+        // Sunday 23:00: tomorrow is Monday → SLEEP
         assert_eq!(status(&h, &f, on(6, 23, 0)).unwrap().state, DayState::Sleep);
         assert_eq!(status(&h, &f, on(6, 12, 0)).unwrap().sleep_at_ms, Some(on(6, 22, 30).now_ms));
     }
@@ -667,11 +694,11 @@ mod tests {
     #[test]
     fn free_day_does_not_judge_habits_for_monday_permits() {
         let (h, f) = setup();
-        // Lunes de la semana siguiente: el domingo fue libre → sin penalización por hábitos
+        // Monday of the following week: Sunday was free → no habit penalty
         assert_eq!(status(&h, &f, on(7, 9, 0)).unwrap().permits_left, 3);
     }
 
-    // ── Plan del día ──
+    // ── Day plan ──
 
     #[test]
     fn plan_keeps_fixed_goals_and_can_add_more() {
@@ -680,18 +707,18 @@ mod tests {
         let ev = cmd_plan_day(&h, &f, at(7, 0), vec![extra]).unwrap();
         record(&mut f, at(7, 0), ev);
         let ids: Vec<String> = status(&h, &f, at(7, 1)).unwrap().goals.into_iter().map(|g| g.goal_id).collect();
-        assert_eq!(ids, ["leer-30", "comer-sano", "estudiar"]);
+        assert_eq!(ids, ["read-30", "eat-healthy", "estudiar"]);
     }
 
     #[test]
     fn plan_cannot_weaken_a_fixed_goal() {
         let (h, mut f) = setup();
-        let mut lazy = goal("leer-30", GoalKind::Key, 5); // la fija pide 30 min
+        let mut lazy = goal("read-30", GoalKind::Key, 5); // the fixed one asks for 30 min
         lazy.methods = vec![Method::FocusSession];
         let ev = cmd_plan_day(&h, &f, at(7, 0), vec![lazy]).unwrap();
         record(&mut f, at(7, 0), ev);
-        let leer = status(&h, &f, at(7, 1)).unwrap().goals.into_iter().find(|g| g.goal_id == "leer-30").unwrap();
-        assert_eq!(leer.target_minutes, 30, "se mantiene la versión fija");
+        let read_goal = status(&h, &f, at(7, 1)).unwrap().goals.into_iter().find(|g| g.goal_id == "read-30").unwrap();
+        assert_eq!(read_goal.target_minutes, 30, "the fixed version is kept");
     }
 
     #[test]
@@ -708,7 +735,7 @@ mod tests {
     fn a_laxer_plan_from_another_device_is_ignored() {
         let (h, mut f) = setup();
         record(&mut f, at(7, 0), EventKind::DayPlanned { goals: vec![goal("estudiar", GoalKind::Key, 60)] });
-        record(&mut f, at(7, 5), EventKind::DayPlanned { goals: vec![] }); // otro dispositivo, sin conexión
+        record(&mut f, at(7, 5), EventKind::DayPlanned { goals: vec![] }); // another device, offline
         let ids: Vec<String> = status(&h, &f, at(7, 6)).unwrap().goals.into_iter().map(|g| g.goal_id).collect();
         assert!(ids.contains(&"estudiar".to_string()));
     }
@@ -732,7 +759,7 @@ mod tests {
     #[test]
     fn planned_goal_can_be_focused_and_frees_the_day() {
         let mut cfg = Config::example();
-        cfg.goals.clear(); // sin metas fijas: todo se define por la mañana
+        cfg.goals.clear(); // no fixed goals: everything is set in the morning
         let mut h = ConfigHistory::default();
         h.push(0, cfg);
         let mut f = vec![];
@@ -744,11 +771,11 @@ mod tests {
             record(&mut f, at(8, 20), ev);
         }
         assert_eq!(status(&h, &f, at(8, 21)).unwrap().state, DayState::Free);
-        // Al día siguiente el plan no se arrastra
+        // The next day the plan does not carry over
         assert!(status(&h, &f, on(1, 7, 0)).unwrap().needs_plan);
     }
 
-    // ── Modo familiar (Fase 3) ──
+    // ── Family mode ──
 
     #[test]
     fn guardian_grant_and_weekly_bonus_add_permits() {
@@ -758,7 +785,7 @@ mod tests {
         h.push(0, cfg);
         let mut f = vec![];
         record(&mut f, at(7, 0), EventKind::GrantPermit { minutes: 15 });
-        // 3 diarios + 1 concedido + 2 de la bolsa = 6
+        // 3 daily + 1 granted + 2 from the pool = 6
         assert_eq!(status(&h, &f, at(7, 1)).unwrap().permits_left, 6);
     }
 
@@ -768,7 +795,7 @@ mod tests {
         record(&mut f, at(7, 0), EventKind::GrantPermit { minutes: 15 });
         for hour in [8, 10, 12] {
             let ev = cmd_start_pass(&h, &f, at(hour, 0)).unwrap();
-            assert_eq!(ev, EventKind::PassStarted { minutes: 5 }, "primero los diarios");
+            assert_eq!(ev, EventKind::PassStarted { minutes: 5 }, "daily passes first");
             record(&mut f, at(hour, 0), ev);
         }
         assert_eq!(cmd_start_pass(&h, &f, at(14, 0)).unwrap(), EventKind::PassStarted { minutes: 15 });
@@ -783,7 +810,7 @@ mod tests {
         let mut h = ConfigHistory::default();
         h.push(0, cfg);
         let mut f = vec![];
-        // Lunes: 4 permisos (3 diarios + 1 de la bolsa)
+        // Monday: 4 passes (3 daily + 1 from the pool)
         for hour in [8, 10, 12, 14] {
             let ev = cmd_start_pass(&h, &f, at(hour, 0)).unwrap();
             record(&mut f, at(hour, 0), ev);
@@ -800,8 +827,8 @@ mod tests {
         let st = status(&h, &f, at(9, 1)).unwrap();
         assert_eq!(st.state, DayState::Free);
         assert!(st.free_day && !st.needs_plan);
-        assert_eq!(status(&h, &f, at(23, 0)).unwrap().state, DayState::Sleep, "hasta dormir");
-        // Martes: sin penalización por el hábito no cumplido el lunes
+        assert_eq!(status(&h, &f, at(23, 0)).unwrap().state, DayState::Sleep, "until bedtime");
+        // Tuesday: no penalty for the habit missed on Monday
         assert_eq!(status(&h, &f, on(1, 9, 0)).unwrap().permits_left, 3);
     }
 
@@ -828,15 +855,19 @@ mod tests {
         stricter.permits_per_day = 1;
 
         let h = ConfigHistory::from_facts_checked(&[base.clone(), change(at(9, 0), laxer.clone(), false)], true, 0);
-        assert_eq!(h.active_at(on(3, 9, 0).now_ms).unwrap().permits_per_day, 3, "el menor no puede relajar, ni mañana");
+        assert_eq!(
+            h.active_at(on(3, 9, 0).now_ms).unwrap().permits_per_day,
+            3,
+            "the minor cannot relax, not even tomorrow"
+        );
 
         let h = ConfigHistory::from_facts_checked(&[base.clone(), change(at(9, 0), stricter.clone(), false)], true, 0);
         assert_eq!(h.active_at(at(9, 0).now_ms).unwrap().permits_per_day, 1, "endurecer rige ya");
 
         let h = ConfigHistory::from_facts_checked(&[base.clone(), change(at(9, 0), laxer.clone(), true)], true, 0);
-        assert_eq!(h.active_at(at(9, 0).now_ms).unwrap().permits_per_day, 9, "el tutor relaja al momento");
+        assert_eq!(h.active_at(at(9, 0).now_ms).unwrap().permits_per_day, 9, "the guardian relaxes immediately");
 
-        // El tutor endurece y el menor intenta volver a lo de antes con un evento posterior
+        // The guardian tightens and the minor tries to go back with a later event
         let facts = [base, change(at(9, 0), stricter, true), change(at(10, 0), Config::example(), false)];
         let h = ConfigHistory::from_facts_checked(&facts, true, 0);
         assert_eq!(h.active_at(on(1, 9, 0).now_ms).unwrap().permits_per_day, 1);

@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Servidor IPC con verificación del cliente 🔒.
-//! - La ACL del pipe admite SYSTEM, Administradores y usuarios interactivos; rechaza clientes remotos.
-//! - Además, el proceso cliente debe ser nuestra UI firmada: otro programa del usuario no puede,
-//!   por ejemplo, disparar una emergencia.
+//! IPC server with client verification (security-critical).
+//! - The pipe ACL allows SYSTEM, Administrators and interactive users; rejects remote clients.
+//! - Also, the client process must be our signed UI: another user program cannot,
+//!   for example, trigger an emergency.
 
 use std::os::windows::io::AsRawHandle;
 use std::sync::{Arc, Mutex};
@@ -23,15 +23,15 @@ use windows::core::w;
 use crate::clock::now_clock;
 use crate::signer::SignerCache;
 
-/// Firmante de nuestros binarios (CN del certificado de firma de código de la empresa).
-pub const OUR_SIGNER: &str = "ProcastinaciOFF SAS"; // ← cambiar por el CN real del certificado (Fase 0, trámites)
+/// Signer of our binaries (CN of the organization's code-signing certificate).
+pub const OUR_SIGNER: &str = "ProcastinaciOFF SAS"; // ← replace with the real certificate CN
 pub const UI_EXE: &str = "procastinacioff-app.exe";
 
 pub type Shared = Arc<Mutex<AgentStatus>>;
 
 fn create_pipe(first: bool) -> std::io::Result<NamedPipeServer> {
     unsafe {
-        // SY = SYSTEM, BA = Administradores, IU = usuarios interactivos (lectura/escritura)
+        // SY = SYSTEM, BA = Administrators, IU = interactive users (read/write)
         let mut sd = PSECURITY_DESCRIPTOR::default();
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
             w!("D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)"),
@@ -54,7 +54,7 @@ fn create_pipe(first: bool) -> std::io::Result<NamedPipeServer> {
     }
 }
 
-/// ¿El cliente es nuestra UI firmada, instalada junto al servicio?
+/// Is the client our signed UI, installed next to the service?
 fn client_is_trusted(pipe: &NamedPipeServer, cache: &Mutex<SignerCache>, install_dir: &std::path::Path) -> bool {
     let mut pid = 0u32;
     if unsafe { GetNamedPipeClientProcessId(HANDLE(pipe.as_raw_handle()), &mut pid) }.is_err() {
@@ -64,7 +64,7 @@ fn client_is_trusted(pipe: &NamedPipeServer, cache: &Mutex<SignerCache>, install
     let expected = install_dir.join(UI_EXE);
     let path_ok = path.to_string_lossy().eq_ignore_ascii_case(&expected.to_string_lossy());
     let signer_ok = cache.lock().unwrap_or_else(|p| p.into_inner()).get(&path).as_deref() == Some(OUR_SIGNER);
-    // En builds de desarrollo (sin firmar, desde target\) se permite con PCO_DEV=1. Nunca en release.
+    // In development builds (unsigned, from target\) it is allowed with PCO_DEV=1. Never in release.
     let dev = cfg!(debug_assertions)
         && std::env::var("PCO_DEV").is_ok()
         && path.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(UI_EXE));
@@ -77,15 +77,15 @@ pub async fn serve(core: Arc<Core>, shared: Shared, install_dir: std::path::Path
     loop {
         server.connect().await?;
         let connected = server;
-        server = create_pipe(false)?; // siguiente instancia para el próximo cliente
+        server = create_pipe(false)?; // next instance for the next client
         if !client_is_trusted(&connected, &cache, &install_dir) {
             tracing::warn!("cliente IPC no confiable rechazado");
-            continue; // al soltar `connected` se cierra la conexión
+            continue; // dropping `connected` closes the connection
         }
         let (core, shared) = (core.clone(), shared.clone());
         tokio::spawn(async move {
             let (reader, mut writer) = tokio::io::split(connected);
-            // Límite de línea: un cliente no puede agotar la memoria del servicio.
+            // Line limit: a client cannot exhaust the service's memory.
             let mut lines = BufReader::new(reader.take(MAX_LINE as u64 * 64)).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 let (core, shared) = (core.clone(), shared.clone());

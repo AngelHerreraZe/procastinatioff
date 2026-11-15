@@ -2,15 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Presencia lectora: 1 muestra cada 20 s (¿hay rostro? ¿hay un libro?) → minutos.
+//! Reading presence: 1 sample every 20 s (is there a face? is there a book?) → minutes.
 
 use std::sync::Mutex;
 
 use crate::result::{VMethod, VerificationResult, make_result};
 
-/// Intervalo mínimo entre muestras (evita "inflar" minutos enviando muchas).
+/// Minimum interval between samples (prevents "inflating" minutes by sending many).
 pub const SAMPLE_EVERY_MS: i64 = 20_000;
-/// Porcentaje del objetivo que basta para aprobar (perilla de calibración).
+/// Share of the target that is enough to approve (calibration knob).
 pub const APPROVE_PERCENT: u32 = 85;
 
 struct Inner {
@@ -36,7 +36,7 @@ impl ReadingTracker {
         Self { inner: Mutex::new(Inner { last_sample_ms: None, good_samples: 0 }) }
     }
 
-    /// Una muestra: ¿hay rostro? ¿hay un libro/lector? Devuelve los minutos acumulados.
+    /// A sample: is there a face? is there a book/reader? Returns the accumulated minutes.
     pub fn add_sample(&self, at_ms: i64, face: bool, book: bool) -> u16 {
         let mut s = self.inner.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(last) = s.last_sample_ms
@@ -51,7 +51,7 @@ impl ReadingTracker {
         Self::minutes_of(s.good_samples)
     }
 
-    /// Aprobado si alcanza el 85 % del objetivo.
+    /// Approved if it reaches 85 % of the target.
     pub fn finish(&self, goal_id: String, target_minutes: u16) -> Option<VerificationResult> {
         let minutes = Self::minutes_of(self.inner.lock().unwrap_or_else(|p| p.into_inner()).good_samples);
         let needed = (target_minutes as u32 * APPROVE_PERCENT).div_ceil(100) as u16;
@@ -74,7 +74,7 @@ mod tests {
     fn spamming_samples_does_not_inflate_minutes() {
         let t = ReadingTracker::new();
         for i in 0..1000 {
-            t.add_sample(i * 10, true, true); // 1000 muestras en 10 s
+            t.add_sample(i * 10, true, true); // 1000 samples in 10 s
         }
         assert_eq!(t.add_sample(10_001, true, true), 0);
     }
@@ -85,7 +85,7 @@ mod tests {
         for i in 0..90 {
             t.add_sample(i * SAMPLE_EVERY_MS, true, true);
         }
-        let r = t.finish("leer-30".into(), 30).unwrap();
+        let r = t.finish("read-30".into(), 30).unwrap();
         assert!(r.approved);
         assert_eq!(r.minutes, 30);
     }
@@ -94,9 +94,9 @@ mod tests {
     fn face_without_book_does_not_count() {
         let t = ReadingTracker::new();
         for i in 0..90 {
-            t.add_sample(i * SAMPLE_EVERY_MS, true, i % 3 == 0); // libro solo en 1 de cada 3 muestras
+            t.add_sample(i * SAMPLE_EVERY_MS, true, i % 3 == 0); // book only in 1 out of 3 samples
         }
-        let r = t.finish("leer-30".into(), 30).unwrap();
+        let r = t.finish("read-30".into(), 30).unwrap();
         assert!(!r.approved);
         assert_eq!(r.minutes, 10);
     }

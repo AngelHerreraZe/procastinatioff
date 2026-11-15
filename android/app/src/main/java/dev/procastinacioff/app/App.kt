@@ -10,7 +10,7 @@ class App : Application() {
         super.onCreate()
         LocalNotifications.createChannel(this)
         SyncScheduler.schedulePeriodic(this)
-        // Teléfono de un menor: políticas, suspensión de apps y filtro DNS (fuera del hilo principal)
+        // A minor's phone: policies, app suspension and DNS filter (off the main thread)
         Thread { runCatching { DeviceOwnerPolicies.startMinorProtection(this) } }.start()
     }
 }

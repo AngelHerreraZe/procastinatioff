@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Servidor DNS local (127.0.0.1:53 y [::1]:53) que aplica la política del núcleo 🔒.
-//! Solo mueve paquetes: QUÉ se responde lo decide `Core::dns_step` (core/src/netpolicy.rs).
-//! 🔒 No registra nombres consultados (ni siquiera en los logs de depuración).
+//! Local DNS server (127.0.0.1:53 and [::1]:53) that applies the core's policy (security-critical).
+//! It only moves packets: WHAT gets answered is decided by `Core::dns_step` (core/src/netpolicy.rs).
+//! SECURITY: Does not log queried names (not even in debug logs).
 //!
-//! ponytail: solo UDP; añadir TCP/53 si aparecen respuestas truncadas que fallan.
+//! ponytail: UDP only; add TCP/53 if truncated answers start failing.
 
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -19,7 +19,7 @@ use tokio::net::UdpSocket;
 
 pub type ClockFn = Arc<dyn Fn() -> Clock + Send + Sync>;
 
-/// Pregunta a los DNS reales (los de la red, guardados antes de apuntar el equipo a nosotros), en orden.
+/// Asks the real DNS servers (the network's, saved before pointing the computer to us), in order.
 async fn ask_upstream(packet: &[u8], upstreams: &[SocketAddr]) -> Option<Vec<u8>> {
     for up in upstreams {
         let bind = if up.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" };
@@ -28,7 +28,7 @@ async fn ask_upstream(packet: &[u8], upstreams: &[SocketAddr]) -> Option<Vec<u8>
             continue;
         }
         let mut buf = vec![0u8; 4096];
-        // `connect` no hace falta: `dns_finish` descarta respuestas cuyo id no coincide.
+        // `connect` is not needed: `dns_finish` drops answers whose id does not match.
         if let Ok(Ok((n, from))) = tokio::time::timeout(Duration::from_secs(3), sock.recv_from(&mut buf)).await
             && from == *up
         {
@@ -39,7 +39,7 @@ async fn ask_upstream(packet: &[u8], upstreams: &[SocketAddr]) -> Option<Vec<u8>
     None
 }
 
-/// Atiende consultas en `sock` hasta que falle. Cada consulta va en su propia tarea.
+/// Serves queries on `sock` until it fails. Each query runs in its own task.
 pub async fn serve(
     sock: UdpSocket,
     core: Arc<Core>,
@@ -52,8 +52,8 @@ pub async fn serve(
     loop {
         let (n, peer) = match sock.recv_from(&mut buf).await {
             Ok(x) => x,
-            // Windows entrega como error en el socket UDP el "puerto inalcanzable" de un envío anterior
-            // (WSAECONNRESET) y los datagramas que no caben (WSAEMSGSIZE): se ignoran.
+            // Windows reports on the UDP socket the "port unreachable" of an earlier send
+            // (WSAECONNRESET) and datagrams that do not fit (WSAEMSGSIZE): they are ignored.
             Err(e) if e.kind() == ErrorKind::ConnectionReset || e.raw_os_error() == Some(10040) => continue,
             Err(e) => return Err(e),
         };
@@ -95,7 +95,7 @@ mod tests {
         }
     }
 
-    /// Consulta A mínima para "example.org" con id 0xABCD.
+    /// Minimal A query for "example.org" with id 0xABCD.
     fn query() -> Vec<u8> {
         let mut q = vec![0xAB, 0xCD, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0];
         for label in ["example", "org"] {
@@ -106,16 +106,16 @@ mod tests {
         q
     }
 
-    /// Sin perfil de menor el filtro no actúa: la consulta llega al DNS real y vuelve su respuesta.
+    /// Without a minor profile the filter does nothing: the query reaches the real DNS and its answer returns.
     #[tokio::test]
     async fn forwards_to_upstream_and_returns_the_answer() {
-        // DNS "real" de pruebas: responde con la misma consulta marcada como respuesta.
+        // Test "real" DNS: answers with the same query marked as a response.
         let upstream = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let up_addr = upstream.local_addr().unwrap();
         tokio::spawn(async move {
             let mut b = [0u8; 512];
             let (n, from) = upstream.recv_from(&mut b).await.unwrap();
-            b[2] |= 0x80; // QR = respuesta
+            b[2] |= 0x80; // QR = response
             upstream.send_to(&b[..n], from).await.unwrap();
         });
 
@@ -132,7 +132,7 @@ mod tests {
         let mut b = [0u8; 512];
         let (n, _) = tokio::time::timeout(Duration::from_secs(5), client.recv_from(&mut b)).await.unwrap().unwrap();
         assert_eq!(&b[..2], &[0xAB, 0xCD], "mismo id");
-        assert_ne!(b[2] & 0x80, 0, "es una respuesta");
+        assert_ne!(b[2] & 0x80, 0, "is a response");
         assert!(n >= query().len());
     }
 }

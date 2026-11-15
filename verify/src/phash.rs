@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Hash perceptual anti-reutilización. El verificador reduce la foto a 9×8 píxeles en gris
-//! (72 bytes) en memoria y calcula un hash de 64 bits. Se guarda solo el hash **salado** (XOR con
-//! una máscara secreta del dispositivo) durante 7 días: no permite reconstruir la imagen.
+//! Anti-reuse perceptual hash. The verifier reduces the photo to 9×8 gray pixels
+//! (72 bytes) in memory and computes a 64-bit hash. Only the **salted** hash (XOR with
+//! a secret device mask) is stored for 7 days: the image cannot be reconstructed from it.
 
-/// Distancia máxima (bits de 64) para considerar que es la misma foto.
+/// Maximum distance (bits out of 64) to consider it the same photo.
 pub const DUPLICATE_BITS: u32 = 6;
 
-/// dHash: compara cada píxel con su vecino derecho. Entrada: 9×8 = 72 bytes en gris.
+/// dHash: compares each pixel with its right neighbor. Input: 9×8 = 72 gray bytes.
 #[uniffi::export]
 pub fn dhash(gray_9x8: Vec<u8>) -> Option<u64> {
     if gray_9x8.len() != 72 {
@@ -25,13 +25,13 @@ pub fn dhash(gray_9x8: Vec<u8>) -> Option<u64> {
     Some(h)
 }
 
-/// El XOR con la máscara conserva la distancia de Hamming y oculta el hash real.
+/// XOR with the mask preserves the Hamming distance and hides the real hash.
 #[uniffi::export]
 pub fn salt(hash: u64, device_mask: u64) -> u64 {
     hash ^ device_mask
 }
 
-/// ¿Es (casi) la misma foto que alguna reciente?
+/// Is it (almost) the same photo as a recent one?
 #[uniffi::export]
 pub fn is_duplicate(salted: u64, recent_salted: Vec<u64>) -> bool {
     recent_salted.iter().any(|r| (r ^ salted).count_ones() <= DUPLICATE_BITS)
@@ -50,7 +50,7 @@ mod tests {
         let mask = 0xdead_beef_cafe_f00d;
         let a = salt(dhash(gradient(0)).unwrap(), mask);
         let mut noisy = gradient(0);
-        noisy[10] = noisy[10].wrapping_add(1); // un píxel cambia un poco
+        noisy[10] = noisy[10].wrapping_add(1); // one pixel changes slightly
         let a2 = salt(dhash(noisy).unwrap(), mask);
         let other = salt(dhash(gradient(0).into_iter().rev().collect()).unwrap(), mask);
         assert!(is_duplicate(a2, vec![a]));

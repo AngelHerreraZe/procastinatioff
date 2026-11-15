@@ -1,4 +1,4 @@
-// Propiedades globales de las reglas: miles de días aleatorios; ninguno rompe las garantías.
+// Global properties of the rules: thousands of random days; none breaks the guarantees.
 use procastinacioff_core::clock::{Clock, DAY_MS, MINUTE_MS, day_start_ms, in_sleep, weekday_index};
 use procastinacioff_core::model::{ALL_DAYS, Config, DayState, EventKind, Fact, Goal, GoalKind, Method};
 use procastinacioff_core::rules::{ConfigHistory, status};
@@ -10,8 +10,8 @@ fn arb_event() -> impl Strategy<Value = EventKind> {
     prop_oneof![
         Just(EventKind::EmergencyStarted),
         (1u16..30).prop_map(|minutes| EventKind::PassStarted { minutes }),
-        Just(EventKind::FocusStarted { goal_id: "leer-30".into() }),
-        Just(EventKind::FocusEnded { goal_id: "leer-30".into() }),
+        Just(EventKind::FocusStarted { goal_id: "read-30".into() }),
+        Just(EventKind::FocusEnded { goal_id: "read-30".into() }),
         Just(EventKind::Heartbeat),
         (0u16..90).prop_map(|m| EventKind::DayPlanned {
             goals: vec![Goal {
@@ -25,7 +25,7 @@ fn arb_event() -> impl Strategy<Value = EventKind> {
             }],
         }),
         Just(EventKind::GoalCompleted {
-            goal_id: "leer-30".into(),
+            goal_id: "read-30".into(),
             method: Method::HonorDeclaration,
             score: 100,
             minutes: 30,
@@ -40,7 +40,7 @@ fn is_free(cfg: &Config, day_start: i64) -> bool {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(2_000))]
 
-    /// Una semana cualquiera, con cualquier combinación de días libres y eventos.
+    /// Any week, with any combination of free days and events.
     #[test]
     fn guarantees_hold(
         free_days in 0u8..128,
@@ -61,21 +61,21 @@ proptest! {
         let day_start = day_start_ms(&cfg.schedule, clock);
         let sleeping = in_sleep(&cfg.schedule, clock.minute_of_day());
 
-        // 1. Noche que precede a un día normal: solo DORMIR o EMERGENCIA. Nunca LIBRE ni PERMISO.
+        // 1. Night before a normal day: only SLEEP or EMERGENCY. Never FREE nor PASS.
         if sleeping && !is_free(&cfg, day_start + DAY_MS) {
             let ok = matches!(st.state, DayState::Sleep | DayState::Emergency { .. });
             prop_assert!(ok, "en la noche: {:?}", st.state);
         }
-        // 2. Un día libre nunca bloquea (fuera de la noche previa a un día normal).
+        // 2. A free day never blocks (outside the night before a normal day).
         if is_free(&cfg, day_start) && !(sleeping && !is_free(&cfg, day_start + DAY_MS)) {
             let ok = matches!(st.state, DayState::Free | DayState::Pass { .. } | DayState::Emergency { .. });
-            prop_assert!(ok, "en día libre: {:?}", st.state);
+            prop_assert!(ok, "on a free day: {:?}", st.state);
         }
-        // 3. Sin plan del día, un día normal nunca queda LIBRE.
+        // 3. Without a day plan, a normal day never becomes FREE.
         if st.needs_plan {
             prop_assert!(st.state != DayState::Free);
         }
-        // 4. Nunca hay más permisos que los configurados.
+        // 4. Never more passes than configured.
         prop_assert!(st.permits_left <= cfg.permits_per_day);
     }
 }

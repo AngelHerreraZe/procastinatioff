@@ -1,7 +1,7 @@
-; Ganchos del instalador NSIS (Tauri). 🔒 Ruta crítica.
+; NSIS installer hooks (Tauri). SECURITY: Critical path.
 
 !macro NSIS_HOOK_PREUNINSTALL
-  ; Modo familiar: devuelve el DNS de las tarjetas a DHCP y quita las reglas de firewall (07b · 2.2).
-  ; Sin esto, el PC de un menor se quedaría sin resolución DNS al desinstalar.
+  ; Family mode: returns the adapters' DNS to DHCP and removes the firewall rules.
+  ; Without this, a minor's PC would be left without DNS resolution after uninstalling.
   nsExec::Exec '"$INSTDIR\procastinacioff-agent.exe" restore-dns'
 !macroend

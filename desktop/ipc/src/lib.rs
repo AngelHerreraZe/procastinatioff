@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Protocolo UI ↔ servicio de Windows: una línea JSON por petición y una por respuesta.
-//! Los tipos y el manejador viven en el núcleo (`core/src/desktop.rs`), compartidos con macOS.
+//! UI ↔ Windows service protocol: one JSON line per request and one per response.
+//! The types and the handler live in the core (`core/src/desktop.rs`), shared with macOS.
 
 pub use procastinacioff_core::desktop::{AgentStatus, MAX_LINE, Request, Response};
 pub use procastinacioff_core::model::Method;

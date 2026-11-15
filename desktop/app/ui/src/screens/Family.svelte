@@ -1,10 +1,11 @@
 <script lang="ts">
-  // PC de un menor: pedir algo al tutor y "Lo que ve tu tutor" (panel espejo: exactamente lo mismo que ve él).
+  // A minor's PC: ask the guardian for something and "What your guardian sees" (mirror panel: exactly what they see).
   import { call, familyView, type FamilyAlertView, type PendingRequest, type RequestKind, type Status } from '../lib/agent';
   import { hhmm } from '../lib/format';
+  import { locale, t, tn } from '../lib/i18n';
   import Icon from '../components/Icon.svelte';
 
-  let { status, onclose, onerror }: { status: Status; onclose: () => void; onerror: (m: string) => void } = $props();
+  let { status, onclose, onerror }: { status: Status; onclose: () => void; onerror: (e: unknown) => void } = $props();
 
   let requests = $state<PendingRequest[]>([]);
   let alerts = $state<FamilyAlertView[]>([]);
@@ -13,7 +14,7 @@
   let sent = $state('');
 
   const load = () =>
-    familyView().then((v) => ({ requests, alerts } = v), (e) => onerror(String(e)));
+    familyView().then((v) => ({ requests, alerts } = v), (e) => onerror(e));
 
   $effect(() => {
     load();
@@ -21,68 +22,60 @@
     return () => clearInterval(id);
   });
 
-  async function ask(what: RequestKind, label: string) {
+  async function ask(what: RequestKind) {
     busy = true;
     try {
       await call({ cmd: 'family_request', what });
-      sent = `Enviado: ${label}. Tu tutor recibe un aviso.`;
+      sent = t('family.sent', { what: describe(what) });
       site = '';
       await load();
     } catch (e) {
-      onerror(String(e));
+      onerror(e);
     } finally {
       busy = false;
     }
   }
 
   const describe = (w: RequestKind): string =>
-    w.what === 'extra_permit' ? `${w.minutes} min más`
-    : w.what === 'add_site' ? `Permitir ${w.domain} en el enfoque`
-    : w.what === 'later_bedtime' ? `Dormir ${w.minutes} min más tarde`
-    : 'Día de descanso';
+    w.what === 'extra_permit' ? t('family.req_extra', { n: w.minutes })
+    : w.what === 'add_site' ? t('family.req_site', { domain: w.domain })
+    : w.what === 'later_bedtime' ? t('family.req_bedtime', { n: w.minutes })
+    : t('family.rest_day');
 
-  const TAMPER: Record<string, string> = {
-    permission_revoked: 'Se desactivó un permiso de protección',
-    service_stopped: 'La protección estuvo detenida',
-    clock_changed: 'Se cambió la hora del dispositivo',
-    uninstall_attempt: 'Se intentó desinstalar la app',
-    safe_mode: 'Se arrancó en modo seguro',
-    device_silent: 'Un dispositivo dejó de reportar',
-  };
   const alertText = (a: FamilyAlertView): string =>
-    a.alert.alert === 'tamper' ? TAMPER[a.alert.what]
-    : a.alert.alert === 'emergency' ? 'Se usó la emergencia'
-    : `${a.alert.count} ${a.alert.count === 1 ? 'sitio bloqueado' : 'sitios bloqueados'} por categoría (nunca cuáles)`;
+    a.alert.alert === 'tamper' ? t(`tamper.${a.alert.what}`)
+    : a.alert.alert === 'emergency' ? t('family.emergency_used')
+    : tn('family.blocked_sites', a.alert.count);
   const when = (ms: number) =>
-    `${new Date(ms).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}, ${hhmm(ms)}`;
+    `${new Date(ms).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })}, ${hhmm(ms)}`;
 
   const done = $derived(status.goals.filter((g) => g.completed).length);
 </script>
 
 <main class="family stack">
-  <button class="btn-text back" onclick={onclose}>Volver</button>
-  <h1>Tu tutor</h1>
+  <button class="btn-text back" onclick={onclose}>{t('common.back')}</button>
+  <h1>{t('home.your_guardian')}</h1>
 
   <section class="card stack" aria-labelledby="ask-title">
-    <h2 id="ask-title">Pedir algo</h2>
+    <h2 id="ask-title">{t('family.ask_title')}</h2>
     <div class="row">
-      <button class="btn-secondary" disabled={busy} onclick={() => ask({ what: 'extra_permit', minutes: 15 }, '15 min más')}>
-        15 min más
+      <button class="btn-secondary" disabled={busy} onclick={() => ask({ what: 'extra_permit', minutes: 15 })}>
+        {t('family.more_15')}
       </button>
-      <button class="btn-secondary" disabled={busy} onclick={() => ask({ what: 'rest_day' }, 'día de descanso')}>
-        Día de descanso
+      <button class="btn-secondary" disabled={busy} onclick={() => ask({ what: 'rest_day' })}>
+        {t('family.rest_day')}
       </button>
     </div>
-    <form class="row" onsubmit={(e) => { e.preventDefault(); ask({ what: 'add_site', domain: site.trim() }, site.trim()); }}>
+    <form class="row" onsubmit={(e) => { e.preventDefault(); ask({ what: 'add_site', domain: site.trim() }); }}>
       <label class="grow">
-        <span class="muted small">Un sitio para tus tareas</span>
+        <span class="muted small">{t('family.site_label')}</span>
         <input bind:value={site} placeholder="khanacademy.org" maxlength="253" autocomplete="off" />
       </label>
-      <button class="btn-secondary" disabled={busy || !site.trim()}>Pedir acceso</button>
+      <button class="btn-secondary" disabled={busy || !site.trim()}>{t('family.ask_access')}</button>
     </form>
     {#if sent}<p role="status">{sent}</p>{/if}
     {#if requests.length > 0}
-      <h3>Esperando respuesta</h3>
+      <h3>{t('family.waiting')}</h3>
       <ul>
         {#each requests as r (r.request_id)}
           <li>{describe(r.what)} <span class="muted">· {when(r.at_ms)}</span></li>
@@ -92,11 +85,11 @@
   </section>
 
   <section class="card stack" aria-labelledby="mirror-title">
-    <h2 id="mirror-title"><Icon name="target" /> Lo que ve tu tutor</h2>
-    <p class="muted">Tu tutor ve exactamente esto, ni más ni menos.</p>
-    <p>Hoy: {done} de {status.goals.length} metas cumplidas · {status.permits_left} permisos disponibles.</p>
+    <h2 id="mirror-title"><Icon name="target" /> {t('family.mirror_title')}</h2>
+    <p class="muted">{t('family.mirror_note')}</p>
+    <p>{t('family.today', { done, total: status.goals.length, passes: tn('home.passes_available', status.permits_left) })}</p>
     {#if alerts.length === 0}
-      <p class="muted">Sin avisos en los últimos 7 días.</p>
+      <p class="muted">{t('family.no_alerts')}</p>
     {:else}
       <ul>
         {#each alerts as a (a.at_ms + a.device_label + a.alert.alert)}
@@ -104,7 +97,7 @@
         {/each}
       </ul>
     {/if}
-    <p class="muted small">Nunca ve tus mensajes, contactos, fotos, historial de navegación ni ubicación: no existen en el sistema.</p>
+    <p class="muted small">{t('family.never_sees')}</p>
   </section>
 </main>
 

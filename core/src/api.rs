@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! El objeto `Core`: lo único que ven las plataformas (Kotlin, Swift, agente de escritorio).
+//! The `Core` object: the only thing the platforms see (Kotlin, Swift, desktop agent).
 //!
-//! - Un `Mutex` protege el estado. Nunca se mantiene bloqueado durante una llamada de red.
-//! - Cada acción devuelve el `Status` nuevo para que la UI se actualice sin otra llamada.
+//! - A `Mutex` protects the state. It is never held during a network call.
+//! - Every action returns the new `Status` so the UI updates without another call.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -35,24 +35,24 @@ const META_TIME_KEY: &str = "time_key";
 const META_KIND: &str = "kind";
 const KIND_PARTNER: &str = "partner";
 const RETENTION_DAYS: i64 = 90;
-/// Días hacia atrás que se revisan al reenviar avisos al compañero.
+/// Days back that are checked when forwarding alerts to the partner.
 const FORWARD_WINDOW_DAYS: i64 = 7;
-/// Diferencia máxima entre el reloj del dispositivo y la hora firmada antes de registrarlo.
+/// Maximum difference between the device clock and the signed time before it is recorded.
 const MAX_CLOCK_SKEW_MS: i64 = 5 * MINUTE_MS;
-/// Solicitudes sin responder que puede tener un menor a la vez (cada una avisa al tutor).
+/// Unanswered requests a minor may have at once (each one notifies the guardian).
 const MAX_OPEN_REQUESTS: usize = 5;
-/// Días hacia atrás de los avisos del panel espejo.
+/// Days back covered by the mirror panel alerts.
 const ALERT_WINDOW_DAYS: i64 = 7;
-/// Cada cuánto se recalcula el modo del filtro DNS (no en cada consulta).
+/// How often the DNS filter mode is recomputed (not on every query).
 const DNS_MODE_TTL_MS: i64 = 5_000;
 
-/// Clave pública (minisign, base64) con la que se firman las listas de categorías. Se genera en un
-/// equipo aislado (07b · 4.3); hasta entonces ninguna lista se acepta.
+/// Public key (minisign, base64) that signs the category lists. It is generated on an
+/// air-gapped machine; until then no list is accepted.
 pub const PINNED_LISTS_PUBKEY: &str = "REEMPLAZAR_CON_CLAVE_PUBLICA_MINISIGN";
-/// Dónde se publican la lista y su firma (`categories.txt` y `categories.txt.minisig`).
-/// Se fija junto con la clave al publicar (trámite del dominio de releases).
+/// Where the list and its signature are published (`categories.txt` and `categories.txt.minisig`).
+/// Set together with the key at release time (lists will ship inside the app; see the roadmap).
 pub const LISTS_URL: &str = "https://releases.REEMPLAZAR_DOMINIO/lists/";
-/// Tamaño máximo de la lista descargada (≈ 200 000 dominios).
+/// Maximum size of the downloaded list (≈ 200,000 domains).
 const MAX_LIST_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -63,17 +63,17 @@ pub struct SyncReport {
     pub gaps: u32,
 }
 
-/// Último instante en que se vio a cada dispositivo (latidos cruzados).
+/// Last moment each device was seen (cross heartbeats).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, uniffi::Record)]
 pub struct DeviceSeen {
     pub device_id: String,
-    /// 🔒 Dato personal: solo para mostrar en la UI.
+    /// SECURITY: Personal data: only for display in the UI.
     pub label: String,
     pub last_seen_ms: i64,
     pub is_me: bool,
 }
 
-/// Solicitud de un menor pendiente de respuesta.
+/// A minor's request awaiting an answer.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Record)]
 pub struct PendingRequest {
     pub request_id: String,
@@ -81,7 +81,7 @@ pub struct PendingRequest {
     pub at_ms: i64,
 }
 
-/// Lo que ven por igual el tutor y el menor en el panel espejo (además del estado del día).
+/// What the guardian and the minor both see in the mirror panel (besides the day state).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Enum)]
 #[serde(tag = "alert", rename_all = "snake_case")]
 pub enum FamilyAlert {
@@ -89,7 +89,7 @@ pub enum FamilyAlert {
         what: TamperKind,
     },
     Emergency,
-    /// Sitios distintos bloqueados por categoría en un día. 🔒 Solo el número.
+    /// Distinct sites blocked per category in a day. SECURITY: Only the number.
     BlockedSites {
         count: u16,
     },
@@ -99,22 +99,22 @@ pub enum FamilyAlert {
 pub struct FamilyAlertView {
     pub at_ms: i64,
     pub alert: FamilyAlert,
-    /// 🔒 Dato personal: solo para mostrar en la UI.
+    /// SECURITY: Personal data: only for display in the UI.
     pub device_label: String,
 }
 
-/// Qué hacer con una consulta DNS (ver netpolicy.rs).
+/// What to do with a DNS query (see netpolicy.rs).
 #[derive(Debug, uniffi::Enum)]
 pub enum DnsAction {
-    /// Devolver este paquete al cliente.
+    /// Send this packet back to the client.
     Reply { packet: Vec<u8> },
-    /// Enviar `packet` al DNS real y pasar su respuesta a `dns_finish`.
+    /// Send `packet` to the real DNS and pass its answer to `dns_finish`.
     Upstream { packet: Vec<u8>, rewritten: bool },
-    /// Paquete inválido: no responder.
+    /// Invalid packet: do not answer.
     Drop,
 }
 
-/// Aviso tal como lo ve el compañero.
+/// Alert as the partner sees it.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct PartnerAlertView {
     pub happened_at_ms: i64,
@@ -127,23 +127,23 @@ struct Inner {
     keys: DeviceKeys,
     ledger: Ledger,
     pairing: Option<PendingPairing>,
-    /// Ancla de hora confiable (en memoria; se renueva en cada sync).
+    /// Trusted time anchor (in memory; renewed on every sync).
     anchor: Option<TimeAnchor>,
-    /// Si el reloj del sistema ya estaba desviado en el último anclaje (para registrarlo una sola vez).
+    /// Whether the system clock was already off at the last anchoring (to record it only once).
     clock_skewed: bool,
-    /// Lista de categorías prohibidas (firmada; solo en memoria).
+    /// List of forbidden categories (signed; in memory only).
     categories: CategorySet,
-    /// Modo del filtro DNS calculado hace poco: (instante, modo, inicio del día).
+    /// Recently computed DNS filter mode: (instant, mode, start of day).
     dns_mode: Option<(i64, FilterMode, i64)>,
-    /// Sitios bloqueados por categoría en el día que empieza en `.0`. 🔒 Solo en memoria; se registra el número.
-    /// ponytail: si el proceso muere se pierde la cuenta de ese día; es solo un número orientativo.
+    /// Sites blocked per category on the day starting at `.0`. SECURITY: Memory only; the number is recorded.
+    /// ponytail: if the process dies the count for that day is lost; it is only an indicative number.
     blocked: (i64, HashSet<String>),
 }
 
 impl Inner {
     fn state(&self, clock: Clock) -> (ConfigHistory, Vec<Fact>) {
-        // ponytail: recalcula desde todos los eventos en cada llamada (O(n), n ≈ miles).
-        // Si algún día pesa, cachear por día.
+        // ponytail: recomputes from all events on every call (O(n), n ≈ thousands).
+        // If it ever gets heavy, cache per day.
         let facts = self.ledger.facts();
         (ConfigHistory::from_facts_checked(&facts, self.ledger.is_family(), clock.utc_offset_min), facts)
     }
@@ -153,7 +153,7 @@ impl Inner {
         self.ledger.members().iter().find(|m| m.device_id == me).map(|m| m.role)
     }
 
-    /// Solicitudes sin respuesta, de la más antigua a la más reciente.
+    /// Unanswered requests, oldest first.
     fn pending_requests(&self) -> Vec<PendingRequest> {
         let facts = self.ledger.facts();
         let decided: HashSet<&str> = facts
@@ -174,14 +174,14 @@ impl Inner {
             .collect()
     }
 
-    /// Modo del filtro DNS según el estado del día. Solo filtra en los dispositivos de un menor.
+    /// DNS filter mode for the day state. Only filters on a minor's devices.
     fn filter_mode(&self, clock: Clock) -> (FilterMode, i64) {
         if self.my_role() != Some(Role::Minor) {
             return (FilterMode::Off, 0);
         }
         let (h, f) = self.state(clock);
         let Some(st) = rules::status(&h, &f, clock) else { return (FilterMode::Categories, 0) };
-        // El relay del perfil siempre se resuelve (sin él no llegarían las aprobaciones del tutor)
+        // The profile's relay always resolves (without it the guardian's approvals would not arrive)
         let relay = self.db.meta(META_RELAY).ok().flatten().and_then(|u| relay_host(&u));
         let mode = match st.state {
             DayState::Focus { .. } => {
@@ -195,16 +195,16 @@ impl Inner {
         (mode, st.day_start_ms)
     }
 
-    /// Firma, valida y guarda un evento propio.
+    /// Signs, validates and stores an event of our own.
     fn record(&mut self, at_ms: i64, kind: EventKind) -> Result<(), CoreError> {
         let me = self.keys.device_id();
         let (seq, prev) = match self.ledger.head(&me) {
             Some((s, id)) => (s + 1, Some(id.clone())),
             None => (1, None),
         };
-        // La hora de un evento nuevo nunca es anterior al último evento conocido (de cualquier autor).
+        // A new event's time is never earlier than the last known event (from any author).
         let last_at = self.ledger.last_at();
-        // 🔒 Reloj hacia atrás > 5 min: se registra como manipulación y no se acepta la hora vieja.
+        // SECURITY: Clock moved back > 5 min: recorded as tampering and the old time is not accepted.
         if last_at - at_ms > 5 * MINUTE_MS && !matches!(kind, EventKind::Tamper { .. }) {
             self.record(last_at, EventKind::Tamper { what: TamperKind::ClockChanged })?;
             return self.record(last_at, kind);
@@ -220,7 +220,7 @@ impl Inner {
     }
 
     fn must_status(&self, clock: Clock) -> Result<Status, CoreError> {
-        self.status(clock).ok_or_else(|| CoreError::protocol("sin configuración"))
+        self.status(clock).ok_or_else(|| CoreError::protocol("no configuration"))
     }
 
     fn me_as_member(&self, label: String, role: Role) -> Member {
@@ -235,8 +235,8 @@ pub struct Core {
 
 impl Core {
     fn lock(&self) -> MutexGuard<'_, Inner> {
-        // Si otro hilo entró en pánico, seguimos con el estado (es consistente: cada
-        // escritura es atómica en SQLite) en vez de propagar el pánico a la app.
+        // If another thread panicked, we continue with the state (it is consistent: every
+        // write is atomic in SQLite) instead of propagating the panic to the app.
         self.inner.lock().unwrap_or_else(|p| p.into_inner())
     }
 }
@@ -252,14 +252,14 @@ fn is_urgent(kind: &EventKind) -> bool {
     )
 }
 
-/// Host de la URL del relay ("https://relay.x.com:8443/a" → "relay.x.com").
+/// Host of the relay URL ("https://relay.x.com:8443/a" → "relay.x.com").
 fn relay_host(url: &str) -> Option<String> {
     let rest = url.split_once("://")?.1;
     let host = rest.split(['/', ':']).next()?;
     (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
-/// Dominio aceptable para la lista blanca: letras, cifras y guiones, con al menos un punto.
+/// Domain acceptable for the allowlist: letters, digits and hyphens, with at least one dot.
 fn valid_domain(d: &str) -> bool {
     let labels: Vec<&str> = d.split('.').collect();
     d.len() <= 253
@@ -275,7 +275,7 @@ fn valid_domain(d: &str) -> bool {
 
 fn check_label(label: &str) -> Result<(), CoreError> {
     if label.chars().count() > MAX_LABEL_CHARS {
-        return Err(CoreError::protocol("nombre del dispositivo demasiado largo"));
+        return Err(CoreError::protocol("device name too long"));
     }
     Ok(())
 }
@@ -285,7 +285,7 @@ impl Core {
         check_label(&label)?;
         let mut g = self.lock();
         if !g.ledger.members().is_empty() {
-            return Err(CoreError::protocol("el perfil ya existe"));
+            return Err(CoreError::protocol("the profile already exists"));
         }
         let me = g.keys.device_id();
         g.db.set_meta(META_GENESIS, &me)?;
@@ -299,14 +299,14 @@ impl Core {
 
 #[uniffi::export]
 impl Core {
-    /// Abre el núcleo. `db_path`: ruta privada de la app. `secrets`: llavero de la plataforma.
+    /// Opens the core. `db_path`: the app's private path. `secrets`: the platform keystore.
     #[uniffi::constructor]
     pub fn open(db_path: String, secrets: Arc<dyn SecretStore>) -> Result<Arc<Self>, CoreError> {
         let keys = DeviceKeys::load_or_create(secrets.as_ref())?;
         let db = crate::storage::Db::open(&db_path, &db_key(secrets.as_ref())?)?;
         let mut ledger = Ledger::new(db.meta(META_GENESIS)?);
         for ev in db.all()? {
-            ledger.accept(ev)?; // re-valida firmas y cadena al cargar
+            ledger.accept(ev)?; // re-validates signatures and chain on load
         }
         Ok(Arc::new(Self {
             inner: Mutex::new(Inner {
@@ -340,19 +340,19 @@ impl Core {
         h.active_at(clock.now_ms).cloned()
     }
 
-    /// Metas de hoy con su definición completa (para prellenar el plan del día).
+    /// Today's goals with their full definition (to prefill the day plan).
     pub fn today_goals(&self, clock: Clock) -> Vec<Goal> {
         let (h, f) = self.lock().state(clock);
         rules::today_goals(&h, &f, clock)
     }
 
-    /// Crea el perfil en este dispositivo (sin red). Solo la primera vez.
+    /// Creates the profile on this device (no network). First time only.
     pub fn create_profile(&self, clock: Clock, label: String, config: Config) -> Result<Status, CoreError> {
         self.create(clock, label, config, Role::Owner)
     }
 
-    /// (Tutor) Crea, en ESTE `Core` (una base de datos por menor), el perfil de un menor.
-    /// Desde aquí, todo lo que relaja reglas lleva la firma de un tutor.
+    /// (Guardian) Creates a minor's profile in THIS `Core` (one database per minor).
+    /// From here on, everything that relaxes rules carries a guardian's signature.
     pub fn create_family_profile(
         &self,
         clock: Clock,
@@ -362,8 +362,8 @@ impl Core {
         self.create(clock, guardian_label, config, Role::Guardian)
     }
 
-    /// Propone una configuración nueva. Devuelve desde cuándo rige (ahora o el próximo despertar).
-    /// En un perfil familiar: el tutor cambia al momento; el menor solo puede endurecer.
+    /// Proposes a new configuration. Returns when it takes effect (now or at the next wake-up).
+    /// In a family profile: the guardian changes it immediately; the minor can only make it stricter.
     pub fn set_config(&self, clock: Clock, config: Config) -> Result<i64, CoreError> {
         let mut g = self.lock();
         let (h, _) = g.state(clock);
@@ -377,7 +377,7 @@ impl Core {
         Ok(from)
     }
 
-    /// Define (o endurece) las metas de hoy. Se pide al primer desbloqueo tras la hora de dormir.
+    /// Sets (or tightens) today's goals. Asked at the first unlock after bedtime.
     pub fn plan_day(&self, clock: Clock, goals: Vec<Goal>) -> Result<Status, CoreError> {
         let mut g = self.lock();
         let (h, f) = g.state(clock);
@@ -442,13 +442,13 @@ impl Core {
         self.lock().record(clock.now_ms, EventKind::Heartbeat)
     }
 
-    // ───────────────────────── Relay y sincronización ─────────────────────────
+    // ───────────────────────── Relay and sync ─────────────────────────
 
-    /// Crea el buzón en el relay (una vez, desde el dispositivo que creó el perfil).
+    /// Creates the mailbox on the relay (once, from the device that created the profile).
     pub fn connect_relay(&self, relay_url: String) -> Result<(), CoreError> {
         let key = self.lock().keys.signing.clone();
         let relay = Relay::new(&relay_url)?;
-        let mailbox = relay.create_mailbox(&key)?; // red, sin candado
+        let mailbox = relay.create_mailbox(&key)?; // network, without the lock
         let g = self.lock();
         g.db.set_meta(META_RELAY, &relay_url)?;
         g.db.set_meta(META_MAILBOX, &mailbox)?;
@@ -456,11 +456,11 @@ impl Core {
     }
 
     pub fn sync(&self, clock: Clock) -> Result<SyncReport, CoreError> {
-        // 1) Copiar lo necesario con el candado
+        // 1) Copy what is needed while holding the lock
         let (relay_url, mailbox, key, identity, pending, recipients, cursor) = {
             let g = self.lock();
-            let relay_url = g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("sin relay"))?;
-            let mailbox = g.db.meta(META_MAILBOX)?.ok_or_else(|| CoreError::protocol("sin buzón"))?;
+            let relay_url = g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("no relay configured"))?;
+            let mailbox = g.db.meta(META_MAILBOX)?.ok_or_else(|| CoreError::protocol("no mailbox"))?;
             let cursor: u64 = g.db.meta(META_CURSOR)?.and_then(|c| c.parse().ok()).unwrap_or(0);
             let recipients = g
                 .ledger
@@ -471,7 +471,7 @@ impl Core {
             (relay_url, mailbox, g.keys.signing.clone(), g.keys.age.clone(), g.db.pending_all()?, recipients, cursor)
         };
 
-        // 2) Red, sin candado
+        // 2) Network, without the lock
         let relay = Relay::new(&relay_url)?;
         let mut uploaded = Vec::new();
         for ev in &pending {
@@ -483,7 +483,7 @@ impl Core {
         let mut after = cursor;
         loop {
             let page = relay.events(&key, &mailbox, after)?;
-            // Un relay que no avanza el cursor no puede dejarnos en un bucle infinito.
+            // A relay that does not advance the cursor cannot trap us in an infinite loop.
             if page.events.is_empty() || page.next_after <= after {
                 break;
             }
@@ -491,7 +491,7 @@ impl Core {
             after = page.next_after;
         }
 
-        // 3) Aplicar con el candado
+        // 3) Apply while holding the lock
         let mut g = self.lock();
         for id in &uploaded {
             g.db.mark_uploaded(id)?;
@@ -503,7 +503,7 @@ impl Core {
                 report.rejected += 1;
                 continue;
             };
-            // Eventos cifrados antes de que este dispositivo fuera miembro: no se pueden abrir; es normal.
+            // Events encrypted before this device was a member cannot be opened; that is normal.
             let Ok(ev) = open(&blob, &identity) else { continue };
             match g.ledger.accept(ev.clone()) {
                 Ok(Accepted::New) => {
@@ -520,7 +520,7 @@ impl Core {
         Ok(report)
     }
 
-    /// URL del relay de este perfil (el buzón del compañero se conecta al mismo).
+    /// Relay URL of this profile (the partner mailbox connects to the same one).
     pub fn relay_url(&self) -> Option<String> {
         self.lock().db.meta(META_RELAY).ok().flatten()
     }
@@ -528,22 +528,22 @@ impl Core {
     pub fn register_push(&self, platform: String, token: String) -> Result<(), CoreError> {
         let (url, key) = {
             let g = self.lock();
-            (g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("sin relay"))?, g.keys.signing.clone())
+            (g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("no relay configured"))?, g.keys.signing.clone())
         };
         Relay::new(&url)?.register_push(&key, &platform, &token)
     }
 
-    // ───────────────────────── Vinculación ─────────────────────────
+    // ───────────────────────── Pairing ─────────────────────────
 
-    /// (A) Genera el contenido del QR. Válido 10 minutos (lo caduca el relay).
+    /// (A) Generates the QR content. Valid for 10 minutes (the relay expires it).
     pub fn pairing_offer(&self) -> Result<String, CoreError> {
         let mut g = self.lock();
-        let relay = g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("sin relay"))?;
-        let mailbox = g.db.meta(META_MAILBOX)?.ok_or_else(|| CoreError::protocol("sin buzón"))?;
+        let relay = g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("no relay configured"))?;
+        let mailbox = g.db.meta(META_MAILBOX)?.ok_or_else(|| CoreError::protocol("no mailbox"))?;
         let mut t = [0u8; 16];
         OsRng.fill_bytes(&mut t);
         let eph = age::x25519::Identity::generate();
-        // Quien se une debe confiar en el autor del génesis, aunque le invite otro dispositivo del perfil.
+        // The joiner must trust the genesis author, even if another device of the profile invites it.
         let inviter = g.db.meta(META_GENESIS)?.unwrap_or_else(|| g.keys.device_id());
         let offer =
             PairingOffer { v: 1, relay, mailbox, token: hex::encode(t), eph: eph.to_public().to_string(), inviter };
@@ -552,14 +552,14 @@ impl Core {
         Ok(qr)
     }
 
-    /// (B) Procesa el QR escaneado. Devuelve el código de 6 dígitos a comparar.
+    /// (B) Processes the scanned QR. Returns the 6-digit code to compare.
     pub fn pairing_join(&self, qr: String, label: String) -> Result<String, CoreError> {
         check_label(&label)?;
         let offer = pairing::parse_offer(&qr)?;
         let req = {
             let mut g = self.lock();
             if !g.ledger.members().is_empty() {
-                return Err(CoreError::protocol("este dispositivo ya pertenece a un perfil"));
+                return Err(CoreError::protocol("this device already belongs to a profile"));
             }
             g.db.set_meta(META_RELAY, &offer.relay)?;
             g.db.set_meta(META_MAILBOX, &offer.mailbox)?;
@@ -572,37 +572,37 @@ impl Core {
         Ok(pairing::sas(&offer, &req))
     }
 
-    /// (A) Consulta si B ya respondió. Devuelve el código de 6 dígitos cuando llega.
+    /// (A) Checks whether B has answered. Returns the 6-digit code when it arrives.
     pub fn pairing_poll(&self) -> Result<Option<String>, CoreError> {
         let (relay, token) = {
             let g = self.lock();
-            let p = g.pairing.as_ref().ok_or_else(|| CoreError::protocol("sin vinculación en curso"))?;
+            let p = g.pairing.as_ref().ok_or_else(|| CoreError::protocol("no pairing in progress"))?;
             (p.offer.relay.clone(), p.offer.token.clone())
         };
         let Some(blob) = Relay::new(&relay)?.get_pairing(&token)? else { return Ok(None) };
         let mut g = self.lock();
-        let p = g.pairing.as_mut().ok_or_else(|| CoreError::protocol("sin vinculación en curso"))?;
+        let p = g.pairing.as_mut().ok_or_else(|| CoreError::protocol("no pairing in progress"))?;
         let req = pairing::open_join(&blob, &p.eph)?;
         let code = pairing::sas(&p.offer, &req);
         p.joiner = Some(req);
         Ok(Some(code))
     }
 
-    /// (A) El usuario confirmó que los 6 dígitos coinciden. `role`: en un perfil familiar, `Minor`
-    /// (dispositivo del menor) o `Guardian` (otro tutor); en los demás casos, `None`.
+    /// (A) The user confirmed that the 6 digits match. `role`: in a family profile, `Minor`
+    /// (the minor's device) or `Guardian` (another guardian); otherwise `None`.
     pub fn pairing_confirm(&self, clock: Clock, role: Option<Role>) -> Result<(), CoreError> {
         let (relay, mailbox, key, joiner) = {
             let mut g = self.lock();
-            // En el buzón del compañero, quien se une es el compañero; en un perfil personal, otro dispositivo propio.
+            // In the partner mailbox the joiner is the partner; in a personal profile, another own device.
             let partner_box = g.db.meta(META_KIND)?.as_deref() == Some(KIND_PARTNER);
             let role = match (partner_box, g.ledger.is_family(), role) {
                 (true, _, None | Some(Role::Partner)) => Role::Partner,
                 (false, true, Some(r @ (Role::Guardian | Role::Minor))) => r,
                 (false, false, None | Some(Role::Owner)) => Role::Owner,
-                _ => return Err(CoreError::protocol("rol no válido para este perfil")),
+                _ => return Err(CoreError::protocol("invalid role for this profile")),
             };
-            let p = g.pairing.take().ok_or_else(|| CoreError::protocol("sin vinculación en curso"))?;
-            let joiner = p.joiner.ok_or_else(|| CoreError::protocol("el otro dispositivo aún no respondió"))?;
+            let p = g.pairing.take().ok_or_else(|| CoreError::protocol("no pairing in progress"))?;
+            let joiner = p.joiner.ok_or_else(|| CoreError::protocol("the other device has not answered yet"))?;
             let mut members = g.ledger.members().to_vec();
             members.retain(|m| m.device_id != joiner.device_id);
             members.push(Member {
@@ -612,31 +612,34 @@ impl Core {
                 role,
             });
             g.record(clock.now_ms, EventKind::MembersChanged { members })?;
-            g.db.mark_all_for_reupload()?; // el historial se re-cifra incluyendo al nuevo dispositivo
+            g.db.mark_all_for_reupload()?; // the history is re-encrypted including the new device
             (p.offer.relay, p.offer.mailbox, g.keys.signing.clone(), joiner)
         };
         Relay::new(&relay)?.add_member(&key, &mailbox, &joiner.device_id)?;
         self.sync(clock).map(|_| ())
     }
 
-    /// (A) Cancela la vinculación en curso (los dígitos no coinciden).
+    /// (A) Cancels the pairing in progress (the digits do not match).
     pub fn pairing_cancel(&self) {
         self.lock().pairing = None;
     }
 
-    // ───────────────────────── Hora confiable ─────────────────────────
+    // ───────────────────────── Trusted time ─────────────────────────
 
-    /// Pide la hora firmada al relay y ancla el reloj. Llamar al arrancar y en cada sync.
-    /// `mono_ms`: SystemClock.elapsedRealtime() en Android, GetTickCount64() en Windows.
+    /// Asks the relay for the signed time and anchors the clock. Call at startup and on every sync.
+    /// `mono_ms`: SystemClock.elapsedRealtime() on Android, GetTickCount64() on Windows.
     pub fn anchor_time(&self, device_now_ms: i64, mono_ms: i64) -> Result<(), CoreError> {
         let (url, pinned) = {
             let g = self.lock();
-            (g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("sin relay"))?, g.db.meta(META_TIME_KEY)?)
+            (
+                g.db.meta(META_RELAY)?.ok_or_else(|| CoreError::protocol("no relay configured"))?,
+                g.db.meta(META_TIME_KEY)?,
+            )
         };
-        let t = Relay::new(&url)?.time()?; // red, sin candado
-        let key = pinned.clone().unwrap_or_else(|| t.key.clone()); // TOFU: la primera clave queda fijada
+        let t = Relay::new(&url)?.time()?; // network, without the lock
+        let key = pinned.clone().unwrap_or_else(|| t.key.clone()); // TOFU: the first key gets pinned
         if t.key != key || !verify_signed_time(&t, &key) {
-            return Err(CoreError::protocol("hora firmada inválida o de una clave distinta"));
+            return Err(CoreError::protocol("invalid signed time or a different key"));
         }
         let mut g = self.lock();
         if pinned.is_none() {
@@ -651,14 +654,14 @@ impl Core {
         Ok(())
     }
 
-    /// Hora que deben usar las plataformas para construir `Clock`.
+    /// Time the platforms must use to build `Clock`.
     pub fn trusted_now_ms(&self, device_now_ms: i64, mono_ms: i64) -> i64 {
         corrected_now(self.lock().anchor, device_now_ms, mono_ms)
     }
 
-    // ───────────────────────── Latidos ─────────────────────────
+    // ───────────────────────── Heartbeats ─────────────────────────
 
-    /// Cuándo se vio por última vez a cada dispositivo del perfil.
+    /// When each device of the profile was last seen.
     pub fn devices_seen(&self) -> Vec<DeviceSeen> {
         let g = self.lock();
         let seen = g.ledger.last_seen();
@@ -675,14 +678,14 @@ impl Core {
             .collect()
     }
 
-    // ───────────────────────── Modo familiar ─────────────────────────
+    // ───────────────────────── Family mode ─────────────────────────
 
-    /// Rol de ESTE dispositivo en el perfil (None si aún no pertenece a ninguno).
+    /// Role of THIS device in the profile (None if it does not belong to one yet).
     pub fn my_role(&self) -> Option<Role> {
         self.lock().my_role()
     }
 
-    /// (Menor) Pide algo al tutor. Devuelve el id de la solicitud.
+    /// (Minor) Asks the guardian for something. Returns the request id.
     pub fn request(&self, clock: Clock, what: RequestKind) -> Result<String, CoreError> {
         let what = match what {
             RequestKind::ExtraPermit { minutes } if (1..=120).contains(&minutes) => what,
@@ -690,19 +693,19 @@ impl Core {
             RequestKind::AddSite { domain } => {
                 let domain = netpolicy::normalize(&domain);
                 if !valid_domain(&domain) {
-                    return Err(CoreError::protocol("dominio no válido"));
+                    return Err(Denied::InvalidDomain.into());
                 }
                 RequestKind::AddSite { domain }
             }
             RequestKind::RestDay => what,
-            _ => return Err(CoreError::protocol("solicitud fuera de rango")),
+            _ => return Err(CoreError::protocol("request out of range")),
         };
         let mut g = self.lock();
         if g.my_role() != Some(Role::Minor) {
-            return Err(CoreError::protocol("solo el menor hace solicitudes"));
+            return Err(CoreError::protocol("only the minor makes requests"));
         }
         if g.pending_requests().len() >= MAX_OPEN_REQUESTS {
-            return Err(CoreError::protocol("ya tienes varias solicitudes esperando respuesta"));
+            return Err(Denied::TooManyRequests.into());
         }
         let mut id = [0u8; 8];
         OsRng.fill_bytes(&mut id);
@@ -711,26 +714,26 @@ impl Core {
         Ok(request_id)
     }
 
-    /// Solicitudes sin respuesta (las ven el tutor y el menor).
+    /// Unanswered requests (seen by the guardian and the minor).
     pub fn pending_requests(&self) -> Vec<PendingRequest> {
         self.lock().pending_requests()
     }
 
-    /// (Tutor) Aprueba o rechaza. Si aprueba, registra el efecto, también firmado por el tutor.
+    /// (Guardian) Approves or rejects. If approved, records the effect, also signed by the guardian.
     pub fn decide(&self, clock: Clock, request_id: String, approved: bool) -> Result<(), CoreError> {
         let mut g = self.lock();
         if g.my_role() != Some(Role::Guardian) {
-            return Err(CoreError::protocol("solo un tutor responde solicitudes"));
+            return Err(CoreError::protocol("only a guardian answers requests"));
         }
         let what = g
             .pending_requests()
             .into_iter()
             .find(|r| r.request_id == request_id)
-            .ok_or_else(|| CoreError::protocol("solicitud inexistente o ya respondida"))?
+            .ok_or_else(|| CoreError::protocol("request not found or already answered"))?
             .what;
         let (history, _) = g.state(clock);
         let mut cfg =
-            history.active_at(clock.now_ms).cloned().ok_or_else(|| CoreError::protocol("sin configuración"))?;
+            history.active_at(clock.now_ms).cloned().ok_or_else(|| CoreError::protocol("no configuration"))?;
         g.record(clock.now_ms, EventKind::Decision { request_id, approved })?;
         if !approved {
             return Ok(());
@@ -752,8 +755,8 @@ impl Core {
         g.record(clock.now_ms, effect)
     }
 
-    /// Panel espejo: manipulaciones, emergencias y sitios bloqueados de los últimos 7 días, del más
-    /// reciente al más antiguo. El tutor y el menor ven exactamente esto (y el estado del día).
+    /// Mirror panel: tampering, emergencies and blocked sites from the last 7 days, newest
+    /// first. The guardian and the minor see exactly this (and the day state).
     pub fn family_alerts(&self, clock: Clock) -> Vec<FamilyAlertView> {
         let g = self.lock();
         let members = g.ledger.members();
@@ -778,10 +781,10 @@ impl Core {
         out
     }
 
-    // ───────────────────────── Filtro DNS (dispositivos de un menor) ─────────────────────────
+    // ───────────────────────── DNS filter (a minor's devices) ─────────────────────────
 
-    /// Carga la lista de categorías prohibidas si su firma (minisign, clave fijada) es válida.
-    /// Si falla, se conserva la anterior.
+    /// Loads the list of forbidden categories if its signature (minisign, pinned key) is valid.
+    /// On failure, the previous one is kept.
     pub fn load_category_list(&self, data: Vec<u8>, minisig: String) -> Result<u32, CoreError> {
         let set = verified_list(PINNED_LISTS_PUBKEY, &data, &minisig)?;
         let n = set.len() as u32;
@@ -789,8 +792,8 @@ impl Core {
         Ok(n)
     }
 
-    /// (Dispositivos de un menor) Descarga la lista de categorías y la carga si la firma es válida.
-    /// Llamar al arrancar y una vez al día. Devuelve cuántos dominios tiene (0 si no aplica).
+    /// (A minor's devices) Downloads the category list and loads it if the signature is valid.
+    /// Call at startup and once a day. Returns how many domains it has (0 if not applicable).
     pub fn refresh_category_list(&self) -> Result<u32, CoreError> {
         if self.my_role() != Some(Role::Minor) {
             return Ok(0);
@@ -800,8 +803,8 @@ impl Core {
         self.load_category_list(data, String::from_utf8(sig).map_err(CoreError::protocol)?)
     }
 
-    /// Primer paso de una consulta DNS. La plataforma la reenvía o responde según el resultado.
-    /// Al cambiar de día registra cuántos sitios se bloquearon por categoría el anterior (solo el número).
+    /// First step of a DNS query. The platform forwards or answers it depending on the result.
+    /// When the day changes, records how many sites were blocked per category the day before (only the number).
     pub fn dns_step(&self, clock: Clock, query: Vec<u8>) -> DnsAction {
         let mut g = self.lock();
         let (mode, day) = match &g.dns_mode {
@@ -827,20 +830,20 @@ impl Core {
         }
     }
 
-    /// Segundo paso: respuesta final a partir de la del DNS real (None = descartar).
+    /// Second step: final answer built from the real DNS answer (None = drop).
     pub fn dns_finish(&self, query: Vec<u8>, reply: Vec<u8>, rewritten: bool) -> Option<Vec<u8>> {
         netpolicy::finish(&query, &reply, rewritten)
     }
 
-    // ───────────────────────── Compañero de rendición de cuentas ─────────────────────────
+    // ───────────────────────── Accountability partner ─────────────────────────
 
-    /// Crea, en ESTE `Core` (otra base de datos), el buzón que compartirás con tu compañero.
-    /// No tiene configuración: solo recibirá avisos (manipulación, emergencia, resumen diario).
+    /// Creates, in THIS `Core` (another database), the mailbox you will share with your partner.
+    /// It has no configuration: it only receives alerts (tampering, emergency, daily summary).
     pub fn create_partner_mailbox(&self, clock: Clock, label: String) -> Result<(), CoreError> {
         check_label(&label)?;
         let mut g = self.lock();
         if !g.ledger.members().is_empty() {
-            return Err(CoreError::protocol("el buzón ya existe"));
+            return Err(CoreError::protocol("the mailbox already exists"));
         }
         let me = g.keys.device_id();
         g.db.set_meta(META_GENESIS, &me)?;
@@ -850,16 +853,16 @@ impl Core {
         g.record(clock.now_ms, EventKind::MembersChanged { members: vec![member] })
     }
 
-    /// Copia al buzón del compañero SOLO manipulaciones, emergencias y el resumen de cada día
-    /// terminado (números), desde que existe el buzón. Idempotente. Devuelve cuántos avisos añadió.
+    /// Copies to the partner mailbox ONLY tampering, emergencies and the summary of each finished
+    /// day (numbers), since the mailbox exists. Idempotent. Returns how many alerts it added.
     pub fn forward_to_partner(&self, partner: Arc<Core>, clock: Clock) -> Result<u32, CoreError> {
         if std::ptr::eq(self, partner.as_ref()) {
-            return Err(CoreError::protocol("el buzón del compañero debe ser otro"));
+            return Err(CoreError::protocol("the partner mailbox must be a different one"));
         }
         let since = {
             let p = partner.lock();
             if p.db.meta(META_KIND)?.as_deref() != Some(KIND_PARTNER) {
-                return Err(CoreError::protocol("no es un buzón de compañero"));
+                return Err(CoreError::protocol("not a partner mailbox"));
             }
             p.ledger.facts().first().map(|f| f.at_ms).unwrap_or(i64::MAX)
         };
@@ -881,7 +884,7 @@ impl Core {
                     let past = Clock { now_ms: today.day_start_ms - k * DAY_MS - 1, ..clock };
                     let Some(day) = rules::status(&h, &f, past) else { continue };
                     if day.goals.is_empty() || day.day_start_ms + DAY_MS <= since {
-                        continue; // día libre, sin metas o anterior al buzón
+                        continue; // free day, no goals, or before the mailbox existed
                     }
                     let completed = day.goals.iter().filter(|g| g.completed).count().min(255) as u8;
                     let total = day.goals.len().min(255) as u8;
@@ -910,7 +913,7 @@ impl Core {
         Ok(added)
     }
 
-    /// (Compañero) Avisos recibidos de la persona a la que acompañas, del más reciente al más antiguo.
+    /// (Partner) Alerts received from the person you support, newest first.
     pub fn partner_alerts(&self) -> Vec<PartnerAlertView> {
         let g = self.lock();
         let members = g.ledger.members();
@@ -933,13 +936,13 @@ impl Core {
     }
 }
 
-/// Verifica una lista de categorías firmada con minisign y la interpreta.
+/// Verifies a minisign-signed category list and parses it.
 fn verified_list(pubkey_b64: &str, data: &[u8], minisig: &str) -> Result<CategorySet, CoreError> {
     let pk = minisign_verify::PublicKey::from_base64(pubkey_b64).map_err(CoreError::crypto)?;
     let sig = minisign_verify::Signature::decode(minisig).map_err(CoreError::crypto)?;
-    pk.verify(data, &sig, false).map_err(|_| CoreError::crypto("firma de la lista inválida"))?;
+    pk.verify(data, &sig, false).map_err(|_| CoreError::crypto("invalid list signature"))?;
     let text = std::str::from_utf8(data).map_err(CoreError::protocol)?;
-    CategorySet::parse(text).ok_or_else(|| CoreError::protocol("formato de lista inválido"))
+    CategorySet::parse(text).ok_or_else(|| CoreError::protocol("invalid list format"))
 }
 
 #[cfg(test)]
@@ -963,11 +966,11 @@ mod tests {
         assert!(st.needs_plan);
         assert_eq!(c.today_goals(MONDAY_9).len(), 2);
         c.plan_day(MONDAY_9, vec![]).unwrap();
-        let st = c.complete_goal(MONDAY_9, "leer-30".into(), Method::HonorDeclaration, 100, 30).unwrap();
+        let st = c.complete_goal(MONDAY_9, "read-30".into(), Method::HonorDeclaration, 100, 30).unwrap();
         assert_eq!(st.state, DayState::Free);
-        // El motivo de un rechazo llega en español y sin datos personales
-        let err = c.start_pass(MONDAY_9).unwrap_err().to_string();
-        assert_eq!(err, "no disponible en el estado actual");
+        // A refusal reaches the UI as a stable code, without personal data
+        let err = c.start_pass(MONDAY_9).unwrap_err();
+        assert_eq!(err.code(), "denied.wrong_state");
     }
 
     #[test]
@@ -996,11 +999,11 @@ mod tests {
     #[test]
     fn partner_gets_only_alerts_and_numbers_once() {
         let (me, partner) = (core(), core());
-        me.create_profile(MONDAY_9, "Teléfono".into(), Config::example()).unwrap();
-        partner.create_partner_mailbox(MONDAY_9, "Teléfono".into()).unwrap();
+        me.create_profile(MONDAY_9, "Phone".into(), Config::example()).unwrap();
+        partner.create_partner_mailbox(MONDAY_9, "Phone".into()).unwrap();
         me.plan_day(MONDAY_9, vec![]).unwrap();
         let at = |h: i64| Clock { now_ms: MONDAY_9.now_ms + h * 60 * MINUTE_MS, ..MONDAY_9 };
-        me.complete_goal(at(1), "leer-30".into(), Method::HonorDeclaration, 100, 30).unwrap();
+        me.complete_goal(at(1), "read-30".into(), Method::HonorDeclaration, 100, 30).unwrap();
         me.report_tamper(at(2), TamperKind::PermissionRevoked).unwrap();
         me.emergency(at(3)).unwrap();
         let tuesday = Clock { now_ms: MONDAY_9.now_ms + DAY_MS, ..MONDAY_9 };
@@ -1010,16 +1013,16 @@ mod tests {
         assert_eq!(alerts.len(), 3);
         assert!(alerts.contains(&PartnerAlert::Emergency));
         assert!(alerts.contains(&PartnerAlert::Tamper { what: TamperKind::PermissionRevoked }));
-        // Lunes: "leer-30" cumplida, "comer-sano" no → 1 de 2. Nada de títulos ni de qué metas eran.
+        // Monday: "read-30" done, "eat-healthy" not → 1 of 2. No titles, nor which goals they were.
         assert!(alerts.contains(&PartnerAlert::DailySummary { completed: 1, total: 2 }));
-        // El buzón del compañero no tiene configuración ni estado del día
+        // The partner mailbox has no configuration nor day state
         assert!(partner.status(tuesday).is_none());
         assert!(me.forward_to_partner(me.clone(), tuesday).is_err());
     }
 
-    // ── Modo familiar ──
+    // ── Family mode ──
 
-    /// Copia los eventos de `from` a `to` (lo que haría el relay).
+    /// Copies the events from `from` to `to` (what the relay would do).
     fn deliver(from: &Core, to: &Core) {
         let evs = from.lock().db.all().unwrap();
         let mut g = to.lock();
@@ -1030,10 +1033,10 @@ mod tests {
         }
     }
 
-    /// Tutor con un perfil familiar y el dispositivo del menor ya vinculado (sin relay).
+    /// Guardian with a family profile and the minor's device already paired (no relay).
     fn family() -> (Arc<Core>, Arc<Core>) {
         let (guardian, minor) = (core(), core());
-        guardian.create_family_profile(MONDAY_9, "Mamá".into(), Config::example()).unwrap();
+        guardian.create_family_profile(MONDAY_9, "Mom".into(), Config::example()).unwrap();
         let kid = minor.lock().me_as_member("Tablet".into(), Role::Minor);
         {
             let mut g = guardian.lock();
@@ -1055,15 +1058,15 @@ mod tests {
         let (guardian, minor) = family();
         assert_eq!((guardian.my_role(), minor.my_role()), (Some(Role::Guardian), Some(Role::Minor)));
         let id = minor.request(later(1), RequestKind::ExtraPermit { minutes: 15 }).unwrap();
-        assert!(guardian.request(later(1), RequestKind::RestDay).is_err(), "el tutor no pide");
+        assert!(guardian.request(later(1), RequestKind::RestDay).is_err(), "the guardian does not make requests");
         deliver(&minor, &guardian);
         assert_eq!(guardian.pending_requests().len(), 1);
-        assert!(minor.decide(later(2), id.clone(), true).is_err(), "el menor no se aprueba a sí mismo");
+        assert!(minor.decide(later(2), id.clone(), true).is_err(), "the minor cannot approve themselves");
         guardian.decide(later(2), id.clone(), true).unwrap();
-        assert!(guardian.decide(later(3), id, true).is_err(), "ya respondida");
+        assert!(guardian.decide(later(3), id, true).is_err(), "already answered");
         deliver(&guardian, &minor);
         assert!(minor.pending_requests().is_empty());
-        // 3 diarios + 1 concedido
+        // 3 daily + 1 granted
         assert_eq!(minor.status(later(4)).unwrap().permits_left, 4);
     }
 
@@ -1073,7 +1076,7 @@ mod tests {
         for kind in [EventKind::GrantPermit { minutes: 60 }, EventKind::RestDayGranted] {
             assert!(minor.lock().record(later(1).now_ms, kind).is_err());
         }
-        // Ni relajar la configuración (el núcleo lo rechaza y, si llegara firmado, se ignoraría)
+        // Nor relax the configuration (the core rejects it and, if it arrived signed, it would be ignored)
         let mut laxer = Config::example();
         laxer.permits_per_day = 9;
         assert!(matches!(minor.set_config(later(1), laxer.clone()), Err(CoreError::Denied { .. })));
@@ -1086,11 +1089,11 @@ mod tests {
         for c in [&guardian, &minor] {
             assert_eq!(c.active_config(tomorrow).unwrap().permits_per_day, 3);
         }
-        // Endurecer sí, y al momento
+        // Making it stricter is allowed, and immediately
         let mut stricter = Config::example();
         stricter.permits_per_day = 1;
         assert_eq!(minor.set_config(later(3), stricter).unwrap(), later(3).now_ms);
-        // El tutor relaja al momento
+        // The guardian relaxes immediately
         assert_eq!(guardian.set_config(later(4), laxer).unwrap(), later(4).now_ms);
     }
 
@@ -1119,12 +1122,12 @@ mod tests {
         let c = core();
         c.create_profile(MONDAY_9, "PC".into(), Config::example()).unwrap();
         let err = c.pairing_confirm(MONDAY_9, Some(Role::Guardian)).unwrap_err().to_string();
-        assert!(err.contains("rol no válido"), "{err}");
+        assert!(err.contains("invalid role"), "{err}");
         let (guardian, _) = family();
-        assert!(guardian.pairing_confirm(MONDAY_9, None).unwrap_err().to_string().contains("rol no válido"));
+        assert!(guardian.pairing_confirm(MONDAY_9, None).unwrap_err().to_string().contains("invalid role"));
     }
 
-    /// Vector minisign con una clave desechable (prehash BLAKE2b, como `minisign -S`).
+    /// minisign vector with a throwaway key (BLAKE2b prehash, like `minisign -S`).
     const TEST_PK: &str = "RWQlDdRnNvC7WVLh30EvLQwEavQfCouzpAMSx6NTBaRAfOKIjJDumRaD";
     const TEST_LIST: &[u8] = b"procastinacioff-categories v1\nexample-adult.com\n";
     const TEST_SIG: &str = "untrusted comment: prueba
@@ -1139,7 +1142,7 @@ cYXq6Cd/cf1X9l7OI+KZ0w8776VB/XSZ/5WeXKfE0oMuGPfhhJrh0KVkSwSaYR44zj/LaHT0UgDHyT2N
         let mut tampered = TEST_LIST.to_vec();
         tampered.extend(b"wikipedia.org\n");
         assert!(verified_list(TEST_PK, &tampered, TEST_SIG).is_err());
-        // Sin la clave real fijada, ninguna lista se acepta
+        // Without the real pinned key, no list is accepted
         assert!(core().load_category_list(TEST_LIST.to_vec(), TEST_SIG.into()).is_err());
     }
 
@@ -1156,21 +1159,21 @@ cYXq6Cd/cf1X9l7OI+KZ0w8776VB/XSZ/5WeXKfE0oMuGPfhhJrh0KVkSwSaYR44zj/LaHT0UgDHyT2N
         let (guardian, minor) = family();
         let blocked =
             |c: &Core, at: Clock, name: &str| matches!(c.dns_step(at, dns_query(name)), DnsAction::Reply { .. });
-        // BLOQUEADO: solo esenciales en el dispositivo del menor; el del tutor no se filtra
+        // LOCKED: only essentials on the minor's device; the guardian's is not filtered
         assert!(blocked(&minor, later(1), "example.org"));
         assert!(!blocked(&minor, later(1), "web.whatsapp.com"));
         assert!(!blocked(&guardian, later(1), "example.org"));
-        // Día de descanso (LIBRE): todo menos categorías
+        // Rest day (FREE): everything except categories
         minor.lock().categories = verified_list(TEST_PK, TEST_LIST, TEST_SIG).unwrap();
         let rest = minor.request(later(2), RequestKind::RestDay).unwrap();
         deliver(&minor, &guardian);
         guardian.decide(later(3), rest, true).unwrap();
         deliver(&guardian, &minor);
-        let free = later(10); // pasado el TTL del modo
+        let free = later(10); // after the mode TTL
         assert!(!blocked(&minor, free, "example.org"));
         assert!(blocked(&minor, free, "a.example-adult.com"));
         assert!(blocked(&minor, free, "b.example-adult.com"));
-        // Al día siguiente se registra el número (1 sitio), nunca cuál
+        // The next day the number is recorded (1 site), never which one
         let tomorrow = Clock { now_ms: MONDAY_9.now_ms + DAY_MS, ..MONDAY_9 };
         minor.dns_step(tomorrow, dns_query("example.org"));
         let alerts: Vec<FamilyAlert> = minor.family_alerts(tomorrow).into_iter().map(|a| a.alert).collect();

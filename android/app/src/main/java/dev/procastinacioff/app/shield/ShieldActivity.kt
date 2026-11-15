@@ -1,5 +1,7 @@
 package dev.procastinacioff.app.shield
 
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -42,13 +44,13 @@ import uniffi.procastinacioff_core.DayState
 import uniffi.procastinacioff_core.GoalKind
 import uniffi.procastinacioff_core.Role
 
-/** Escudo sobre lo no permitido. Siempre explica el bloqueo y el siguiente paso; nunca culpa. */
+/** Shield over what is not allowed. Always explains the block and the next step; never blames. */
 class ShieldActivity : ComponentActivity() {
     companion object { const val EXTRA_PACKAGE = "pkg" }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) // sin capturas ni vista en recientes
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) // no screenshots nor preview in recents
         setContent {
             val snap = rememberSnapshot()
             PcoTheme(lookFor(snap.status, focus = false, systemDark = isSystemInDarkTheme(), nowMs = snap.nowMs)) {
@@ -72,7 +74,7 @@ private fun ShieldScreen(snap: Snapshot, onClose: () -> Unit, onOpen: (String, S
     var error by remember { mutableStateOf<String?>(null) }
     val st = snap.status
 
-    BackHandler { /* el botón atrás no cierra el escudo */ }
+    BackHandler { /* the back button does not close the shield */ }
     LaunchedEffect(st?.state) {
         val s = st?.state
         if (s is DayState.Free || s is DayState.Pass || s is DayState.Emergency) onClose()
@@ -86,24 +88,24 @@ private fun ShieldScreen(snap: Snapshot, onClose: () -> Unit, onOpen: (String, S
     ) {
         when (val s = st.state) {
             is DayState.Sleep -> {
-                Title("Hora de dormir")
-                Text("Las llamadas siguen funcionando. Despiertas a las ${hhmm(st.nextWakeMs)}.")
+                Title(stringResource(R.string.bedtime_title))
+                Text(stringResource(R.string.shield_sleep_lead, hhmm(st.nextWakeMs)))
             }
             is DayState.Focus -> {
-                Title("Ahora toca tu tarea")
-                Text("Durante el enfoque solo están disponibles las apps de esa tarea.")
-                PrimaryButton("Volver a la tarea") { onOpen(MainActivity.ROUTE_FOCUS, s.goalId) }
+                Title(stringResource(R.string.shield_focus_title))
+                Text(stringResource(R.string.shield_focus_only))
+                PrimaryButton(stringResource(R.string.back_to_task)) { onOpen(MainActivity.ROUTE_FOCUS, s.goalId) }
             }
             else -> if (st.needsPlan) {
-                Title("Define tus metas de hoy")
-                Text("Hasta entonces solo funcionan las apps esenciales.")
-                PrimaryButton("Definir mis metas") { onOpen(MainActivity.ROUTE_PLAN, null) }
+                Title(stringResource(R.string.shield_plan_title))
+                Text(stringResource(R.string.shield_plan_lead))
+                PrimaryButton(stringResource(R.string.shield_plan_button)) { onOpen(MainActivity.ROUTE_PLAN, null) }
             } else {
-                Title("Aún no cumples tus metas")
-                next?.let { Text("Sigue con «${it.title}».") }
-                next?.let { PrimaryButton("Continuar: ${it.title}") { onOpen(MainActivity.ROUTE_FOCUS, it.goalId) } }
+                Title(stringResource(R.string.shield_not_done_title))
+                next?.let { Text(stringResource(R.string.shield_continue_with, it.title)) }
+                next?.let { PrimaryButton(stringResource(R.string.shield_continue, it.title)) { onOpen(MainActivity.ROUTE_FOCUS, it.goalId) } }
                 if (st.permitsLeft > 0u) {
-                    SecondaryButton("Usar un permiso (${st.permitsLeft})") {
+                    SecondaryButton(stringResource(R.string.use_pass_count, st.permitsLeft.toInt())) {
                         scope.launch { error = coreAction(ctx) { it.startPass(CoreHolder.clock()) } }
                     }
                 }
@@ -112,7 +114,7 @@ private fun ShieldScreen(snap: Snapshot, onClose: () -> Unit, onOpen: (String, S
         ErrorText(error)
         val minor = remember { runCatching { CoreHolder.get(ctx).myRole() == Role.MINOR }.getOrDefault(false) }
         if (minor && st.state !is DayState.Sleep) {
-            SecondaryButton("Pedir a tu tutor") { onOpen(MainActivity.ROUTE_TUTOR, null) }
+            SecondaryButton(stringResource(R.string.ask_your_guardian)) { onOpen(MainActivity.ROUTE_TUTOR, null) }
         }
         EmergencySection { scope.launch { error = coreAction(ctx) { it.emergency(CoreHolder.clock()) } } }
     }

@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Escudo a pantalla completa. Siempre explica el bloqueo y el siguiente paso; nunca culpa.
+  // Full-screen shield. Always explains the block and the next step; never blames.
   import type { AgentStatus, Goal } from '../lib/agent';
+  import { t, tn } from '../lib/i18n';
   import { hhmm, secondsUntil } from '../lib/format';
   import Icon from '../components/Icon.svelte';
   import Emergency from '../components/Emergency.svelte';
@@ -17,7 +18,7 @@
     ondismiss: () => void;
     onfamily: () => void;
     onact: (r: Record<string, unknown>) => void;
-    onerror: (m: string) => void;
+    onerror: (e: unknown) => void;
   } = $props();
 
   const status = $derived(agent.core!);
@@ -31,43 +32,42 @@
   <section class="card panel stack">
     {#if reason === 'sleep'}
       <div class="icon"><Icon name="moon" size={28} /></div>
-      <h1 id="shield-title">Hora de dormir</h1>
-      <p class="lead">Las llamadas siguen funcionando. Despiertas a las {hhmm(status.next_wake_ms)}.</p>
+      <h1 id="shield-title">{t('shield.sleep_title')}</h1>
+      <p class="lead">{t('shield.sleep_lead', { time: hhmm(status.next_wake_ms) })}</p>
     {:else if reason === 'grace'}
       <div class="icon"><Icon name="clock" size={28} /></div>
-      <h1 id="shield-title">Guarda tu trabajo</h1>
-      <p class="lead" role="alert">
-        En <strong class="num">{secondsUntil(agent.grace_until_ms ?? now, now)} s</strong> se cerrarán las apps que no están
-        permitidas ahora.
+      <h1 id="shield-title">{t('shield.grace_title')}</h1>
+      <p class="lead num" role="alert">
+        <strong>{t('shield.grace_lead', { seconds: secondsUntil(agent.grace_until_ms ?? now, now) })}</strong>
       </p>
       <p class="muted">
         {focusing
-          ? 'Durante el enfoque solo están disponibles las apps de tu tarea.'
+          ? t('shield.focus_only')
           : pending.length > 0
-            ? `Aún ${pending.length === 1 ? 'falta 1 meta' : `faltan ${pending.length} metas`} para desbloquear.`
-            : 'Define tus metas de hoy para empezar.'}
+            ? tn('shield.goals_left', pending.length)
+            : t('shield.set_goals')}
       </p>
     {:else}
       <div class="icon"><Icon name="lock" size={28} /></div>
-      <h1 id="shield-title">Se cerró {agent.blocked_app}</h1>
+      <h1 id="shield-title">{t('shield.closed_title', { app: agent.blocked_app ?? '' })}</h1>
       <p class="lead">
         {focusing
-          ? 'Durante el enfoque solo están disponibles las apps de tu tarea.'
+          ? t('shield.focus_only')
           : next
-            ? `Aún no cumples tus metas de hoy. Sigue con «${next.title}».`
-            : 'Define tus metas de hoy para desbloquear.'}
+            ? t('shield.not_done', { goal: next.title })
+            : t('shield.set_goals_unlock')}
       </p>
       <div class="row">
         {#if !focusing && nextGoal}
-          <button class="btn-primary" onclick={() => { ondismiss(); onstart(nextGoal); }}>Continuar: {nextGoal.title}</button>
+          <button class="btn-primary" onclick={() => { ondismiss(); onstart(nextGoal); }}>{t('shield.continue', { goal: nextGoal.title })}</button>
         {/if}
         {#if status.permits_left > 0}
-          <button class="btn-secondary" onclick={() => onact({ cmd: 'start_pass' })}>Usar un permiso ({status.permits_left})</button>
+          <button class="btn-secondary" onclick={() => onact({ cmd: 'start_pass' })}>{t('shield.use_pass', { n: status.permits_left })}</button>
         {/if}
         {#if minor}
-          <button class="btn-secondary" onclick={onfamily}>Pedir a tu tutor</button>
+          <button class="btn-secondary" onclick={onfamily}>{t('shield.ask_guardian')}</button>
         {/if}
-        <button class="btn-text" onclick={ondismiss}>Entendido</button>
+        <button class="btn-text" onclick={ondismiss}>{t('shield.ok')}</button>
       </div>
     {/if}
     <Emergency {onerror} />

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Rutas del relay 🔒.
+//! Rutas del relay (security-critical).
 //! ponytail: `db.lock()` bloquea un hilo de Tokio mientras SQLite trabaja (milisegundos);
 //! si la latencia p99 supera 50 ms, mover las llamadas a `spawn_blocking` o a un pool.
 

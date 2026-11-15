@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Firmante Authenticode 🔒: se verifica la firma **y** se extrae el nombre del firmante.
-//! Los resultados se cachean por (ruta, tamaño, fecha de modificación).
+//! Authenticode signer (security-critical): the signature is verified **and** the signer name is extracted.
+//! Results are cached by (path, size, modification date).
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -19,7 +19,7 @@ use windows::Win32::Security::WinTrust::{
 };
 use windows::core::{GUID, PCWSTR};
 
-/// Devuelve el nombre del firmante si la firma embebida es válida.
+/// Returns the signer name if the embedded signature is valid.
 pub fn verified_signer(path: &Path) -> Option<String> {
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     unsafe {
@@ -38,7 +38,7 @@ pub fn verified_signer(path: &Path) -> Option<String> {
             ..Default::default()
         };
         let mut action: GUID = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-        let hwnd = HWND(-1isize as *mut c_void); // INVALID_HANDLE_VALUE: sin interfaz
+        let hwnd = HWND(-1isize as *mut c_void); // INVALID_HANDLE_VALUE: no interface
         let status = WinVerifyTrust(hwnd, &mut action, &mut data as *mut _ as *mut c_void);
 
         let mut result = None;
@@ -63,13 +63,13 @@ pub fn verified_signer(path: &Path) -> Option<String> {
                 }
             }
         }
-        data.dwStateAction = WTD_STATEACTION_CLOSE; // libera el estado interno de WinVerifyTrust
+        data.dwStateAction = WTD_STATEACTION_CLOSE; // releases WinVerifyTrust's internal state
         WinVerifyTrust(hwnd, &mut action, &mut data as *mut _ as *mut c_void);
         result
     }
 }
 
-/// Caché: (ruta, tamaño, fecha de modificación) → firmante.
+/// Cache: (path, size, modification date) → signer.
 #[derive(Default)]
 pub struct SignerCache(HashMap<(String, u64, i64), Option<String>>);
 

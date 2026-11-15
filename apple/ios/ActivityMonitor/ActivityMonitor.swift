@@ -5,9 +5,9 @@
 import DeviceActivity
 import Foundation
 
-/// Aplica los escudos al empezar/terminar DORMIR y al acabar un permiso, aunque la app esté cerrada.
-/// Memoria muy limitada: SIN núcleo Rust; solo el estado compartido. Al abrir la app, `StateBridge`
-/// vuelve a calcular todo con el núcleo (fuente de verdad).
+/// Applies the shields when SLEEP starts/ends and when a pass ends, even with the app closed.
+/// Very limited memory: NO Rust core; only the shared state. When the app opens, `StateBridge`
+/// recomputes everything with the core (source of truth).
 final class ActivityMonitor: DeviceActivityMonitor {
     private func apply(_ mode: ShieldMode, base: ShieldMode? = nil) {
         var s = SharedStore.load()
@@ -19,7 +19,7 @@ final class ActivityMonitor: DeviceActivityMonitor {
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
-        // La noche previa a un día libre no hay DORMIR (como en el núcleo)
+        // The night before a free day has no SLEEP (as in the core)
         if activity == .sleep && !FreeDays.nightIsFree(Date(), SharedStore.load()) { apply(.sleep) }
     }
 
@@ -27,7 +27,7 @@ final class ActivityMonitor: DeviceActivityMonitor {
         super.intervalDidEnd(for: activity)
         switch activity {
         case .sleep:
-            // Nuevo día: las metas empiezan de cero → BLOQUEADO (o LIBRE si hoy es día libre)
+            // New day: goals start from zero → LOCKED (or FREE if today is a free day)
             let base: ShieldMode = FreeDays.isFree(Date(), SharedStore.load()) ? .open : .locked
             apply(base, base: base)
         case .pass:

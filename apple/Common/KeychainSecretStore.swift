@@ -5,10 +5,10 @@
 import Foundation
 import Security
 
-/// Llavero del sistema para las claves del dispositivo 🔒 (implementa `SecretStore` del núcleo).
-/// `AfterFirstUnlockThisDeviceOnly`: disponible con el teléfono bloqueado (las extensiones trabajan de
-/// noche) y NUNCA va a copias de seguridad ni a otro dispositivo. En macOS el agente (root) usa el
-/// llavero del sistema, sin grupo de acceso.
+/// System keychain for the device keys; implements the core's `SecretStore` (security-critical).
+/// `AfterFirstUnlockThisDeviceOnly`: available with the phone locked (the extensions work at
+/// night) and NEVER goes to backups or to another device. On macOS the agent (root) uses the
+/// system keychain, without an access group.
 final class KeychainSecretStore: SecretStore {
     private let service = "dev.procastinacioff.secrets"
     private let accessGroup: String?
@@ -34,7 +34,7 @@ final class KeychainSecretStore: SecretStore {
         var out: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &out)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else { throw CoreError.Secret(msg: "llavero \(status)") }
+        guard status == errSecSuccess else { throw CoreError.Secret(msg: "keychain \(status)") }
         return out as? Data
     }
 
@@ -44,6 +44,6 @@ final class KeychainSecretStore: SecretStore {
         add[kSecValueData as String] = value
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
-        guard status == errSecSuccess else { throw CoreError.Secret(msg: "llavero \(status)") }
+        guard status == errSecSuccess else { throw CoreError.Secret(msg: "keychain \(status)") }
     }
 }

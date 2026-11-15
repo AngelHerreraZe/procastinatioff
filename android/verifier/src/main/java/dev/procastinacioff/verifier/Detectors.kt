@@ -18,8 +18,8 @@ import uniffi.procastinacioff_verify.Label
 import uniffi.procastinacioff_verify.OcrLine
 
 /**
- * Detectores locales. Cada modelo se carga (y se verifica) solo cuando un método lo necesita.
- * Todo corre en el dispositivo; este APK no tiene Internet.
+ * Local detectors. Each model is loaded (and verified) only when a method needs it.
+ * Everything runs on the device; this APK has no Internet.
  */
 class Detectors(private val ctx: Context) : AutoCloseable {
     private fun base(name: String) = BaseOptions.builder().setModelAssetPath(Models.verified(ctx, name)).build()
@@ -45,7 +45,7 @@ class Detectors(private val ctx: Context) : AutoCloseable {
         PoseLandmarker.createFromOptions(ctx, PoseLandmarker.PoseLandmarkerOptions.builder()
             .setBaseOptions(base("pose_landmarker_lite.task")).setRunningMode(RunningMode.IMAGE).build())
     }
-    // OCR de ML Kit con modelo empaquetado (no descarga nada; además, este APK no tiene red)
+    // ML Kit OCR with a bundled model (downloads nothing; besides, this APK has no network)
     private val ocr by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
     private val loaded = mutableListOf<AutoCloseable>()
@@ -54,13 +54,13 @@ class Detectors(private val ctx: Context) : AutoCloseable {
     fun hasFace(b: Bitmap) = face.track().detect(BitmapImageBuilder(b).build()).detections().isNotEmpty()
     fun hasBook(b: Bitmap) = objects.track().detect(BitmapImageBuilder(b).build()).detections().isNotEmpty()
 
-    /** 21 puntos × (x, y, z) o null si no hay mano. */
+    /** 21 points × (x, y, z) or null if there is no hand. */
     fun hand(b: Bitmap): List<Float>? {
         val lm = hands.track().detect(BitmapImageBuilder(b).build()).landmarks().firstOrNull() ?: return null
         return lm.flatMap { listOf(it.x(), it.y(), it.z()) }
     }
 
-    /** 33 puntos × (x, y, visibilidad) o null. */
+    /** 33 points × (x, y, visibility) or null. */
     fun poseLandmarks(b: Bitmap): List<Float>? {
         val lm = pose.track().detect(BitmapImageBuilder(b).build()).landmarks().firstOrNull() ?: return null
         return lm.flatMap { listOf(it.x(), it.y(), it.visibility().orElse(0f)) }
@@ -71,9 +71,9 @@ class Detectors(private val ctx: Context) : AutoCloseable {
             ?.categories()?.map { Label(name = it.categoryName(), score = (it.score() * 100).toInt().coerceIn(0, 100).toUByte()) }
             ?: emptyList()
 
-    /** Texto de la página (solo en memoria) y sus líneas con posición, para el número de página. */
+    /** Page text (memory only) and its lines with position, for the page number. */
     fun readPage(b: Bitmap): Pair<String, List<OcrLine>> {
-        val text = Tasks.await(ocr.process(InputImage.fromBitmap(b, 0))) // hilo de análisis, no el principal
+        val text = Tasks.await(ocr.process(InputImage.fromBitmap(b, 0))) // analysis thread, not the main one
         val lines = text.textBlocks.flatMap { it.lines }.map {
             OcrLine(text = it.text, top = it.boundingBox?.top ?: 0, bottom = it.boundingBox?.bottom ?: 0)
         }

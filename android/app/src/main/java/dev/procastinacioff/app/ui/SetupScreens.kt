@@ -1,5 +1,7 @@
 package dev.procastinacioff.app.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import android.Manifest
 import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
@@ -58,7 +60,6 @@ import uniffi.procastinacioff_core.Schedule
 import uniffi.procastinacioff_core.TimeOfDay
 
 private const val ALL_DAYS: UByte = 0x7Fu
-internal val DAY_LABELS = listOf("L", "M", "X", "J", "V", "S", "D")
 
 @Composable
 private fun Page(content: @Composable () -> Unit) {
@@ -70,18 +71,14 @@ private fun Page(content: @Composable () -> Unit) {
 
 @Composable
 fun WelcomeScreen(onNext: () -> Unit) = Page {
-    Text("Tus metas primero", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-    Text("ProcastinaciOFF bloquea lo que te distrae hasta que cumples lo que tú decides cada mañana.")
-    listOf(
-        "Sin cuentas: tu identidad es una clave que vive en este teléfono.",
-        "Tus metas viajan cifradas: ni el servidor ni nosotros podemos leerlas.",
-        "Sin anuncios, sin analítica y sin leer tus mensajes.",
-        "Las llamadas y las emergencias siempre funcionan.",
-    ).forEach { Text("• $it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    PrimaryButton("Empezar", onClick = onNext)
+    Text(stringResource(R.string.welcome_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+    Text(stringResource(R.string.welcome_lead))
+    listOf(R.string.welcome_point_accounts, R.string.welcome_point_encrypted, R.string.welcome_point_no_ads, R.string.welcome_point_calls)
+        .forEach { Text("• " + stringResource(it), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    PrimaryButton(stringResource(R.string.action_start), onClick = onNext)
 }
 
-/** Cada permiso se explica antes de pedirlo. Nada se activa sin que el usuario lo vea. */
+/** Each permission is explained before asking for it. Nothing is enabled without the user seeing it. */
 @Composable
 fun PermissionsScreen(onNext: () -> Unit) {
     val ctx = LocalContext.current
@@ -93,7 +90,7 @@ fun PermissionsScreen(onNext: () -> Unit) {
     var isAdmin by remember { mutableStateOf(false) }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
-    LifecycleResumeEffect(Unit) { // al volver de Ajustes se recalcula
+    LifecycleResumeEffect(Unit) { // recomputed when coming back from Settings
         a11y = isAccessibilityEnabled(ctx)
         dnd = nm.isNotificationPolicyAccessGranted
         isAdmin = dpm.isAdminActive(admin)
@@ -101,30 +98,31 @@ fun PermissionsScreen(onNext: () -> Unit) {
     }
 
     Page {
-        Text("Permisos necesarios", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.permissions_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         PermissionRow(
-            "Accesibilidad",
-            "Para saber qué app está abierta (solo su nombre) y mostrar la pantalla de bloqueo. No leemos la pantalla ni lo que escribes.",
+            stringResource(R.string.perm_accessibility),
+            stringResource(R.string.perm_accessibility_why),
             a11y,
         ) { ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        PermissionRow("No molestar", "Para silenciar todo excepto las llamadas a la hora de dormir.", dnd) {
+        PermissionRow(stringResource(R.string.perm_dnd), stringResource(R.string.perm_dnd_why), dnd) {
             ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
         }
+        val adminExplanation = stringResource(R.string.perm_admin_explanation)
         PermissionRow(
-            "Protección contra desinstalación",
-            "Para que no puedas desinstalar la app en un impulso. Puedes desactivarla, pero quedará registrado.",
+            stringResource(R.string.perm_admin),
+            stringResource(R.string.perm_admin_why),
             isAdmin,
         ) {
             ctx.startActivity(
                 Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
                     .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                    .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Evita desinstalaciones impulsivas."),
+                    .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, adminExplanation),
             )
         }
-        PermissionRow("Notificaciones", "Para avisarte antes de bloquear y cuando tu otro dispositivo te necesita.", false) {
+        PermissionRow(stringResource(R.string.perm_notifications), stringResource(R.string.perm_notifications_why), false) {
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        PrimaryButton("Continuar", enabled = a11y && dnd && isAdmin, onClick = onNext)
+        PrimaryButton(stringResource(R.string.action_continue), enabled = a11y && dnd && isAdmin, onClick = onNext)
     }
 }
 
@@ -132,25 +130,25 @@ fun PermissionsScreen(onNext: () -> Unit) {
 private fun PermissionRow(title: String, why: String, granted: Boolean, onGrant: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(if (granted) "$title · concedido" else title, style = MaterialTheme.typography.titleMedium)
+            Text(if (granted) stringResource(R.string.perm_granted, title) else title, style = MaterialTheme.typography.titleMedium)
             Text(why, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (!granted) TextButton(onClick = onGrant) { Text("Conceder") }
+            if (!granted) TextButton(onClick = onGrant) { Text(stringResource(R.string.perm_grant)) }
         }
     }
 }
 
 @Composable
 fun ChooseScreen(onNew: () -> Unit, onJoin: () -> Unit, onWatch: () -> Unit, onFamily: () -> Unit) = Page {
-    Text("¿Cómo quieres empezar?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-    PrimaryButton("Crear mi perfil", onClick = onNew)
-    SecondaryButton("Unirme a un perfil existente (otro dispositivo o el de un menor)", onClick = onJoin)
-    SecondaryButton("Soy compañero de alguien", onClick = onWatch)
-    SecondaryButton("Soy madre, padre o tutor", onClick = onFamily)
+    Text(stringResource(R.string.choose_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    PrimaryButton(stringResource(R.string.choose_create), onClick = onNew)
+    SecondaryButton(stringResource(R.string.choose_join), onClick = onJoin)
+    SecondaryButton(stringResource(R.string.choose_partner), onClick = onWatch)
+    SecondaryButton(stringResource(R.string.choose_guardian), onClick = onFamily)
 }
 
 data class LaunchableApp(val label: String, val pkg: String, val id: String)
 
-/** Apps con icono en el lanzador, con su identificador "android:<pkg>@<cert>". */
+/** Apps with a launcher icon, with their "android:<pkg>@<cert>" identifier. */
 fun launchableApps(ctx: Context): List<LaunchableApp> {
     val pm = ctx.packageManager
     val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -176,18 +174,21 @@ private enum class AppRole { NONE, ESSENTIAL, FOCUS }
 fun ConfigScreen(family: Boolean = false, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var label by remember { mutableStateOf(if (family) "Tutor" else "Teléfono") }
+    val defaultLabel = stringResource(if (family) R.string.default_label_guardian else R.string.default_label_phone)
+    var label by remember { mutableStateOf(defaultLabel) }
     var child by remember { mutableStateOf("") }
     var bonus by remember { mutableStateOf("0") }
     var wake by remember { mutableStateOf("06:30") }
     var bedtime by remember { mutableStateOf("22:30") }
-    var freeDays by remember { mutableIntStateOf(0b110_0000) } // sábado y domingo
+    var freeDays by remember { mutableIntStateOf(0b110_0000) } // Saturday and Sunday
     var permits by remember { mutableStateOf("3") }
     var permitMinutes by remember { mutableStateOf("5") }
+    val readTitle = stringResource(R.string.example_goal_read)
+    val eatTitle = stringResource(R.string.example_goal_eat)
     val goals = remember {
         mutableStateListOf(
-            Goal("leer-30", "Leer 30 minutos", GoalKind.KEY, 30u, 1u, methodsFor(30), ALL_DAYS),
-            Goal("comer-sano", "Comer sano", GoalKind.HABIT, 0u, 2u, methodsFor(0), ALL_DAYS),
+            Goal("read-30", readTitle, GoalKind.KEY, 30u, 1u, methodsFor(30), ALL_DAYS),
+            Goal("eat-healthy", eatTitle, GoalKind.HABIT, 0u, 2u, methodsFor(0), ALL_DAYS),
         )
     }
     var newGoal by remember { mutableStateOf("") }
@@ -201,77 +202,77 @@ fun ConfigScreen(family: Boolean = false, onDone: () -> Unit) {
 
     LaunchedEffect(Unit) {
         apps = withContext(Dispatchers.IO) { launchableApps(ctx) }
-        apps.firstOrNull { it.pkg == "com.whatsapp" }?.let { roles[it.id] = AppRole.ESSENTIAL } // preseleccionada
+        apps.firstOrNull { it.pkg == "com.whatsapp" }?.let { roles[it.id] = AppRole.ESSENTIAL } // preselected
     }
 
     Page {
         if (family) {
-            Text("Perfil del menor", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            OutlinedTextField(child, { child = it.take(64) }, label = { Text("Nombre del menor (solo en este teléfono)") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(label, { label = it.take(64) }, label = { Text("Tu nombre (lo verá el menor)") }, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.config_minor_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            OutlinedTextField(child, { child = it.take(64) }, label = { Text(stringResource(R.string.config_minor_name)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(label, { label = it.take(64) }, label = { Text(stringResource(R.string.config_guardian_name)) }, modifier = Modifier.fillMaxWidth())
         } else {
-            Text("Tu perfil", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            OutlinedTextField(label, { label = it.take(64) }, label = { Text("Nombre de este teléfono") }, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.config_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            OutlinedTextField(label, { label = it.take(64) }, label = { Text(stringResource(R.string.config_phone_name)) }, modifier = Modifier.fillMaxWidth())
         }
 
-        Text("Horario", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.schedule), style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(wake, { wake = it.take(5) }, label = { Text("Despertar") }, isError = parseTime(wake) == null, modifier = Modifier.width(140.dp))
-            OutlinedTextField(bedtime, { bedtime = it.take(5) }, label = { Text("Dormir") }, isError = parseTime(bedtime) == null, modifier = Modifier.width(140.dp))
+            OutlinedTextField(wake, { wake = it.take(5) }, label = { Text(stringResource(R.string.wake)) }, isError = parseTime(wake) == null, modifier = Modifier.width(140.dp))
+            OutlinedTextField(bedtime, { bedtime = it.take(5) }, label = { Text(stringResource(R.string.bedtime)) }, isError = parseTime(bedtime) == null, modifier = Modifier.width(140.dp))
         }
-        Text("Días libres: sin metas ni bloqueo, y sin hora de dormir la noche anterior.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.free_days_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            DAY_LABELS.forEachIndexed { i, d ->
+            dayLabels().forEachIndexed { i, d ->
                 FilterChip(selected = freeDays and (1 shl i) != 0, onClick = { freeDays = freeDays xor (1 shl i) }, label = { Text(d) })
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(permits, { permits = it.filter(Char::isDigit).take(2) }, label = { Text("Permisos al día") },
+            OutlinedTextField(permits, { permits = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.passes_per_day)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(150.dp))
-            OutlinedTextField(permitMinutes, { permitMinutes = it.filter(Char::isDigit).take(2) }, label = { Text("Minutos") },
+            OutlinedTextField(permitMinutes, { permitMinutes = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.minutes)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(120.dp))
         }
         if (family) {
-            OutlinedTextField(bonus, { bonus = it.filter(Char::isDigit).take(2) }, label = { Text("Permisos extra a la semana (los usa cuando quiera)") },
+            OutlinedTextField(bonus, { bonus = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.weekly_bonus)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-            Text("Tú podrás cambiar estas reglas cuando quieras; el menor solo puede endurecerlas o pedirte cambios.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.guardian_rules_note), style = MaterialTheme.typography.bodySmall)
         } else {
-            Text("Relajar estas reglas después solo rige desde el día siguiente; endurecerlas, al momento.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.anti_impulse_note), style = MaterialTheme.typography.bodySmall)
         }
 
-        Text("Metas fijas", style = MaterialTheme.typography.titleMedium)
-        Text("Aparecen cada mañana en el plan del día. Allí podrás añadir más.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.fixed_goals), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.fixed_goals_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
         goals.forEachIndexed { i, g ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(g.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 KindChip(g.kind)
-                TextButton(onClick = { goals.removeAt(i) }) { Text("Quitar") }
+                TextButton(onClick = { goals.removeAt(i) }) { Text(stringResource(R.string.remove)) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(newGoal, { newGoal = it.take(80) }, label = { Text("Nueva meta") }, modifier = Modifier.weight(1f))
-            OutlinedTextField(newMinutes, { newMinutes = it.filter(Char::isDigit).take(3) }, label = { Text("Min") },
+            OutlinedTextField(newGoal, { newGoal = it.take(80) }, label = { Text(stringResource(R.string.new_goal)) }, modifier = Modifier.weight(1f))
+            OutlinedTextField(newMinutes, { newMinutes = it.filter(Char::isDigit).take(3) }, label = { Text(stringResource(R.string.min_short)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(90.dp))
         }
-        SecondaryButton("Añadir meta", enabled = newGoal.isNotBlank()) {
+        SecondaryButton(stringResource(R.string.add_goal), enabled = newGoal.isNotBlank()) {
             val m = (newMinutes.toIntOrNull() ?: 0).coerceIn(0, 600)
             goals += Goal(slug(newGoal, goals.map { it.id }), newGoal.trim(), GoalKind.KEY, m.toUShort(), 1u, methodsFor(m), ALL_DAYS)
             newGoal = ""
         }
 
-        Text("Apps", style = MaterialTheme.typography.titleMedium)
-        Text("Esenciales: siempre disponibles (salvo al dormir). Enfoque: solo durante una sesión de enfoque. Teléfono y SMS ya están incluidos.",
+        Text(stringResource(R.string.apps), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.apps_hint),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         apps.forEach { app ->
             val role = roles[app.id] ?: AppRole.NONE
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(app.label, modifier = Modifier.weight(1f))
-                FilterChip(selected = role == AppRole.ESSENTIAL, onClick = { roles[app.id] = if (role == AppRole.ESSENTIAL) AppRole.NONE else AppRole.ESSENTIAL }, label = { Text("Esencial") })
-                FilterChip(selected = role == AppRole.FOCUS, onClick = { roles[app.id] = if (role == AppRole.FOCUS) AppRole.NONE else AppRole.FOCUS }, label = { Text("Enfoque") })
+                FilterChip(selected = role == AppRole.ESSENTIAL, onClick = { roles[app.id] = if (role == AppRole.ESSENTIAL) AppRole.NONE else AppRole.ESSENTIAL }, label = { Text(stringResource(R.string.app_essential)) })
+                FilterChip(selected = role == AppRole.FOCUS, onClick = { roles[app.id] = if (role == AppRole.FOCUS) AppRole.NONE else AppRole.FOCUS }, label = { Text(stringResource(R.string.check_focus)) })
             }
         }
-        OutlinedTextField(web, { web = it }, label = { Text("Sitios permitidos en el enfoque (PC)") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(relay, { relay = it.trim() }, label = { Text(if (family) "Servidor de sincronización" else "Servidor de sincronización (opcional)") },
+        OutlinedTextField(web, { web = it }, label = { Text(stringResource(R.string.focus_sites_pc)) }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(relay, { relay = it.trim() }, label = { Text(stringResource(if (family) R.string.sync_server else R.string.sync_server_optional)) },
             placeholder = { Text("https://…") }, modifier = Modifier.fillMaxWidth())
 
         ErrorText(error)
@@ -279,7 +280,7 @@ fun ConfigScreen(family: Boolean = false, onDone: () -> Unit) {
         val bedMin = parseTime(bedtime)
         val ready = !busy && wakeMin != null && bedMin != null && goals.any { it.kind == GoalKind.KEY } &&
             (!family || (child.isNotBlank() && relay.isNotEmpty()))
-        PrimaryButton("Crear perfil", enabled = ready) {
+        PrimaryButton(stringResource(R.string.create_profile), enabled = ready) {
             busy = true
             val config = Config(
                 schedule = Schedule(wake = TimeOfDay(wakeMin!!.toUShort()), bedtime = TimeOfDay(bedMin!!.toUShort())),
@@ -302,15 +303,15 @@ fun ConfigScreen(family: Boolean = false, onDone: () -> Unit) {
                         val clock = CoreHolder.clock()
                         val familyId = if (family) CoreHolder.newFamilyId() else null
                         val core = familyId?.let { CoreHolder.family(ctx, it) } ?: CoreHolder.get(ctx)
-                        if (familyId != null) core.createFamilyProfile(clock, label.ifBlank { "Tutor" }, config)
-                        else core.createProfile(clock, label.ifBlank { "Teléfono" }, config)
+                        if (familyId != null) core.createFamilyProfile(clock, label.ifBlank { defaultLabel }, config)
+                        else core.createProfile(clock, label.ifBlank { defaultLabel }, config)
                         familyId?.let { CoreHolder.saveFamilyProfile(ctx, it, child.trim()) }
                         if (relay.isNotEmpty()) {
                             core.connectRelay(relay)
                             core.sync(clock)
                             ctx.getSharedPreferences("push", Context.MODE_PRIVATE).getString("fcm", null)?.let { core.registerPush("fcm", it) }
                         }
-                    }.exceptionOrNull()?.userMessage()
+                    }.exceptionOrNull()?.userMessage(ctx)
                 }
                 busy = false
                 if (error == null) onDone()

@@ -1,4 +1,4 @@
-# Fuzzing de los parsers del núcleo 🔒 (requiere nightly + cargo-fuzz): `just fuzz open_blob 600`
+# Fuzzing of the core's parsers (security-critical; needs nightly + cargo-fuzz): `just fuzz open_blob 600`
 [package]
 name = "procastinacioff-core-fuzz"
 version = "0.0.0"
@@ -14,7 +14,7 @@ procastinacioff-core = { path = ".." }
 age = "0.11.1"
 serde_json = "1.0.133"
 
-# Workspace propio: no entra en `cargo test --workspace` del repositorio.
+# Its own workspace: not part of the repository's `cargo test --workspace`.
 [workspace]
 members = ["."]
 

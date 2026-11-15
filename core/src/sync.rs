@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Cliente del relay 🔒. Solo HTTPS (salvo localhost en desarrollo), respuestas limitadas
-//! a 1 MB y peticiones firmadas con la clave del dispositivo.
+//! Relay client, being replaced by LAN/P2P sync (security-critical). HTTPS only (except localhost in
+//! development), responses capped at 1 MB and requests signed with the device key.
 
 use std::io::Read;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -18,11 +18,11 @@ use crate::error::CoreError;
 const B64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
 const MAX_RESPONSE: u64 = 1_000_000;
 
-/// Descarga un archivo público por HTTPS (listas firmadas): sin redirecciones y con tamaño máximo.
-/// La autenticidad la da la firma, no el servidor.
+/// Downloads a public file over HTTPS (signed lists): no redirects and a maximum size.
+/// Authenticity comes from the signature, not from the server.
 pub fn fetch_public(url: &str, max_bytes: u64) -> Result<Vec<u8>, CoreError> {
     if !url.starts_with("https://") {
-        return Err(CoreError::protocol("solo HTTPS"));
+        return Err(CoreError::protocol("HTTPS only"));
     }
     let agent =
         ureq::AgentBuilder::new().timeout(Duration::from_secs(60)).redirects(0).user_agent("procastinacioff").build();
@@ -46,17 +46,17 @@ impl Relay {
         let base = base.trim_end_matches('/').to_owned();
         let local = base.starts_with("http://127.0.0.1") || base.starts_with("http://localhost");
         if !base.starts_with("https://") && !local {
-            return Err(CoreError::protocol("el relay debe usar HTTPS"));
+            return Err(CoreError::protocol("the relay must use HTTPS"));
         }
         let agent = ureq::AgentBuilder::new()
             .timeout(Duration::from_secs(20))
-            .redirects(0) // un relay no redirige; seguirlas permitiría filtrar peticiones firmadas
-            .user_agent("procastinacioff") // sin versión ni plataforma: menos huella
+            .redirects(0) // a relay does not redirect; following redirects could leak signed requests
+            .user_agent("procastinacioff") // no version nor platform: smaller fingerprint
             .build();
         Ok(Self { base, agent })
     }
 
-    /// Hace una petición. Si `key` es Some, la firma.
+    /// Makes a request. If `key` is Some, signs it.
     fn call(
         &self,
         key: Option<&SigningKey>,
@@ -68,7 +68,7 @@ impl Relay {
         if let Some(k) = key {
             let mut nonce = [0u8; 16];
             OsRng.fill_bytes(&mut nonce);
-            // La firma HTTP usa el reloj del sistema; las REGLAS nunca (reciben Clock).
+            // The HTTP signature uses the system clock; the RULES never do (they receive Clock).
             let ts = SystemTime::now().duration_since(UNIX_EPOCH).map_err(CoreError::network)?.as_secs() as i64;
             let h = proto::sign_request(k, method, path, body, ts, hex::encode(nonce));
             req = req
@@ -95,7 +95,7 @@ impl Relay {
     }
 
     fn json<T: serde::de::DeserializeOwned>(bytes: Option<Vec<u8>>) -> Result<T, CoreError> {
-        let b = bytes.ok_or_else(|| CoreError::network("respuesta vacía"))?;
+        let b = bytes.ok_or_else(|| CoreError::network("empty response"))?;
         serde_json::from_slice(&b).map_err(CoreError::protocol)
     }
 
@@ -146,7 +146,7 @@ impl Relay {
         Ok(())
     }
 
-    /// Hora firmada del relay (sin autenticar: es pública).
+    /// The relay's signed time (unauthenticated: it is public).
     pub fn time(&self) -> Result<proto::SignedTime, CoreError> {
         Self::json(self.call(None, "GET", "/v1/time", &[])?)
     }

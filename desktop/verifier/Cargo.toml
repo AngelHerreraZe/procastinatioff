@@ -1,5 +1,5 @@
-# 🔒 Verificador de escritorio. Corre DENTRO de un AppContainer sin red (lo lanza la UI con
-# procastinacioff-sandbox). Nunca escribe a disco: cuadros en RAM y una línea JSON por stdout.
+# SECURITY: Desktop verifier. Runs INSIDE an AppContainer without network (the UI launches it with
+# procastinacioff-sandbox). Never writes to disk: frames in RAM and one JSON line on stdout.
 [package]
 name = "procastinacioff-verifier"
 version = "0.1.0"
@@ -13,10 +13,10 @@ procastinacioff-verify = { path = "../../verify" }
 serde_json.workspace = true
 sha2.workspace = true
 hex.workspace = true
-tract-onnx = "0.23.10"                                             # inferencia ONNX en Rust puro (sin DLLs extra)
+tract-onnx = "0.23.10"                                             # pure-Rust ONNX inference (no extra DLLs)
 
 [target.'cfg(windows)'.dependencies]
-nokhwa = { version = "0.10.11", features = ["input-native"] }     # cámara (Media Foundation), en memoria
+nokhwa = { version = "0.10.11", features = ["input-native"] }     # camera (Media Foundation), in memory
 
 [dev-dependencies]
 procastinacioff-sandbox = { path = "../sandbox" }

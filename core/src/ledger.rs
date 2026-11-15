@@ -2,16 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Libro de eventos 🔒: decide qué eventos se aceptan.
+//! Event ledger (security-critical): decides which events are accepted.
 //!
-//! 1. La firma debe ser válida.
-//! 2. El autor debe ser miembro. Excepción: el génesis (primer `MembersChanged`), solo del autor de confianza.
-//! 3. Cadena por autor: `seq` consecutivo y `prev` correcto. Hueco → se registra. Mismo `seq` → bifurcación → se rechaza.
-//! 4. Perfil familiar (hay un tutor): ciertos eventos solo los firma un tutor (ver `guardian_only`).
-//!    Que un menor solo pueda ENDURECER la configuración se comprueba al reconstruir el historial
-//!    (`ConfigHistory::from_facts_checked`): ahí el resultado no depende del orden de llegada.
+//! 1. The signature must be valid.
+//! 2. The author must be a member. Exception: the genesis (first `MembersChanged`), only from the trusted author.
+//! 3. Per-author chain: consecutive `seq` and correct `prev`. Gap → recorded. Same `seq` → fork → rejected.
+//! 4. Family profile (has a guardian): some events can only be signed by a guardian (see `guardian_only`).
+//!    That a minor can only make the configuration STRICTER is checked when rebuilding the history
+//!    (`ConfigHistory::from_facts_checked`): there the result does not depend on arrival order.
 //!
-//! Supuesto de orden: el relay entrega los eventos de un buzón en el orden en que se subieron.
+//! Ordering assumption: each author's events arrive in the order they were created.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -34,16 +34,16 @@ pub enum Accepted {
 
 #[derive(Default)]
 pub struct Ledger {
-    events: BTreeMap<String, SignedEvent>,  // id → evento
-    heads: BTreeMap<String, (u64, String)>, // autor → (seq, id) del último
+    events: BTreeMap<String, SignedEvent>,  // id → event
+    heads: BTreeMap<String, (u64, String)>, // author → (seq, id) of the latest
     members: Vec<Member>,
     genesis_author: Option<String>,
-    /// Eventos firmados por quien era tutor al aceptarlos.
+    /// Events signed by whoever was a guardian when they were accepted.
     by_guardian: BTreeSet<String>,
     pub gaps: Vec<Gap>,
 }
 
-/// En un perfil familiar, ¿solo un tutor puede firmar este evento?
+/// In a family profile, can only a guardian sign this event?
 fn guardian_only(kind: &EventKind) -> bool {
     matches!(
         kind,
@@ -68,7 +68,7 @@ impl Ledger {
         &self.members
     }
 
-    /// Perfil familiar: tiene al menos un tutor.
+    /// Family profile: has at least one guardian.
     pub fn is_family(&self) -> bool {
         self.members.iter().any(|m| m.role == Role::Guardian)
     }
@@ -85,14 +85,14 @@ impl Ledger {
         ev.verify()?;
         let author = ev.body.author.clone();
 
-        // 1) Autorización
+        // 1) Authorization
         match &ev.body.kind {
             EventKind::MembersChanged { members } if self.members.is_empty() => {
                 if self.genesis_author.as_deref() != Some(author.as_str()) {
-                    return Err(CoreError::protocol("génesis de un autor no confiable"));
+                    return Err(CoreError::protocol("genesis from an untrusted author"));
                 }
                 if !members.iter().any(|m| m.device_id == author) {
-                    return Err(CoreError::protocol("el génesis debe incluir a su autor"));
+                    return Err(CoreError::protocol("the genesis must include its author"));
                 }
             }
             _ if !self.members.iter().any(|m| m.device_id == author) => {
@@ -101,37 +101,37 @@ impl Ledger {
             _ => {}
         }
 
-        // 1b) Perfil familiar
+        // 1b) Family profile
         let genesis = self.members.is_empty();
         let family = self.is_family();
         let is_guardian = self.members.iter().any(|m| m.device_id == author && m.role == Role::Guardian);
         if family && guardian_only(&ev.body.kind) && !is_guardian {
-            return Err(CoreError::protocol("acción reservada al tutor"));
+            return Err(CoreError::protocol("action reserved for a guardian"));
         }
         if let EventKind::MembersChanged { members } = &ev.body.kind {
             let family_after = members.iter().any(|m| m.role == Role::Guardian);
-            // Un perfil familiar nunca se queda sin tutor, solo tiene tutores y menores, y uno
-            // personal no se convierte en familiar (el menor perdería su protección o el dueño su control).
+            // A family profile never ends up without a guardian, only has guardians and minors, and a
+            // personal one never becomes a family profile (the minor would lose protection or the owner control).
             let roles_ok = members.iter().all(|m| matches!(m.role, Role::Guardian | Role::Minor));
             if (family || (genesis && family_after)) && !(family_after && roles_ok) {
-                return Err(CoreError::protocol("miembros no válidos para un perfil familiar"));
+                return Err(CoreError::protocol("invalid members for a family profile"));
             }
             if !genesis && !family && family_after {
-                return Err(CoreError::protocol("un perfil personal no puede pasar a familiar"));
+                return Err(CoreError::protocol("a personal profile cannot become a family profile"));
             }
         }
 
-        // 2) Cadena por autor
+        // 2) Per-author chain
         if let Some((seq, prev_id)) = self.heads.get(&author) {
             if ev.body.seq <= *seq {
-                return Err(CoreError::protocol("bifurcación: seq repetido con contenido distinto"));
+                return Err(CoreError::protocol("fork: repeated seq with different content"));
             }
             if ev.body.seq != seq + 1 || ev.body.prev.as_deref() != Some(prev_id.as_str()) {
                 self.gaps.push(Gap { author: author.clone(), expected_seq: seq + 1, got_seq: ev.body.seq });
             }
-        } // None: primer evento visto de este autor (puede no ser seq 1 por retención)
+        } // None: first event seen from this author (may not be seq 1 because of retention)
 
-        // 3) Aplicar
+        // 3) Apply
         if let EventKind::MembersChanged { members } = &ev.body.kind {
             self.members = members.clone();
         }
@@ -143,12 +143,12 @@ impl Ledger {
         Ok(Accepted::New)
     }
 
-    /// Hechos ordenados por (hora, autor, seq): el mismo orden en todos los dispositivos.
+    /// Facts ordered by (time, author, seq): the same order on every device.
     pub fn facts(&self) -> Vec<Fact> {
         self.authored().into_iter().map(|(_, f)| f).collect()
     }
 
-    /// Como `facts`, con el autor de cada hecho.
+    /// Like `facts`, with the author of each fact.
     pub fn authored(&self) -> Vec<(String, Fact)> {
         let mut evs: Vec<(&String, &SignedEvent)> = self.events.iter().collect();
         evs.sort_by(|(_, a), (_, b)| {
@@ -163,7 +163,7 @@ impl Ledger {
             .collect()
     }
 
-    /// Último instante conocido de actividad por autor (latidos y cualquier otro evento).
+    /// Last known activity instant per author (heartbeats and any other event).
     pub fn last_seen(&self) -> BTreeMap<String, i64> {
         let mut m = BTreeMap::new();
         for e in self.events.values() {
@@ -173,7 +173,7 @@ impl Ledger {
         m
     }
 
-    /// Instante del último evento conocido (de cualquier autor).
+    /// Instant of the last known event (from any author).
     pub fn last_at(&self) -> i64 {
         self.events.values().map(|e| e.body.at_ms).max().unwrap_or(0)
     }
@@ -220,19 +220,19 @@ mod tests {
         let g = ev(&a, 1, None, EventKind::MembersChanged { members: vec![member(&a)] });
         let gid = g.id();
         l.accept(g).unwrap();
-        l.accept(ev(&a, 3, Some("x".into()), EventKind::Heartbeat)).unwrap(); // falta el 2
+        l.accept(ev(&a, 3, Some("x".into()), EventKind::Heartbeat)).unwrap(); // 2 is missing
         assert_eq!(l.gaps.len(), 1);
         let fork = ev(&a, 3, Some(gid), EventKind::EmergencyStarted);
         assert!(l.accept(fork).is_err());
     }
 
-    // ── Perfil familiar ──
+    // ── Family profile ──
 
     fn as_role(k: &DeviceKeys, role: Role) -> Member {
         Member { role, ..member(k) }
     }
 
-    /// Tutor (génesis) + menor añadido por el tutor. Devuelve el id del último evento del tutor.
+    /// Guardian (genesis) + minor added by the guardian. Returns the id of the guardian's last event.
     fn family(g: &DeviceKeys, m: &DeviceKeys) -> (Ledger, String) {
         let mut l = Ledger::new(Some(g.device_id()));
         let genesis = ev(g, 1, None, EventKind::MembersChanged { members: vec![as_role(g, Role::Guardian)] });
@@ -254,7 +254,7 @@ mod tests {
             EventKind::GrantPermit { minutes: 15 },
             EventKind::RestDayGranted,
             EventKind::Decision { request_id: "ab".into(), approved: true },
-            EventKind::GoalCompleted { goal_id: "leer-30".into(), method: Method::Witness, score: 100, minutes: 0 },
+            EventKind::GoalCompleted { goal_id: "read-30".into(), method: Method::Witness, score: 100, minutes: 0 },
             EventKind::MembersChanged { members: vec![as_role(m, Role::Guardian)] },
         ]
     }
@@ -266,7 +266,7 @@ mod tests {
         for (i, kind) in guardian_kinds(&m).into_iter().enumerate() {
             assert!(l.accept(ev(&m, 1 + i as u64, None, kind.clone())).is_err(), "{kind:?}");
         }
-        // Lo suyo sí: pedir, declarar una meta, latidos
+        // Their own events are fine: asking, declaring a goal, heartbeats
         let req = ev(
             &m,
             1,
@@ -278,7 +278,7 @@ mod tests {
         );
         assert!(l.accept(req).is_ok());
         let honor = EventKind::GoalCompleted {
-            goal_id: "leer-30".into(),
+            goal_id: "read-30".into(),
             method: Method::HonorDeclaration,
             score: 100,
             minutes: 0,
@@ -292,7 +292,7 @@ mod tests {
         let (g, m) = (keys(), keys());
         let (mut l, mut prev) = family(&g, &m);
         let mut kinds = guardian_kinds(&m);
-        kinds.pop(); // el MembersChanged de prueba quitaría al tutor; se prueba aparte
+        kinds.pop(); // the test MembersChanged would remove the guardian; tested separately
         kinds.push(EventKind::MembersChanged {
             members: vec![as_role(&g, Role::Guardian), as_role(&m, Role::Minor), as_role(&keys(), Role::Guardian)],
         });
@@ -318,7 +318,7 @@ mod tests {
             Some(prev),
             EventKind::MembersChanged { members: vec![as_role(&g, Role::Guardian), as_role(&m, Role::Owner)] },
         );
-        assert!(l.accept(owner).is_err(), "en un perfil familiar no hay dueños");
+        assert!(l.accept(owner).is_err(), "a family profile has no owners");
 
         let a = keys();
         let mut p = Ledger::new(Some(a.device_id()));

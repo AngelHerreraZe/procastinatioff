@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # scripts/privacy_scan.py
-"""Falla (exit 1) si el código usa APIs prohibidas por el contrato de privacidad.
+"""Fails (exit 1) if the code uses APIs forbidden by the privacy contract.
 
-Uso:  python scripts/privacy_scan.py
-Excepciones: scripts/privacy_allowlist.txt, una por línea:  ruta/al/archivo::PATRON  # motivo
+Usage:  python scripts/privacy_scan.py
+Exceptions: scripts/privacy_allowlist.txt, one per line:  path/to/file::PATTERN  # reason
 """
 from __future__ import annotations
 
@@ -15,48 +15,48 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE_EXT = {".rs", ".kt", ".kts", ".java", ".swift", ".ts", ".tsx", ".svelte", ".xml", ".plist", ".m"}
 SKIP_DIRS = {"target", "node_modules", ".git", "build", ".gradle", "DerivedData", "spikes"}
 
-# Patrón -> motivo. Ampliar solo con revisión de seguridad.
+# Pattern -> reason. Extend only with a security review.
 FORBIDDEN: dict[str, str] = {
-    # Grabación / guardado de cámara y audio
-    r"\bAVCaptureMovieFileOutput\b": "graba video a disco",
-    r"\bAVCapturePhotoOutput\b": "captura fotos fuera del flujo en memoria",
-    r"\bAVAudioRecorder\b": "graba audio a disco",
-    r"\bMediaRecorder\b": "graba audio/video a disco",
-    r"\bImageCapture\b": "CameraX ImageCapture guarda fotos; usar solo ImageAnalysis",
-    r"\bMediaStore\b": "escribe en la galería",
-    r"\bPHPhotoLibrary\b": "accede a la galería",
-    r"UIImageWriteToSavedPhotosAlbum": "escribe en la galería",
-    # Captura de pantalla
-    r"\bMediaProjection\b": "captura de pantalla en Android",
-    r"\bCGWindowListCreateImage\b": "captura de pantalla en macOS",
-    r"\bSCScreenshotManager\b": "captura de pantalla en macOS",
-    r"\bBitBlt\b": "captura de pantalla en Windows",
-    r"CopyFromScreen": "captura de pantalla en Windows",
-    # Lectura de mensajes / notificaciones / teclado
-    r"\bNotificationListenerService\b": "lee notificaciones (WhatsApp, etc.)",
-    r"\bSetWindowsHookEx\w*\b": "posible keylogger",
-    r"\bCGEventTapCreate\b": "posible keylogger",
-    # SDKs de terceros
-    r"firebase-analytics|firebase-crashlytics|FirebaseAnalytics|Crashlytics": "SDK de analítica",
-    r"io\.sentry|sentry-android|SentrySDK": "SDK de reporte de errores",
-    r"play-services-ads|GoogleMobileAds": "SDK de anuncios",
-    r"mixpanel|amplitude|appsflyer|com\.adjust|segment\.analytics": "SDK de analítica",
+    # Recording / saving camera and audio
+    r"\bAVCaptureMovieFileOutput\b": "records video to disk",
+    r"\bAVCapturePhotoOutput\b": "captures photos outside the in-memory stream",
+    r"\bAVAudioRecorder\b": "records audio to disk",
+    r"\bMediaRecorder\b": "records audio/video to disk",
+    r"\bImageCapture\b": "CameraX ImageCapture saves photos; use ImageAnalysis only",
+    r"\bMediaStore\b": "writes to the photo gallery",
+    r"\bPHPhotoLibrary\b": "accesses the photo gallery",
+    r"UIImageWriteToSavedPhotosAlbum": "writes to the photo gallery",
+    # Screen capture
+    r"\bMediaProjection\b": "screen capture on Android",
+    r"\bCGWindowListCreateImage\b": "screen capture on macOS",
+    r"\bSCScreenshotManager\b": "screen capture on macOS",
+    r"\bBitBlt\b": "screen capture on Windows",
+    r"CopyFromScreen": "screen capture on Windows",
+    # Reading messages / notifications / keyboard
+    r"\bNotificationListenerService\b": "reads notifications (WhatsApp, etc.)",
+    r"\bSetWindowsHookEx\w*\b": "possible keylogger",
+    r"\bCGEventTapCreate\b": "possible keylogger",
+    # Third-party SDKs
+    r"firebase-analytics|firebase-crashlytics|FirebaseAnalytics|Crashlytics": "analytics SDK",
+    r"io\.sentry|sentry-android|SentrySDK": "crash reporting SDK",
+    r"play-services-ads|GoogleMobileAds": "ads SDK",
+    r"mixpanel|amplitude|appsflyer|com\.adjust|segment\.analytics": "analytics SDK",
 }
 
-# Reglas extra solo para el crate verify/ (no puede tocar disco ni red)
+# Extra rules only for the verify/ crate (it cannot touch disk or network)
 VERIFY_FORBIDDEN: dict[str, str] = {
-    r"\bstd::fs\b": "verify/ no puede usar el sistema de archivos",
-    r"\bFile::(create|open)\b": "verify/ no puede usar el sistema de archivos",
-    r"\bstd::net\b": "verify/ no puede usar la red",
+    r"\bstd::fs\b": "verify/ cannot use the file system",
+    r"\bFile::(create|open)\b": "verify/ cannot use the file system",
+    r"\bstd::net\b": "verify/ cannot use the network",
 }
 
 
-# Verificador de iOS (08 · 7.1): iOS no deja quitar la red a una parte de la app, así que la garantía
-# es de código. Sin red y sin escribir nada a disco; solo AVCaptureVideoDataOutput (memoria).
+# iOS verifier: iOS cannot remove the network from part of an app, so the guarantee
+# is in the code. No network and no writing to disk; only AVCaptureVideoDataOutput (memory).
 IOS_VERIFIER = "apple/ios/VerifierKit/"
 IOS_VERIFIER_FORBIDDEN: dict[str, str] = {
-    r"import\s+Network\b|URLSession|NWConnection|CFSocket|CFStream|import\s+Alamofire": "VerifierKit no puede usar red",
-    r"AVAssetWriter|AVAudioRecorder|\bwrite\(to:|FileManager|UserDefaults": "VerifierKit no puede escribir a disco",
+    r"import\s+Network\b|URLSession|NWConnection|CFSocket|CFStream|import\s+Alamofire": "VerifierKit cannot use the network",
+    r"AVAssetWriter|AVAudioRecorder|\bwrite\(to:|FileManager|UserDefaults": "VerifierKit cannot write to disk",
 }
 
 
@@ -73,7 +73,7 @@ def load_allowlist() -> set[tuple[str, str]]:
 
 
 def sqlcipher_enabled() -> bool:
-    """La base de datos local DEBE ir cifrada: rusqlite solo con SQLCipher."""
+    """The local database MUST be encrypted: rusqlite only with SQLCipher."""
     cargo = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
     line = next((l for l in cargo.splitlines() if l.strip().startswith("rusqlite")), "")
     return "bundled-sqlcipher" in line
@@ -83,7 +83,7 @@ def main() -> int:
     allowed = load_allowlist()
     failures: list[str] = []
     if not sqlcipher_enabled():
-        failures.append("Cargo.toml: rusqlite sin SQLCipher — la base de datos local quedaría sin cifrar")
+        failures.append("Cargo.toml: rusqlite without SQLCipher — the local database would be unencrypted")
     for path in ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_EXT:
             continue
@@ -103,10 +103,10 @@ def main() -> int:
                 line_no = text.count("\n", 0, match.start()) + 1
                 failures.append(f"{rel}:{line_no}: '{match.group(0)}' — {reason}")
     if failures:
-        print("Escáner de privacidad: APIs prohibidas encontradas\n")
+        print("Privacy scanner: forbidden APIs found\n")
         print("\n".join(failures))
         return 1
-    print("Escáner de privacidad: OK")
+    print("Privacy scanner: OK")
     return 0
 
 

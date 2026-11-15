@@ -1,4 +1,4 @@
-# rust-toolchain.toml — todos compilan con la misma versión (ver docs/decisions/0003)
+# rust-toolchain.toml — everyone builds with the same version
 [toolchain]
 channel = "1.100.0"
 components = ["clippy", "rustfmt"]

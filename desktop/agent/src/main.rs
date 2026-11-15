@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Servicio privilegiado de escritorio. Windows en la Fase 1; macOS/Linux en las fases 4 y 5.
+//! Privileged desktop service. Windows first; macOS/Linux later.
 
 #[cfg(windows)]
 mod browser_policy;
@@ -16,7 +16,7 @@ mod family;
 mod install;
 #[cfg(windows)]
 mod ipc_server;
-#[allow(dead_code)] // en macOS/Linux solo la usan las pruebas hasta las fases 4 y 5
+#[allow(dead_code)] // on macOS/Linux only the tests use it for now
 mod policy;
 #[cfg(windows)]
 mod procs;
@@ -29,10 +29,10 @@ mod session;
 #[cfg(windows)]
 mod signer;
 
-/// ponytail: el log crece sin rotación; rotar al arrancar si supera 5 MB cuando se note en pruebas.
+/// ponytail: the log grows without rotation; rotate at startup above 5 MB when it shows in testing.
 #[cfg(windows)]
 fn main() {
-    // Log en archivo dentro de la carpeta protegida; sin datos personales.
+    // File log inside the protected folder; no personal data.
     let log_dir = std::path::Path::new(service::DATA_DIR).join("logs");
     std::fs::create_dir_all(&log_dir).ok();
     if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(log_dir.join("agent.log")) {
@@ -47,11 +47,11 @@ fn main() {
         }
         Some("install") => {
             if let Err(e) = install::install() {
-                eprintln!("instalación del servicio: {e}");
+                eprintln!("service installation: {e}");
                 std::process::exit(1);
             }
         }
-        // El desinstalador lo llama antes de borrar nada: sin esto el PC de un menor se quedaría sin DNS.
+        // The uninstaller calls it before deleting anything: without it a minor's PC would be left without DNS.
         Some("restore-dns") => family::restore(std::path::Path::new(service::DATA_DIR)),
         _ => eprintln!("uso: procastinacioff-agent (service|install|restore-dns)"),
     }
@@ -59,5 +59,5 @@ fn main() {
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("El agente de macOS/Linux se implementa en las fases 4 y 5.");
+    eprintln!("The macOS/Linux agent arrives in phases 4 and 5.");
 }

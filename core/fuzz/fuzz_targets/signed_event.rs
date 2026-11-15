@@ -1,5 +1,5 @@
 #![no_main]
-// JSON de eventos firmados (tras descifrar un blob de otro miembro).
+// Signed event JSON (after decrypting a blob from another member).
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

@@ -1,5 +1,9 @@
 package dev.procastinacioff.app.ui
 
+import android.content.Context
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
@@ -61,8 +65,8 @@ import uniffi.procastinacioff_core.Status
 import uniffi.procastinacioff_core.TamperKind
 import uniffi.procastinacioff_core.TimeOfDay
 
-// Modo familiar. Regla de producto: el tutor no tiene pantallas con datos que el menor no vea.
-// Ambos ven el mismo `MirrorPanel`; el tutor además aprueba solicitudes y cambia ajustes.
+// Family mode. Product rule: the guardian has no screens with data the minor does not see.
+// Both see the same `MirrorPanel`; the guardian also approves requests and changes settings.
 
 @Composable
 private fun Screen(content: @Composable () -> Unit) =
@@ -82,39 +86,43 @@ private fun Section(title: String, content: @Composable () -> Unit) =
         }
     }
 
-private val WHEN = SimpleDateFormat("EEE d MMM, HH:mm", Locale("es"))
-private fun whenText(ms: Long) = WHEN.format(Date(ms)).replaceFirstChar { it.uppercase() }
-
-fun describe(what: RequestKind): String = when (what) {
-    is RequestKind.ExtraPermit -> "${what.minutes} min más hoy"
-    is RequestKind.AddSite -> "Permitir ${what.domain} en el enfoque"
-    is RequestKind.LaterBedtime -> "Dormir ${what.minutes} min más tarde (cambia el horario)"
-    is RequestKind.RestDay -> "Día de descanso hoy"
+private fun whenText(ms: Long): String {
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEdMMMjmm")
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(ms)).replaceFirstChar { it.uppercase() }
 }
 
-private fun alertText(a: FamilyAlert): String = when (a) {
-    is FamilyAlert.Emergency -> "Se usó la emergencia"
-    is FamilyAlert.BlockedSites -> "${a.count} ${if (a.count.toInt() == 1) "sitio bloqueado" else "sitios bloqueados"} por categoría (nunca cuáles)"
-    is FamilyAlert.Tamper -> when (a.what) {
-        TamperKind.PERMISSION_REVOKED -> "Se desactivó un permiso de protección"
-        TamperKind.SERVICE_STOPPED -> "La protección estuvo detenida"
-        TamperKind.CLOCK_CHANGED -> "Se cambió la hora del dispositivo"
-        TamperKind.UNINSTALL_ATTEMPT -> "Se intentó desinstalar la app"
-        TamperKind.SAFE_MODE -> "Se arrancó en modo seguro"
-        TamperKind.DEVICE_SILENT -> "Un dispositivo dejó de reportar"
-    }
+fun describe(ctx: Context, what: RequestKind): String = when (what) {
+    is RequestKind.ExtraPermit -> ctx.getString(R.string.req_extra_today, what.minutes.toInt())
+    is RequestKind.AddSite -> ctx.getString(R.string.req_site, what.domain)
+    is RequestKind.LaterBedtime -> ctx.getString(R.string.req_bedtime_permanent, what.minutes.toInt())
+    is RequestKind.RestDay -> ctx.getString(R.string.req_rest_today)
 }
 
-private fun stateText(st: Status, now: Long): String = when (val s = st.state) {
-    is DayState.Sleep -> "Durmiendo"
-    is DayState.Locked -> if (st.needsPlan) "Aún sin plan del día" else "Bloqueado"
-    is DayState.Pass -> "Permiso activo · ${minutesUntil(s.untilMs, now)} min"
-    is DayState.Focus -> "En enfoque"
-    is DayState.Free -> if (st.freeDay) "Día libre" else "Libre: metas cumplidas"
-    is DayState.Emergency -> "Emergencia · ${minutesUntil(s.untilMs, now)} min"
+private fun alertText(ctx: Context, a: FamilyAlert): String = when (a) {
+    is FamilyAlert.Emergency -> ctx.getString(R.string.alert_emergency_used)
+    is FamilyAlert.BlockedSites -> ctx.resources.getQuantityString(R.plurals.blocked_sites, a.count.toInt(), a.count.toInt())
+    is FamilyAlert.Tamper -> ctx.getString(
+        when (a.what) {
+            TamperKind.PERMISSION_REVOKED -> R.string.tamper_permission_revoked
+            TamperKind.SERVICE_STOPPED -> R.string.tamper_service_stopped
+            TamperKind.CLOCK_CHANGED -> R.string.tamper_clock_changed
+            TamperKind.UNINSTALL_ATTEMPT -> R.string.tamper_uninstall_attempt
+            TamperKind.SAFE_MODE -> R.string.tamper_safe_mode
+            TamperKind.DEVICE_SILENT -> R.string.tamper_device_silent
+        },
+    )
 }
 
-// ── Estado de un perfil (el del menor), consultado cada 2 s ──
+private fun stateText(ctx: Context, st: Status, now: Long): String = when (val s = st.state) {
+    is DayState.Sleep -> ctx.getString(R.string.state_sleeping)
+    is DayState.Locked -> ctx.getString(if (st.needsPlan) R.string.state_no_plan else R.string.state_locked)
+    is DayState.Pass -> ctx.getString(R.string.state_pass, minutesUntil(s.untilMs, now))
+    is DayState.Focus -> ctx.getString(R.string.state_focus)
+    is DayState.Free -> ctx.getString(if (st.freeDay) R.string.title_free_day else R.string.state_free_done)
+    is DayState.Emergency -> ctx.getString(R.string.state_emergency, minutesUntil(s.untilMs, now))
+}
+
+// ── State of a profile (the minor's), polled every 2 s ──
 
 data class FamilySnapshot(
     val status: Status? = null,
@@ -124,7 +132,7 @@ data class FamilySnapshot(
     val nowMs: Long = System.currentTimeMillis(),
 )
 
-/** `sync`: el teléfono del tutor sincroniza cada 30 s mientras mira el panel. */
+/** `sync`: the guardian's phone syncs every 30 s while looking at the panel. */
 @Composable
 fun rememberFamilySnapshot(core: Core, sync: Boolean, refresh: Int = 0): FamilySnapshot {
     var snap by remember(core) { mutableStateOf(FamilySnapshot()) }
@@ -147,78 +155,86 @@ fun rememberFamilySnapshot(core: Core, sync: Boolean, refresh: Int = 0): FamilyS
     return snap
 }
 
-/** Lo que ven por igual el tutor y el menor: estado, metas, permisos, dispositivos, solicitudes y avisos. */
+/** What the guardian and the minor both see: state, goals, passes, devices, requests and alerts. */
 @Composable
 fun MirrorPanel(snap: FamilySnapshot) {
+    val ctx = LocalContext.current
     val st = snap.status
-    Section("Hoy") {
+    Section(stringResource(R.string.today)) {
         if (st == null) {
-            Text("Sin datos todavía. Se actualiza al sincronizar.")
+            Text(stringResource(R.string.mirror_no_data))
             return@Section
         }
-        Text(stateText(st, snap.nowMs), style = MaterialTheme.typography.titleMedium)
-        st.goals.forEach { g -> Text("${if (g.completed) "✓" else "○"} ${g.title} (${g.doneCount}/${g.targetCount})") }
-        if (!st.freeDay) Text("${st.permitsLeft} ${if (st.permitsLeft.toInt() == 1) "permiso disponible" else "permisos disponibles"}")
+        Text(stateText(ctx, st, snap.nowMs), style = MaterialTheme.typography.titleMedium)
+        val doneLabel = stringResource(R.string.goal_done)
+        st.goals.forEach { g ->
+            val line = "${g.title} (${g.doneCount}/${g.targetCount})"
+            Text(if (g.completed) "$line · $doneLabel" else line)
+        }
+        if (!st.freeDay) Text(pluralStringResource(R.plurals.passes_available, st.permitsLeft.toInt(), st.permitsLeft.toInt()))
     }
     if (snap.devices.isNotEmpty()) {
-        Section("Dispositivos") {
+        Section(stringResource(R.string.devices)) {
             snap.devices.forEach { d ->
-                Text("${d.label} · ${if (d.lastSeenMs > 0) "visto ${hoursAgo(d.lastSeenMs, snap.nowMs)}" else "aún sin reportar"}")
+                val seen = if (d.lastSeenMs > 0) stringResource(R.string.device_seen, hoursAgo(ctx, d.lastSeenMs, snap.nowMs))
+                else stringResource(R.string.device_not_reported)
+                Text("${d.label} · $seen")
             }
         }
     }
     if (snap.pending.isNotEmpty()) {
-        Section("Solicitudes sin responder") {
-            snap.pending.forEach { r -> Text("${describe(r.what)} · ${whenText(r.atMs)}") }
+        Section(stringResource(R.string.unanswered_requests)) {
+            snap.pending.forEach { r -> Text("${describe(ctx, r.what)} · ${whenText(r.atMs)}") }
         }
     }
-    Section("Avisos (últimos 7 días)") {
-        if (snap.alerts.isEmpty()) Text("Ninguno.")
-        snap.alerts.forEach { a -> Text("${alertText(a.alert)} · ${whenText(a.atMs)} · ${a.deviceLabel}") }
+    Section(stringResource(R.string.alerts_7_days)) {
+        if (snap.alerts.isEmpty()) Text(stringResource(R.string.none))
+        snap.alerts.forEach { a -> Text("${alertText(ctx, a.alert)} · ${whenText(a.atMs)} · ${a.deviceLabel}") }
     }
     Text(
-        "Nunca se ven mensajes, contactos, fotos, historial de navegación ni ubicación: no existen en el sistema.",
+        stringResource(R.string.mirror_never_seen),
         style = MaterialTheme.typography.bodySmall,
     )
 }
 
-// ───────────────────────── Tutor ─────────────────────────
+// ───────────────────────── Guardian ─────────────────────────
 
-/** Consentimiento del tutor (07b · 5.1). ⚖️ Validar con la asesoría legal antes del piloto. */
+/** Guardian consent. LEGAL: validate with legal counsel before the pilot. */
 @Composable
 fun FamilyConsentScreen(onAccept: () -> Unit, onBack: () -> Unit) {
     val activity = LocalContext.current as FragmentActivity
     val scope = rememberCoroutineScope()
     Screen {
-        Heading("Vas a crear el perfil de un menor")
-        Section("Qué hace la app en el dispositivo del menor") {
-            Text("• Bloquea apps y sitios web según el horario y las metas que tú definas.")
-            Text("• Puede pedir pruebas de metas (por ejemplo, minutos de lectura). La cámara está APAGADA por defecto; solo funciona si tú la activas y el menor la acepta. Nunca se graba nada.")
+        Heading(stringResource(R.string.consent_title))
+        Section(stringResource(R.string.consent_does_title)) {
+            Text("• " + stringResource(R.string.consent_does_block))
+            Text("• " + stringResource(R.string.consent_does_camera))
         }
-        Section("Qué verás tú") {
-            Text("• Metas cumplidas, permisos usados, solicitudes, alertas de manipulación y emergencias.")
-            Text("• El NÚMERO de sitios bloqueados por categoría en el día (nunca cuáles).")
+        Section(stringResource(R.string.consent_sees_title)) {
+            Text("• " + stringResource(R.string.consent_sees_goals))
+            Text("• " + stringResource(R.string.consent_sees_sites))
         }
-        Section("Qué NO verás nunca (no existe en el sistema)") {
-            Text("• Mensajes, contactos, fotos, historial de navegación ni ubicación.")
+        Section(stringResource(R.string.consent_never_title)) {
+            Text("• " + stringResource(R.string.consent_never_list))
         }
-        Text("El menor ve exactamente lo mismo que tú. Puedes borrar el perfil y todos sus datos en cualquier momento.")
-        Text("Declaro ser padre, madre o tutor legal del menor.", fontWeight = FontWeight.SemiBold)
-        PrimaryButton("Confirmar con huella / PIN") {
-            scope.launch { if (confirmAsGuardian(activity, "Crear el perfil de un menor")) onAccept() }
+        Text(stringResource(R.string.consent_mirror))
+        Text(stringResource(R.string.consent_declare), fontWeight = FontWeight.SemiBold)
+        val reason = stringResource(R.string.consent_confirm_reason)
+        PrimaryButton(stringResource(R.string.confirm_biometric_pin)) {
+            scope.launch { if (confirmAsGuardian(activity, reason)) onAccept() }
         }
-        TextButton(onClick = onBack) { Text("Volver") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
     }
 }
 
-/** Lista de perfiles de menores que administro, con su estado del día. */
+/** List of the minors' profiles I manage, with their day state. */
 @Composable
 fun FamilyListScreen(onOpen: (String) -> Unit, onNew: () -> Unit) {
     val ctx = LocalContext.current
     val profiles = remember { CoreHolder.familyProfiles(ctx) }
     Screen {
-        Heading("Familia")
-        if (profiles.isEmpty()) Text("Aún no hay perfiles de menores.")
+        Heading(stringResource(R.string.family_short))
+        if (profiles.isEmpty()) Text(stringResource(R.string.family_empty))
         profiles.forEach { (id, name) ->
             val snap = rememberFamilySnapshot(CoreHolder.family(ctx, id), sync = false)
             Card(onClick = { onOpen(id) }, modifier = Modifier.fillMaxWidth()) {
@@ -226,17 +242,19 @@ fun FamilyListScreen(onOpen: (String) -> Unit, onNew: () -> Unit) {
                     Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     snap.status?.let { st ->
                         val done = st.goals.count { it.completed }
-                        Text("${stateText(st, snap.nowMs)} · $done de ${st.goals.size} metas")
+                        Text(pluralStringResource(R.plurals.family_row_state, st.goals.size, stateText(ctx, st, snap.nowMs), done, st.goals.size))
                     }
-                    if (snap.pending.isNotEmpty()) Text("${snap.pending.size} solicitudes esperando", color = MaterialTheme.colorScheme.primary)
+                    if (snap.pending.isNotEmpty()) {
+                        Text(pluralStringResource(R.plurals.requests_waiting, snap.pending.size, snap.pending.size), color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
-        SecondaryButton("Añadir un menor", onClick = onNew)
+        SecondaryButton(stringResource(R.string.add_minor), onClick = onNew)
     }
 }
 
-/** Panel de un menor (tutor): el panel espejo + aprobar solicitudes, vincular y ajustes. */
+/** A minor's panel (guardian): the mirror panel + approve requests, pair and settings. */
 @Composable
 fun ChildScreen(id: String, onInvite: (Role) -> Unit, onSettings: () -> Unit, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -249,11 +267,11 @@ fun ChildScreen(id: String, onInvite: (Role) -> Unit, onSettings: () -> Unit, on
     var error by remember { mutableStateOf<String?>(null) }
 
     fun answer(r: PendingRequest, approved: Boolean) = scope.launch {
-        val verb = if (approved) "Aprobar" else "Rechazar"
-        if (!confirmAsGuardian(activity, "$verb: ${describe(r.what)}")) return@launch
+        val reason = ctx.getString(if (approved) R.string.approve_what else R.string.reject_what, describe(ctx, r.what))
+        if (!confirmAsGuardian(activity, reason)) return@launch
         error = withContext(Dispatchers.IO) {
             runCatching { core.decide(CoreHolder.clock(), r.requestId, approved); core.sync(CoreHolder.clock()) }
-                .exceptionOrNull()?.userMessage()
+                .exceptionOrNull()?.userMessage(ctx)
         }
         refresh++
     }
@@ -261,24 +279,24 @@ fun ChildScreen(id: String, onInvite: (Role) -> Unit, onSettings: () -> Unit, on
     Screen {
         Heading(name)
         snap.pending.forEach { r ->
-            Section("${describe(r.what)} · ${whenText(r.atMs)}") {
+            Section("${describe(ctx, r.what)} · ${whenText(r.atMs)}") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PrimaryButton("Aprobar") { answer(r, true) }
-                    SecondaryButton("Rechazar") { answer(r, false) }
+                    PrimaryButton(stringResource(R.string.approve)) { answer(r, true) }
+                    SecondaryButton(stringResource(R.string.reject)) { answer(r, false) }
                 }
             }
         }
         ErrorText(error)
-        Text("Lo que ves aquí es exactamente lo que ve $name en su app.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.child_mirror_note, name), style = MaterialTheme.typography.bodySmall)
         MirrorPanel(snap)
-        SecondaryButton("Vincular un dispositivo de $name") { onInvite(Role.MINOR) }
-        SecondaryButton("Añadir otro tutor") { onInvite(Role.GUARDIAN) }
-        SecondaryButton("Ajustes de $name", onClick = onSettings)
-        TextButton(onClick = onBack) { Text("Volver") }
+        SecondaryButton(stringResource(R.string.child_pair_device, name)) { onInvite(Role.MINOR) }
+        SecondaryButton(stringResource(R.string.add_guardian)) { onInvite(Role.GUARDIAN) }
+        SecondaryButton(stringResource(R.string.child_settings, name), onClick = onSettings)
+        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
     }
 }
 
-/** Ajustes del menor (tutor). Rigen al momento: los firma un tutor. */
+/** The minor's settings (guardian). They take effect immediately: a guardian signs them. */
 @Composable
 fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -287,7 +305,7 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
     val cfg = remember(id) { core.activeConfig(CoreHolder.clock()) }
     val scope = rememberCoroutineScope()
     if (cfg == null) {
-        Screen { Text("Sin configuración todavía."); TextButton(onClick = onBack) { Text("Volver") } }
+        Screen { Text(stringResource(R.string.no_config_yet)); TextButton(onClick = onBack) { Text(stringResource(R.string.back)) } }
         return
     }
     fun hm(t: TimeOfDay) = "%02d:%02d".format(t.minutes.toInt() / 60, t.minutes.toInt() % 60)
@@ -302,27 +320,28 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
     val number = KeyboardOptions(keyboardType = KeyboardType.Number)
 
     Screen {
-        Heading("Ajustes")
+        Heading(stringResource(R.string.settings))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(wake, { wake = it.take(5) }, label = { Text("Despertar") }, isError = parseTime(wake) == null, modifier = Modifier.width(140.dp))
-            OutlinedTextField(bedtime, { bedtime = it.take(5) }, label = { Text("Dormir") }, isError = parseTime(bedtime) == null, modifier = Modifier.width(140.dp))
+            OutlinedTextField(wake, { wake = it.take(5) }, label = { Text(stringResource(R.string.wake)) }, isError = parseTime(wake) == null, modifier = Modifier.width(140.dp))
+            OutlinedTextField(bedtime, { bedtime = it.take(5) }, label = { Text(stringResource(R.string.bedtime)) }, isError = parseTime(bedtime) == null, modifier = Modifier.width(140.dp))
         }
-        Text("Días libres", fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.free_days), fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            DAY_LABELS.forEachIndexed { i, d ->
+            dayLabels().forEachIndexed { i, d ->
                 FilterChip(selected = freeDays and (1 shl i) != 0, onClick = { freeDays = freeDays xor (1 shl i) }, label = { Text(d) })
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(permits, { permits = it.filter(Char::isDigit).take(2) }, label = { Text("Permisos/día") }, keyboardOptions = number, modifier = Modifier.width(130.dp))
-            OutlinedTextField(minutes, { minutes = it.filter(Char::isDigit).take(2) }, label = { Text("Minutos") }, keyboardOptions = number, modifier = Modifier.width(110.dp))
-            OutlinedTextField(bonus, { bonus = it.filter(Char::isDigit).take(2) }, label = { Text("Extra/semana") }, keyboardOptions = number, modifier = Modifier.width(130.dp))
+            OutlinedTextField(permits, { permits = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.passes_per_day_short)) }, keyboardOptions = number, modifier = Modifier.width(130.dp))
+            OutlinedTextField(minutes, { minutes = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.minutes)) }, keyboardOptions = number, modifier = Modifier.width(110.dp))
+            OutlinedTextField(bonus, { bonus = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.extra_per_week)) }, keyboardOptions = number, modifier = Modifier.width(130.dp))
         }
-        OutlinedTextField(web, { web = it }, label = { Text("Sitios permitidos en el enfoque") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(web, { web = it }, label = { Text(stringResource(R.string.focus_sites)) }, modifier = Modifier.fillMaxWidth())
         ErrorText(error)
         val wakeMin = parseTime(wake)
         val bedMin = parseTime(bedtime)
-        PrimaryButton("Guardar (rige al momento)", enabled = wakeMin != null && bedMin != null) {
+        val reason = stringResource(R.string.change_settings)
+        PrimaryButton(stringResource(R.string.save_now), enabled = wakeMin != null && bedMin != null) {
             val next = cfg.copy(
                 schedule = cfg.schedule.copy(wake = TimeOfDay(wakeMin!!.toUShort()), bedtime = TimeOfDay(bedMin!!.toUShort())),
                 permitsPerDay = (permits.toIntOrNull() ?: 0).coerceIn(0, 10).toUByte(),
@@ -332,20 +351,20 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
                 webAllowlist = web.split(',', ' ', '\n').map { it.trim().lowercase() }.filter { it.isNotEmpty() },
             )
             scope.launch {
-                if (!confirmAsGuardian(activity, "Cambiar los ajustes")) return@launch
+                if (!confirmAsGuardian(activity, reason)) return@launch
                 error = withContext(Dispatchers.IO) {
-                    runCatching { core.setConfig(CoreHolder.clock(), next); core.sync(CoreHolder.clock()) }.exceptionOrNull()?.userMessage()
+                    runCatching { core.setConfig(CoreHolder.clock(), next); core.sync(CoreHolder.clock()) }.exceptionOrNull()?.userMessage(ctx)
                 }
                 if (error == null) onBack()
             }
         }
-        TextButton(onClick = onBack) { Text("Volver") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
     }
 }
 
-// ───────────────────────── Menor ─────────────────────────
+// ───────────────────────── Minor ─────────────────────────
 
-/** En el dispositivo del menor: pedir al tutor, activar el filtro web y "Lo que ve tu tutor". */
+/** On the minor's device: ask the guardian, enable the web filter and "What your guardian sees". */
 @Composable
 fun TutorScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -365,10 +384,10 @@ fun TutorScreen(onBack: () -> Unit) {
 
     fun ask(what: RequestKind) = scope.launch {
         error = withContext(Dispatchers.IO) {
-            runCatching { core.request(CoreHolder.clock(), what) }.exceptionOrNull()?.userMessage()
+            runCatching { core.request(CoreHolder.clock(), what) }.exceptionOrNull()?.userMessage(ctx)
         }
         if (error == null) {
-            message = "Enviado: ${describe(what)}. Tu tutor recibe un aviso."
+            message = ctx.getString(R.string.request_sent, describe(ctx, what))
             site = ""
             SyncScheduler.syncNow(ctx)
             refresh++
@@ -376,27 +395,27 @@ fun TutorScreen(onBack: () -> Unit) {
     }
 
     Screen {
-        Heading("Tu tutor")
+        Heading(stringResource(R.string.your_guardian))
         if (!vpnReady) {
-            Section("Falta activar el filtro web") {
-                Text("Tu tutor lo configuró para este dispositivo. Solo revisa a qué sitios se conecta; no ve ni guarda nada.")
-                PrimaryButton("Activar") { VpnService.prepare(ctx)?.let { askVpn.launch(it) } }
+            Section(stringResource(R.string.vpn_missing_title)) {
+                Text(stringResource(R.string.vpn_missing_body))
+                PrimaryButton(stringResource(R.string.enable)) { VpnService.prepare(ctx)?.let { askVpn.launch(it) } }
             }
         }
-        Section("Pedir algo") {
+        Section(stringResource(R.string.ask_something)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SecondaryButton("15 min más") { ask(RequestKind.ExtraPermit(15u)) }
-                SecondaryButton("Día de descanso") { ask(RequestKind.RestDay) }
+                SecondaryButton(stringResource(R.string.more_15_min)) { ask(RequestKind.ExtraPermit(15u)) }
+                SecondaryButton(stringResource(R.string.rest_day)) { ask(RequestKind.RestDay) }
             }
-            SecondaryButton("Dormir 30 min más tarde") { ask(RequestKind.LaterBedtime(30u)) }
-            OutlinedTextField(site, { site = it.take(253) }, label = { Text("Un sitio para tus tareas") }, placeholder = { Text("khanacademy.org") }, modifier = Modifier.fillMaxWidth())
-            SecondaryButton("Pedir acceso", enabled = site.isNotBlank()) { ask(RequestKind.AddSite(site.trim())) }
+            SecondaryButton(stringResource(R.string.sleep_30_later)) { ask(RequestKind.LaterBedtime(30u)) }
+            OutlinedTextField(site, { site = it.take(253) }, label = { Text(stringResource(R.string.site_for_homework)) }, placeholder = { Text("khanacademy.org") }, modifier = Modifier.fillMaxWidth())
+            SecondaryButton(stringResource(R.string.ask_access), enabled = site.isNotBlank()) { ask(RequestKind.AddSite(site.trim())) }
             message?.let { Text(it) }
             ErrorText(error)
         }
-        Text("Lo que ve tu tutor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text("Tu tutor ve exactamente esto, ni más ni menos.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.what_guardian_sees), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.guardian_sees_exactly), style = MaterialTheme.typography.bodySmall)
         MirrorPanel(snap)
-        TextButton(onClick = onBack) { Text("Volver") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
     }
 }

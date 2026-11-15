@@ -2,25 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Política de bloqueo, pura y probada: decide si un proceso se permite. No toca Windows.
+//! Blocking policy, pure and tested: decides whether a process is allowed. Does not touch Windows.
 
 use procastinacioff_core::model::{Config, DayState};
 
-/// Cómo identificamos una app en Windows.
+/// How we identify an app on Windows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppIdentity {
-    /// Ruta completa en minúsculas.
+    /// Full path in lowercase.
     pub path: String,
-    /// Nombre del ejecutable en minúsculas (ej. "chrome.exe").
+    /// Executable name in lowercase (e.g. "chrome.exe").
     pub file_name: String,
-    /// Firmante Authenticode verificado (ej. "Google LLC"), si lo hay.
+    /// Verified Authenticode signer (e.g. "Google LLC"), if any.
     pub signer: Option<String>,
-    /// Package Family Name si es una app de la Microsoft Store.
+    /// Package Family Name if it is a Microsoft Store app.
     pub store_pfn: Option<String>,
 }
 
 impl AppIdentity {
-    /// Identificadores con el formato de `Config::essential_apps` / `focus_apps`.
+    /// Identifiers in the format of `Config::essential_apps` / `focus_apps`.
     pub fn ids(&self) -> Vec<String> {
         let mut v = Vec::new();
         if let Some(pfn) = &self.store_pfn {
@@ -39,7 +39,7 @@ pub enum Verdict {
     Block,
 }
 
-/// Subcarpetas de Windows en las que un usuario estándar puede escribir (bypass conocido de AppLocker).
+/// Windows subfolders a standard user can write to (known AppLocker bypass).
 const USER_WRITABLE: [&str; 8] = [
     "\\temp\\",
     "\\tasks\\",
@@ -51,8 +51,8 @@ const USER_WRITABLE: [&str; 8] = [
     "\\system32\\microsoft\\crypto\\",
 ];
 
-/// Binario del sistema operativo: bajo `windows_dir` y fuera de las carpetas escribibles por el usuario.
-/// ponytail: lista fija; si aparecen más rutas, verificar la firma de catálogo de Microsoft (WinVerifyTrust + catálogo).
+/// Operating system binary: under `windows_dir` and outside the user-writable folders.
+/// ponytail: fixed list; if more paths show up, verify Microsoft's catalog signature (WinVerifyTrust + catalog).
 pub fn is_system_path(path: &str, windows_dir: &str) -> bool {
     let root = windows_dir.to_lowercase();
     match path.strip_prefix(root.as_str()) {
@@ -61,10 +61,10 @@ pub fn is_system_path(path: &str, windows_dir: &str) -> bool {
     }
 }
 
-/// Package Family Name a partir de la carpeta de WindowsApps.
+/// Package Family Name from the WindowsApps folder.
 /// "c:\program files\windowsapps\5319275a.whatsappdesktop_2.24.1.0_x64__cv1g1gvanyjgm\whatsapp.exe"
 ///   → "5319275a.whatsappdesktop_cv1g1gvanyjgm"
-/// WindowsApps solo la puede escribir TrustedInstaller: la ruta es una identidad fiable.
+/// Only TrustedInstaller can write to WindowsApps: the path is a reliable identity.
 pub fn pfn_from_path(path: &str) -> Option<String> {
     let rest = path.split("\\windowsapps\\").nth(1)?;
     let folder = rest.split('\\').next()?;
@@ -73,19 +73,19 @@ pub fn pfn_from_path(path: &str) -> Option<String> {
 }
 
 pub fn decide(state: &DayState, app: &AppIdentity, cfg: &Config, install_dir: &str, windows_dir: &str) -> Verdict {
-    // 1. Estados permisivos (incluye los días libres: el núcleo los devuelve como LIBRE)
+    // 1. Permissive states (includes free days: the core returns them as FREE)
     if matches!(state, DayState::Free | DayState::Pass { .. } | DayState::Emergency { .. }) {
         return Verdict::Allow;
     }
-    // 2. Nuestros binarios y los del sistema operativo
+    // 2. Our binaries and the operating system's
     if app.path.starts_with(&format!("{}\\", install_dir.to_lowercase())) || is_system_path(&app.path, windows_dir) {
         return Verdict::Allow;
     }
-    // 3. DORMIR: nada más
+    // 3. SLEEP: nothing else
     if matches!(state, DayState::Sleep) {
         return Verdict::Block;
     }
-    // 4. BLOQUEADO / ENFOQUE: listas de la configuración (comparación sin mayúsculas)
+    // 4. LOCKED / FOCUS: configuration lists (case-insensitive comparison)
     let lists: Vec<&String> = match state {
         DayState::Focus { .. } => cfg.essential_apps.iter().chain(cfg.focus_apps.iter()).collect(),
         _ => cfg.essential_apps.iter().collect(),
@@ -130,11 +130,11 @@ mod tests {
     #[test]
     fn renamed_exe_without_right_signer_is_blocked() {
         let cfg = Config::example();
-        // Alguien renombra un juego a chrome.exe: el firmante no es Google
+        // Someone renames a game to chrome.exe: the signer is not Google
         let fake = app(r"C:\Users\x\chrome.exe", Some("Game Studio"));
-        assert_eq!(decide(&DayState::Focus { goal_id: "leer-30".into() }, &fake, &cfg, INSTALL, WIN), Verdict::Block);
+        assert_eq!(decide(&DayState::Focus { goal_id: "read-30".into() }, &fake, &cfg, INSTALL, WIN), Verdict::Block);
         let real = app(r"C:\Program Files\Google\Chrome\Application\chrome.exe", Some("Google LLC"));
-        assert_eq!(decide(&DayState::Focus { goal_id: "leer-30".into() }, &real, &cfg, INSTALL, WIN), Verdict::Allow);
+        assert_eq!(decide(&DayState::Focus { goal_id: "read-30".into() }, &real, &cfg, INSTALL, WIN), Verdict::Allow);
     }
 
     #[test]
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn a_folder_named_like_ours_is_not_ours() {
         let cfg = Config::example();
-        // "C:\Program Files\ProcastinaciOFF-falso\juego.exe" empieza igual que la carpeta de instalación
+        // "C:\Program Files\ProcastinaciOFF-falso\juego.exe" starts like the install folder
         let fake = app(r"C:\Program Files\ProcastinaciOFF-falso\juego.exe", None);
         assert_eq!(decide(&DayState::Locked, &fake, &cfg, INSTALL, WIN), Verdict::Block);
     }

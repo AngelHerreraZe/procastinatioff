@@ -1,9 +1,10 @@
 <script lang="ts">
-  // Vincular otro dispositivo: QR + código de 6 dígitos que se compara en ambas pantallas (anti-MITM).
+  // Pair another device: QR + 6-digit code compared on both screens (anti-MITM).
   import { qrSvg } from '../lib/native';
   import { call, text } from '../lib/agent';
+  import { t } from '../lib/i18n';
 
-  let { onclose, onerror }: { onclose: () => void; onerror: (m: string) => void } = $props();
+  let { onclose, onerror }: { onclose: () => void; onerror: (e: unknown) => void } = $props();
 
   let svg = $state('');
   let offer = $state('');
@@ -23,7 +24,7 @@
           code = await text({ cmd: 'pairing_poll' });
         }
       } catch (e) {
-        if (alive) onerror(String(e));
+        if (alive) onerror(e);
       }
     })();
     return () => {
@@ -37,7 +38,7 @@
       await call({ cmd: 'pairing_confirm' });
       onclose();
     } catch (e) {
-      onerror(String(e));
+      onerror(e);
     } finally {
       busy = false;
     }
@@ -50,27 +51,27 @@
 </script>
 
 <main class="pair stack">
-  <button class="btn-text back" onclick={cancel}>Volver</button>
+  <button class="btn-text back" onclick={cancel}>{t('common.back')}</button>
   {#if !code}
-    <h1>Vincular otro dispositivo</h1>
-    <p class="muted">Abre ProcastinaciOFF en el celular, elige «Unirme a un perfil» y escanea este código.</p>
-    <div class="qr card" role="img" aria-label="Código QR de vinculación">
-      {#if svg}{@html svg}{:else}<p class="muted">Generando código…</p>{/if}
+    <h1>{t('pair.title')}</h1>
+    <p class="muted">{t('pair.instructions')}</p>
+    <div class="qr card" role="img" aria-label={t('pair.qr_label')}>
+      {#if svg}{@html svg}{:else}<p class="muted">{t('pair.generating')}</p>{/if}
     </div>
     <button
       class="btn-text copy"
       disabled={!offer}
-      onclick={() => navigator.clipboard.writeText(offer).then(() => (copied = true), () => onerror('No se pudo copiar'))}
+      onclick={() => navigator.clipboard.writeText(offer).then(() => (copied = true), () => onerror('error.copy'))}
     >
-      {copied ? 'Código copiado' : 'Copiar código (para otro PC)'}
+      {copied ? t('pair.copied') : t('pair.copy')}
     </button>
-    <p class="muted small">El código caduca en 10 minutos. Tus metas viajan cifradas: el servidor no puede leerlas.</p>
+    <p class="muted small">{t('pair.expires')}</p>
   {:else}
-    <h1>¿El otro dispositivo muestra este número?</h1>
+    <h1>{t('pair.match_question')}</h1>
     <p class="code num" aria-live="polite">{code}</p>
     <div class="row">
-      <button class="btn-primary" disabled={busy} onclick={confirm}>Sí, coinciden</button>
-      <button class="btn-secondary" onclick={cancel}>No coinciden: cancelar</button>
+      <button class="btn-primary" disabled={busy} onclick={confirm}>{t('pair.match_yes')}</button>
+      <button class="btn-secondary" onclick={cancel}>{t('pair.match_no')}</button>
     </div>
   {/if}
 </main>

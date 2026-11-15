@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Reloj inyectado: la plataforma pasa la hora; el núcleo nunca llama a `now()`.
+//! Injected clock: the platform passes the time; the core never calls `now()`.
 
 use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Timelike};
 
@@ -11,11 +11,11 @@ use crate::model::{Schedule, TimeOfDay};
 pub const MINUTE_MS: i64 = 60_000;
 pub const DAY_MS: i64 = 24 * 60 * MINUTE_MS;
 
-/// Instante actual tal como lo ve el dispositivo.
+/// Current instant as the device sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
 pub struct Clock {
     pub now_ms: i64,
-    /// Desfase respecto a UTC en minutos (UTC-6 → -360).
+    /// Offset from UTC in minutes (UTC-6 → -360).
     pub utc_offset_min: i32,
 }
 
@@ -31,30 +31,30 @@ impl Clock {
 }
 
 pub fn local_at(ms: i64, offset_min: i32) -> NaiveDateTime {
-    // ponytail: fuera del rango de chrono (±262 000 años) se satura a la época; nunca ocurre con relojes reales.
+    // ponytail: outside chrono's range (±262,000 years) it saturates to the epoch; never happens with real clocks.
     let utc = DateTime::from_timestamp_millis(ms).unwrap_or_default().naive_utc();
     utc + Duration::minutes(offset_min as i64)
 }
 
-/// ¿El minuto `m` cae dentro del periodo de sueño? Soporta periodos que cruzan medianoche.
+/// Does minute `m` fall inside the sleep period? Supports periods that cross midnight.
 pub fn in_sleep(schedule: &Schedule, m: TimeOfDay) -> bool {
     let (b, w, m) = (schedule.bedtime.minutes, schedule.wake.minutes, m.minutes);
     if b == w {
         false
     } else if b > w {
-        // Caso normal: 22:30 → 06:30 (cruza medianoche)
+        // Normal case: 22:30 → 06:30 (crosses midnight)
         m >= b || m < w
     } else {
-        // Caso 01:00 → 09:00 (no cruza medianoche)
+        // Case 01:00 → 09:00 (does not cross midnight)
         m >= b && m < w
     }
 }
 
-/// Inicio del "día" actual = la hora de despertar más reciente que sea <= ahora (en ms UTC).
-/// El periodo de sueño en curso (si lo hay) termina en `day_start_ms + DAY_MS`.
+/// Start of the current "day" = the most recent wake-up time that is <= now (UTC ms).
+/// The current sleep period (if any) ends at `day_start_ms + DAY_MS`.
 ///
-/// ponytail: usa el desfase horario actual; en el cambio de horario de verano el día
-/// dura 23 o 25 h una vez al año. Si molesta, pasar la zona IANA y usar chrono-tz.
+/// ponytail: uses the current UTC offset; on the daylight-saving switch the day
+/// lasts 23 or 25 h once a year. If it matters, pass the IANA zone and use chrono-tz.
 pub fn day_start_ms(schedule: &Schedule, clock: Clock) -> i64 {
     let local = clock.local();
     let wake = local.date().and_hms_opt(0, 0, 0).unwrap_or_default() + Duration::minutes(schedule.wake.minutes as i64);
@@ -62,7 +62,7 @@ pub fn day_start_ms(schedule: &Schedule, clock: Clock) -> i64 {
     (wake - Duration::minutes(clock.utc_offset_min as i64)).and_utc().timestamp_millis()
 }
 
-/// Día de la semana (0 = lunes … 6 = domingo) del día que empieza en `day_start`.
+/// Weekday (0 = Monday … 6 = Sunday) of the day that starts at `day_start`.
 pub fn weekday_index(day_start: i64, offset_min: i32) -> u8 {
     local_at(day_start, offset_min).weekday().num_days_from_monday() as u8
 }
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn day_starts_at_last_wake() {
-        // 2026-03-10 05:00 UTC con desfase 0 → aún no despertó → el día empezó ayer 06:30
+        // 2026-03-10 05:00 UTC with offset 0 → not awake yet → the day started yesterday at 06:30
         let clock = Clock { now_ms: 1_773_118_800_000, utc_offset_min: 0 };
         let start = day_start_ms(&sched(), clock);
         assert_eq!(local_at(start, 0).to_string(), "2026-03-09 06:30:00");
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn day_start_respects_utc_offset() {
-        // 2026-03-09 12:00 UTC = 06:00 en UTC-6 → todavía no despertó en México
+        // 2026-03-09 12:00 UTC = 06:00 in UTC-6 → not awake yet in Mexico
         let clock = Clock { now_ms: 1_773_057_600_000, utc_offset_min: -360 };
         let start = day_start_ms(&sched(), clock);
         assert_eq!(local_at(start, -360).to_string(), "2026-03-08 06:30:00");

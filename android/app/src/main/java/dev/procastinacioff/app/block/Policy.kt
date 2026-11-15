@@ -5,11 +5,11 @@ import uniffi.procastinacioff_core.DayState
 
 enum class Verdict { ALLOW, BLOCK }
 
-/** Lógica pura: se prueba con tests unitarios JVM (sin dispositivo). */
+/** Pure logic: tested with JVM unit tests (no device). */
 object Policy {
     fun decide(state: DayState, pkg: String, appId: String?, cfg: Config?, systemAllowed: Set<String>): Verdict {
         when (state) {
-            // Los días libres llegan como LIBRE desde el núcleo
+            // Free days arrive from the core as FREE
             is DayState.Free, is DayState.Pass, is DayState.Emergency -> return Verdict.ALLOW
             else -> Unit
         }

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-/// App Group compartido por la app y todas sus extensiones (también la de avisos).
+/// App Group shared by the app and all its extensions (the notification one too).
 enum AppGroup {
     static let id = "group.dev.procastinacioff"
 }

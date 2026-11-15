@@ -1,9 +1,10 @@
 <script lang="ts">
-  // 08 Foco: la siguiente acción, enorme. Se abre al empezar cualquier meta.
-  // - Meta con tiempo → sesión de ENFOQUE (el núcleo mide los minutos).
-  // - Meta sin tiempo → declaración con fricción: escribir qué hiciste + esperar 60 s (el texto no se guarda).
-  // - Meta con cámara del PC → el verificador corre aislado y sin red; solo devuelve si se cumplió.
+  // 08 Focus: the next action, huge. Opens when starting any goal.
+  // - Timed goal → FOCUS session (the core measures the minutes).
+  // - Untimed goal → declaration with friction: write what you did + wait 60 s (the text is not saved).
+  // - Goal with the PC camera → the verifier runs sandboxed without network; it only returns whether it was done.
   import { canVerifyOnPc, stopVerification, verifyOnPc } from '../lib/native';
+  import { errorText, t, tn } from '../lib/i18n';
   import { PC_CAMERA, call, type Goal, type Status } from '../lib/agent';
   import Emergency from '../components/Emergency.svelte';
 
@@ -15,7 +16,7 @@
     goalId: string;
     declaring: boolean;
     onact: (r: Record<string, unknown>) => void;
-    onerror: (m: string) => void;
+    onerror: (e: unknown) => void;
     onoverview: () => void;
     ondeclared: () => void;
     oncancel: () => void;
@@ -43,10 +44,10 @@
     return () => clearInterval(id);
   });
 
-  // Lectores de pantalla: solo hitos (cada 5 min y el último minuto), nunca cada segundo.
+  // Screen readers: only milestones (every 5 min and the last minute), never every second.
   $effect(() => {
     if (!declaring && (remaining % 5 === 0 || remaining <= 1)) {
-      announced = remaining === 0 ? 'Tiempo cumplido. Ya puedes terminar.' : `Quedan ${remaining} minutos`;
+      announced = remaining === 0 ? t('focus.time_up') : tn('focus.minutes_left', remaining);
     }
   });
 
@@ -60,9 +61,9 @@
     try {
       const approved = await verifyOnPc(goalId, cameraMethod!, goal?.target_minutes ?? 0);
       if (approved) ondeclared();
-      else cameraNote = 'Esta vez no se pudo comprobar. Puedes intentarlo de nuevo o usar otra opción.';
+      else cameraNote = t('verify.not_confirmed');
     } catch (e) {
-      cameraNote = String(e);
+      cameraNote = errorText(e);
     } finally {
       verifying = false;
     }
@@ -73,40 +74,40 @@
       await call({ cmd: 'complete_goal', goal_id: goalId, method: 'honor_declaration', score: 100, minutes: goal?.target_minutes ?? 0 });
       ondeclared();
     } catch (e) {
-      onerror(String(e));
+      onerror(e);
     }
   }
 </script>
 
 <main class="focus">
   <div class="top row">
-    <button class="btn-text" onclick={declaring ? oncancel : onoverview}>{declaring ? 'Volver al día' : 'Ver todo el día'}</button>
-    {#if keys.length > 0}<p class="muted num">Paso {stepIndex + 1} de {keys.length}</p>{/if}
+    <button class="btn-text" onclick={declaring ? oncancel : onoverview}>{declaring ? t('focus.back_to_day') : t('focus.see_day')}</button>
+    {#if keys.length > 0}<p class="muted num">{t('focus.step', { n: stepIndex + 1, total: keys.length })}</p>{/if}
   </div>
 
   <section class="card focus-card stack" aria-labelledby="task">
-    <span class="chip now">Ahora</span>
-    <h1 id="task">{progress?.title ?? 'Tu meta'}</h1>
+    <span class="chip now">{t('focus.now')}</span>
+    <h1 id="task">{progress?.title ?? t('focus.your_goal')}</h1>
 
     {#if declaring}
-      <p class="instruction">Escribe en una frase lo que hiciste. Después de 60 s podrás marcarla como hecha.</p>
+      <p class="instruction">{t('focus.declare_instruction')}</p>
       <label>
-        <span class="sr-only">Lo que hiciste</span>
-        <textarea rows="3" bind:value={note} maxlength="300" placeholder="Hoy he…"></textarea>
-        <small class="muted">No se guarda ni se envía: solo cuenta como «autodeclarada».</small>
+        <span class="sr-only">{t('focus.what_you_did')}</span>
+        <textarea rows="3" bind:value={note} maxlength="300" placeholder={t('focus.declare_placeholder')}></textarea>
+        <small class="muted">{t('focus.declare_note')}</small>
       </label>
       <button class="btn-primary big" disabled={left > 0 || note.trim().length < 10} onclick={declare}>
-        {left > 0 ? `Espera ${left} s` : 'Marcar como hecha'}
+        {left > 0 ? t('common.wait_seconds', { n: left }) : t('common.mark_done')}
       </button>
     {:else}
-      <p class="instruction">Siéntate, abre lo que necesitas y sigue. Solo están disponibles las apps de esta tarea.</p>
-      <p class="timer num" role="timer" aria-label="Quedan {remaining} minutos">{remaining}<span> min</span></p>
-      <div class="bar thick" role="progressbar" aria-label="Progreso" aria-valuemin="0" aria-valuemax={target} aria-valuenow={done}>
+      <p class="instruction">{t('focus.instruction')}</p>
+      <p class="timer num" role="timer" aria-label={tn('focus.minutes_left', remaining)}>{remaining}<span> {t('plan.unit_min')}</span></p>
+      <div class="bar thick" role="progressbar" aria-label={t('focus.progress')} aria-valuemin="0" aria-valuemax={target} aria-valuenow={done}>
         <i style="width:{target ? (100 * done) / target : 0}%"></i>
       </div>
-      <p class="muted num">{done} de {target} min</p>
+      <p class="muted num">{t('home.progress_minutes', { done, total: target })}</p>
       <button class="btn-primary big" onclick={() => onact({ cmd: 'end_focus' })}>
-        {remaining === 0 ? 'Terminar: meta cumplida' : 'Terminar sesión por ahora'}
+        {remaining === 0 ? t('focus.finish_done') : t('focus.finish_for_now')}
       </button>
       <p class="sr-only" aria-live="polite">{announced}</p>
     {/if}
@@ -114,12 +115,12 @@
     {#if cameraMethod}
       {#if verifying}
         <div class="camera-on" role="status">
-          <span><strong>Cámara activa</strong> · no se graba nada · el verificador no tiene Internet</span>
-          <button class="btn-secondary" onclick={() => stopVerification()}>Detener</button>
+          <span><strong>{t('focus.camera_on')}</strong> · {t('focus.camera_note')}</span>
+          <button class="btn-secondary" onclick={() => stopVerification()}>{t('focus.stop')}</button>
         </div>
       {:else}
         <button class="btn-secondary" onclick={verifyWithCamera}>
-          {cameraMethod === 'pose_reps' ? 'Contar repeticiones con la cámara' : 'Comprobar la lectura con la cámara'}
+          {cameraMethod === 'pose_reps' ? t('focus.count_reps') : t('focus.check_reading')}
         </button>
       {/if}
       {#if cameraNote}<p class="muted" role="status">{cameraNote}</p>{/if}
@@ -127,14 +128,14 @@
   </section>
 
   <div class="next stack">
-    {#if after}<p><strong>Después:</strong> {after.title}</p>{/if}
-    {#if habit}<p class="muted"><strong>Sin prisa:</strong> {habit.title} (hábito)</p>{/if}
+    {#if after}<p><strong>{t('focus.after')}</strong> {after.title}</p>{/if}
+    {#if habit}<p class="muted"><strong>{t('focus.no_rush')}</strong> {t('focus.habit_suffix', { goal: habit.title })}</p>{/if}
   </div>
 
   {#if !declaring}
     <div class="row secondary">
       <button class="btn-tonal" disabled={status.permits_left === 0} onclick={() => onact({ cmd: 'start_pass' })}>
-        Permiso ({status.permits_left})
+        {t('focus.pass_count', { n: status.permits_left })}
       </button>
       <Emergency {onerror} />
     </div>

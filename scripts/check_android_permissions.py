@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Falla si un APK pide permisos fuera de su lista aprobada (incluye los que añaden librerías).
+"""Fails if an APK requests permissions outside its approved list (including those added by libraries).
 
-Uso: python scripts/check_android_permissions.py <aapt2> <apk> [--verifier]
-     --verifier: APK de cámara/micrófono, que NUNCA puede tener red.
+Usage: python scripts/check_android_permissions.py <aapt2> <apk> [--verifier]
+       --verifier: the camera/microphone APK, which can NEVER have network access.
 """
 import re
 import subprocess
@@ -17,18 +17,18 @@ APP = {
     "android.permission.WAKE_LOCK",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.RECEIVE_BOOT_COMPLETED",       # WorkManager
-    "android.permission.FOREGROUND_SERVICE",            # WorkManager (trabajos largos) y EnforcerService
-    "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED",  # modo familiar: suspensión de apps (Device Owner)
-    "android.permission.USE_BIOMETRIC",                 # modo familiar: el tutor confirma con huella o PIN
-    "android.permission.USE_FINGERPRINT",               # (androidx.biometric en Android antiguos)
+    "android.permission.FOREGROUND_SERVICE",            # WorkManager (long jobs) and EnforcerService
+    "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED",  # family mode: app suspension (Device Owner)
+    "android.permission.USE_BIOMETRIC",                 # family mode: the guardian confirms with fingerprint or PIN
+    "android.permission.USE_FINGERPRINT",               # (androidx.biometric on older Android)
     "com.google.android.c2dm.permission.RECEIVE",       # FCM
-    "dev.procastinacioff.permission.VERIFY",            # abrir el verificador (permiso de firma)
+    "dev.procastinacioff.permission.VERIFY",            # open the verifier (signature permission)
     "dev.procastinacioff.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
 }
 VERIFIER = {
     "android.permission.CAMERA",
     "android.permission.RECORD_AUDIO",
-    "dev.procastinacioff.permission.VERIFY",            # lo declara (signature) para que solo lo abra la app
+    "dev.procastinacioff.permission.VERIFY",            # declared (signature) so only the app can open it
     "dev.procastinacioff.verifier.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
 }
 NETWORK = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
@@ -40,10 +40,10 @@ allowed = VERIFIER if verifier else APP
 out = subprocess.run([aapt2, "dump", "permissions", apk], check=True, capture_output=True, text=True).stdout
 found = set(re.findall(r"name='([^']+)'", out))
 if verifier and found & NETWORK:
-    print("🔒 El verificador tiene permisos de RED:", *sorted(found & NETWORK), sep="\n  ")
+    print("SECURITY: The verifier has NETWORK permissions:", *sorted(found & NETWORK), sep="\n  ")
     sys.exit(1)
 extra = sorted(found - allowed)
 if extra:
-    print("Permisos no aprobados:", *extra, sep="\n  ")
+    print("Permissions not approved:", *extra, sep="\n  ")
     sys.exit(1)
-print(f"Permisos del APK{' verificador' if verifier else ''}: OK ({len(found)})")
+print(f"{'Verifier APK' if verifier else 'APK'} permissions: OK ({len(found)})")

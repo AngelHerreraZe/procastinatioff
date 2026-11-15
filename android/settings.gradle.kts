@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "ProcastinaciOFF"
 include(":app")
-include(":verifier") // 🔒 APK aparte SIN permiso de Internet (cámara y micrófono)
+include(":verifier") // SECURITY: Separate APK WITHOUT the Internet permission (camera and microphone)

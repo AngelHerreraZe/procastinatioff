@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Registro del servicio. Requiere administrador; lo llama el instalador.
+//! Service registration. Requires administrator; called by the installer.
 
 use std::ffi::OsString;
 use std::time::Duration;
@@ -33,8 +33,8 @@ pub fn install() -> windows_service::Result<()> {
         account_password: None,
     };
     let service = manager.create_service(&info, ServiceAccess::CHANGE_CONFIG | ServiceAccess::START)?;
-    service.set_description("Aplica tus metas diarias. No se puede detener sin privilegios de administrador.")?;
-    // Si el proceso muere, Windows lo reinicia en 1 segundo (siempre).
+    service.set_description("Enforces your daily goals. It cannot be stopped without administrator privileges.")?;
+    // If the process dies, Windows restarts it after 1 second (always).
     let restart = ServiceAction { action_type: ServiceActionType::Restart, delay: Duration::from_secs(1) };
     service.update_failure_actions(ServiceFailureActions {
         reset_period: ServiceFailureResetPeriod::After(Duration::from_secs(60)),

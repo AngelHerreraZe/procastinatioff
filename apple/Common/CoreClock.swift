@@ -4,10 +4,10 @@
 
 import Foundation
 
-/// Hora para las reglas: hora firmada del relay + reloj monotónico (ADR 0007). Cambiar la hora del
-/// sistema no la mueve. Sin ancla todavía, el reloj del sistema.
+/// Time for the rules: relay signed time + monotonic clock. Changing the system time
+/// does not move it. Without an anchor yet, the system clock.
 enum CoreClock {
-    /// En Darwin, CLOCK_MONOTONIC sigue contando con el equipo en reposo (systemUptime no).
+    /// On Darwin, CLOCK_MONOTONIC keeps counting while the device sleeps (systemUptime does not).
     static func monoMs() -> Int64 { Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1_000_000) }
 
     static func deviceNowMs() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -18,15 +18,24 @@ enum CoreClock {
         return Clock(nowMs: now, utcOffsetMin: Int32(offset))
     }
 
-    /// Ancla la hora con el relay (llamar antes de cada sincronización). Sin red, no pasa nada.
+    /// Anchors the time with the relay (call before every sync). Without network, nothing happens.
     static func anchor(_ core: Core) {
         try? core.anchorTime(deviceNowMs: deviceNowMs(), monoMs: monoMs())
     }
 }
 
-/// Texto para la persona usuaria: el motivo del núcleo (en español, sin datos personales) o uno genérico.
+/// Text for the user. The core never sends sentences: `Denied.reason` is a stable code (`Denied::code` in
+/// core/src/rules.rs) translated with the `denied.<code>` keys of Localizable.xcstrings.
 func userMessage(_ error: Error) -> String {
-    if case .Denied(let reason, _)? = error as? CoreError { return reason }
-    if case .Network? = error as? CoreError { return "Sin conexión con el servidor. Se reintentará." }
-    return "Algo falló. Inténtalo de nuevo."
+    let generic = String(localized: "Something went wrong. Please try again.")
+    switch error as? CoreError {
+    case .Denied(let reason, let minutes)?:
+        let key = "denied.\(reason)"
+        let text = NSLocalizedString(key, comment: "Refusal from the core rules")
+        return text == key ? generic : String(format: text, Int(minutes))
+    case .Network?:
+        return String(localized: "No connection with your other devices. It will retry.")
+    default:
+        return generic
+    }
 }

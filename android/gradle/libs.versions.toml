@@ -38,12 +38,12 @@ camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "ca
 camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
 camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }   # confirmar como tutor
-fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }  # FragmentActivity (biometría)
+biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }   # confirm as guardian
+fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }  # FragmentActivity (biometrics)
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 mediapipe-tasks-vision = { module = "com.google.mediapipe:tasks-vision", version.ref = "mediapipe" }  # Apache-2.0
-mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }   # modelo empaquetado
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }   # bundled model
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTest" }
 espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }

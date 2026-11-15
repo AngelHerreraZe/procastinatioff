@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// La UI solo se sirve desde Tauri: sin red, sin CDNs, todo empaquetado.
+// The UI is only served from Tauri: no network, no CDNs, everything bundled.
 export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,

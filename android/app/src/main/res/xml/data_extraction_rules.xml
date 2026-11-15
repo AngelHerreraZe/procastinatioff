@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nada de la app va a copias en la nube ni a transferencias entre dispositivos. -->
+<!-- Nothing from the app goes to cloud backups or device-to-device transfers. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" />

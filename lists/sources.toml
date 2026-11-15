@@ -1,17 +1,17 @@
-# Fuentes de las listas de categorías del modo familiar (07b · 4.1).
-# 🔒 Solo licencias compatibles con la App Store y con uso comercial: MIT, CC0, CC-BY o equivalentes.
-#    Nunca GPL ni "no comercial". Cada fuente nueva necesita revisión (CODEOWNERS) y su licencia aquí.
-# Construir:  python scripts/build_category_list.py categories.txt <archivos de las fuentes>
-# Firmar:     en el equipo aislado, `minisign -S -s listas.key -m categories.txt` (solo el líder técnico)
-# Publicar:   categories.txt y categories.txt.minisig en LISTS_URL (core/src/api.rs)
+# Sources of the family-mode category lists.
+# SECURITY: Only licenses compatible with the App Store and commercial use: MIT, CC0, CC-BY or equivalent.
+#    Never GPL nor "non-commercial". Every new source needs review (CODEOWNERS) and its license here.
+# Build:    python scripts/build_category_list.py categories.txt <source files>
+# Sign:     on the air-gapped machine, `minisign -S -s lists.key -m categories.txt` (maintainers only)
+# Ship:     categories.txt and categories.txt.minisig bundled with the app release
 #
-# Categorías iniciales: adultos y apuestas (≤ 200 000 dominios). Ampliar con revisión del responsable de producto.
+# Initial categories: adult and gambling (≤ 200,000 domains). Extend with product-owner review.
 #
 # [[source]]
 # name     = "…"
-# category = "adultos" | "apuestas"
+# category = "adult" | "gambling"
 # url      = "https://…"
 # license  = "MIT"            # SPDX
-# revisado = "AAAA-MM-DD"     # quién y cuándo comprobó la licencia, en el PR
+# reviewed = "YYYY-MM-DD"     # who checked the license and when, in the PR
 
-# ⏳ Pendiente: elegir fuentes concretas tras comprobar sus licencias (trámite 11 de docs/tramites.md).
+# Pending: choose concrete sources after checking their licenses.

@@ -1,4 +1,4 @@
-// Cliente del servicio. La UI no decide nada: muestra lo que dice el servicio y le pide acciones.
+// Service client. The UI decides nothing: it shows what the service says and asks it for actions.
 import { agentRequest } from './native';
 
 export type DayState =
@@ -67,11 +67,11 @@ export interface Config {
   essential_apps: string[];
   focus_apps: string[];
   web_allowlist: string[];
-  /** Permisos extra semanales del tutor (modo familiar). Se omite si es 0. */
+  /** Weekly extra passes from the guardian (family mode). Omitted when 0. */
   weekly_bonus_permits?: number;
 }
 
-// ── Modo familiar (este PC es de un menor; el tutor usa el teléfono) ──
+// ── Family mode (this PC belongs to a minor; the guardian uses the phone) ──
 export type Role = 'owner' | 'guardian' | 'minor' | 'partner';
 export type RequestKind =
   | { what: 'extra_permit'; minutes: number }
@@ -100,17 +100,28 @@ type Response =
   | { type: 'role'; role: Role | null }
   | { type: 'requests'; requests: PendingRequest[] }
   | { type: 'alerts'; alerts: FamilyAlertView[] }
-  | { type: 'error'; message: string; cooldown_minutes: number };
+  | { type: 'error'; code: string; message: string; cooldown_minutes: number };
+
+/** Error from the service. `code` is a translation key (`denied.*`, `error.*`): see `errorText` in i18n.ts. */
+export class AgentError extends Error {
+  constructor(
+    readonly code: string,
+    readonly cooldown_minutes: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 export async function call(request: Record<string, unknown>): Promise<Response> {
   const r = await agentRequest<Response>(request);
-  if (r.type === 'error') throw new Error(r.message);
+  if (r.type === 'error') throw new AgentError(r.code, r.cooldown_minutes, r.message);
   return r;
 }
 
 export async function status(): Promise<AgentStatus> {
   const r = await call({ cmd: 'status' });
-  if (r.type !== 'status') throw new Error('respuesta inesperada');
+  if (r.type !== 'status') throw new Error('unexpected response');
   return r.agent;
 }
 
@@ -146,47 +157,38 @@ export async function devices(): Promise<DeviceSeen[]> {
   return r.type === 'devices' ? r.devices : [];
 }
 
-/** Cómo se comprueba una meta. Siempre hay una opción sin cámara ("marcar como hecha"). */
-export type Check = 'enfoque' | 'lectura' | 'ejercicio' | 'comida' | 'paginas' | 'marcar';
-export const CHECKS: [Check, string][] = [
-  ['enfoque', 'Sesión de enfoque'],
-  ['lectura', 'Cámara: lectura'],
-  ['ejercicio', 'Cámara: ejercicio (20 repeticiones)'],
-  ['comida', 'Foto de comida (en el teléfono)'],
-  ['paginas', 'Páginas + resumen (en el teléfono)'],
-  ['marcar', 'Marcar como hecha'],
-];
-/** Métodos que se pueden comprobar con la cámara del PC. */
+/** How a goal is checked (label: `check.<value>` in the locale files). There is always a camera-free option ("mark"). */
+export type Check = 'focus' | 'reading' | 'exercise' | 'food' | 'pages' | 'mark';
+export const CHECKS: Check[] = ['focus', 'reading', 'exercise', 'food', 'pages', 'mark'];
+/** Methods that can be checked with the PC camera. */
 export const PC_CAMERA: Method[] = ['reading_presence', 'pose_reps'];
 
 export function methodsForCheck(check: Check, minutes: number): Method[] {
   switch (check) {
-    case 'lectura': return ['reading_presence', 'focus_session', 'honor_declaration'];
-    case 'ejercicio': return ['pose_reps', 'honor_declaration'];
-    case 'comida': return ['food_photo', 'honor_declaration'];
-    case 'paginas': return ['page_ocr', 'summary', 'honor_declaration'];
-    case 'marcar': return ['honor_declaration'];
+    case 'reading': return ['reading_presence', 'focus_session', 'honor_declaration'];
+    case 'exercise': return ['pose_reps', 'honor_declaration'];
+    case 'food': return ['food_photo', 'honor_declaration'];
+    case 'pages': return ['page_ocr', 'summary', 'honor_declaration'];
+    case 'mark': return ['honor_declaration'];
     default: return methodsFor(minutes);
   }
 }
 
-/** Las comprobaciones por conteo (ejercicio, comida) no llevan minutos. */
-export const usesMinutes = (check: Check): boolean => check === 'enfoque' || check === 'lectura';
+/** Count-based checks (exercise, food) have no minutes. */
+export const usesMinutes = (check: Check): boolean => check === 'focus' || check === 'reading';
 
 export const ALL_DAYS = 0b111_1111;
-export const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-export const DAY_NAMES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 
-/** Métodos que acepta una meta según se mida por tiempo o no (Fase 1: enfoque o declaración). */
+/** Methods a goal accepts depending on whether it is measured by time (focus or declaration). */
 export function methodsFor(minutes: number): Method[] {
   return minutes > 0 ? ['focus_session', 'honor_declaration'] : ['honor_declaration'];
 }
 
-/** Identificador estable a partir del título: minúsculas, sin tildes, con guiones. */
+/** Stable identifier from the title: lowercase, no accents, hyphens. */
 export function slug(title: string, taken: string[]): string {
   const base =
     title.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'meta';
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'goal';
   let id = base;
   for (let n = 2; taken.includes(id); n++) id = `${base.slice(0, 20)}-${n}`;
   return id;

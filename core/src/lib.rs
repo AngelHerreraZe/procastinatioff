@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Núcleo de ProcastinaciOFF: reglas del día, eventos firmados, cripto,
-//! almacenamiento cifrado y sincronización. Sin dependencias de plataforma.
+//! ProcastinaciOFF core: day rules, signed events, crypto,
+//! encrypted storage and sync. No platform dependencies.
 
 uniffi::setup_scaffolding!();
 

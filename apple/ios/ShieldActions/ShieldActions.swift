@@ -5,8 +5,8 @@
 import ManagedSettings
 import UserNotifications
 
-/// Botones del escudo. El escudo no puede abrir la app: "Abrir ProcastinaciOFF" publica una
-/// notificación local que la abre al tocarla.
+/// Shield buttons. The shield cannot open the app: "Open ProcastinaciOFF" posts a
+/// local notification that opens it when tapped.
 final class ShieldActions: ShieldActionDelegate {
     override func handle(action: ShieldAction, for application: ApplicationToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
         respond(action, completionHandler)
@@ -24,7 +24,7 @@ final class ShieldActions: ShieldActionDelegate {
         guard action == .secondaryButtonPressed else { return done(.close) }
         let content = UNMutableNotificationContent()
         content.title = "ProcastinaciOFF"
-        content.body = "Toca aquí para ver tus metas o usar un permiso."
+        content.body = String(localized: "Tap here to see your goals or use a pass.")
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "open-app", content: content, trigger: nil)) { _ in
             done(.defer)
         }

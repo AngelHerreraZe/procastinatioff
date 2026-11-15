@@ -1,5 +1,6 @@
 package dev.procastinacioff.app.verify
 
+import dev.procastinacioff.app.R
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -9,12 +10,12 @@ import dev.procastinacioff.app.core.userMessage
 import uniffi.procastinacioff_core.Method
 
 /**
- * 🔒 La cámara y el micrófono viven en otro APK (dev.procastinacioff.verifier) SIN permiso de
- * Internet: Android le niega la red. Esta app solo recibe los 5 campos de VerificationResult.
+ * SECURITY: The camera and the microphone live in another APK (dev.procastinacioff.verifier) WITHOUT the
+ * Internet permission: Android denies it the network. This app only receives VerificationResult's 5 fields.
  */
 const val VERIFIER_PKG = "dev.procastinacioff.verifier"
 
-/** Solo se confía en un verificador firmado con nuestra misma clave. */
+/** Only a verifier signed with our same key is trusted. */
 fun verifierIsGenuine(ctx: Context): Boolean = try {
     ctx.packageManager.getPackageInfo(VERIFIER_PKG, 0)
     ctx.packageManager.checkSignatures(ctx.packageName, VERIFIER_PKG) == PackageManager.SIGNATURE_MATCH
@@ -22,7 +23,7 @@ fun verifierIsGenuine(ctx: Context): Boolean = try {
     false
 }
 
-/** Nombre del método tal como lo espera el verificador (el de los bindings de `verify`). */
+/** Method name as the verifier expects it (the one in the `verify` bindings). */
 private fun Method.verifierName(): String? = when (this) {
     Method.READING_PRESENCE -> "READING_PRESENCE"
     Method.POSE_REPS -> "POSE_REPS"
@@ -32,7 +33,7 @@ private fun Method.verifierName(): String? = when (this) {
     else -> null
 }
 
-/** Repeticiones por sesión de ejercicio y páginas mínimas por lectura. ponytail: fijos (perillas). */
+/** Reps per exercise session and minimum pages per reading. ponytail: fixed (knobs). */
 const val POSE_REPS = 20
 const val MIN_PAGES = 10
 
@@ -46,23 +47,23 @@ fun verifierIntent(goalId: String, method: Method, targetMinutes: Int): Intent? 
 }
 
 /**
- * Procesa el resultado del verificador. Devuelve null si se registró la meta, o un mensaje para mostrar.
- * Se ignora todo lo que no sean los 5 campos esperados.
+ * Processes the verifier's result. Returns null if the goal was recorded, or a message to show.
+ * Anything other than the 5 expected fields is ignored.
  */
 fun onVerifierResult(ctx: Context, expectedGoal: String, resultCode: Int, data: Intent?): String? {
-    if (resultCode != Activity.RESULT_OK || data == null) return "La comprobación se detuvo sin resultado."
-    if (!verifierIsGenuine(ctx)) return "El verificador instalado no es auténtico."
-    if (!data.getBooleanExtra("approved", false)) return "Esta vez no se pudo comprobar. Puedes intentarlo de nuevo o usar otra opción."
+    if (resultCode != Activity.RESULT_OK || data == null) return ctx.getString(R.string.verify_no_result)
+    if (!verifierIsGenuine(ctx)) return ctx.getString(R.string.verify_not_genuine)
+    if (!data.getBooleanExtra("approved", false)) return ctx.getString(R.string.verify_not_confirmed)
     val method = when (data.getStringExtra("method")) {
         "READING_PRESENCE" -> Method.READING_PRESENCE
         "POSE_REPS" -> Method.POSE_REPS
         "FOOD_PHOTO" -> Method.FOOD_PHOTO
         "PAGE_OCR" -> Method.PAGE_OCR
         "SUMMARY" -> Method.SUMMARY
-        else -> return "Resultado inválido."
+        else -> return ctx.getString(R.string.verify_unexpected)
     }
     val goalId = data.getStringExtra("goal_id")
-    if (goalId != expectedGoal) return "Resultado de otra meta."
+    if (goalId != expectedGoal) return ctx.getString(R.string.verify_unexpected)
     return runCatching {
         val core = CoreHolder.get(ctx)
         core.completeGoal(
@@ -72,5 +73,5 @@ fun onVerifierResult(ctx: Context, expectedGoal: String, resultCode: Int, data: 
             data.getIntExtra("score", 0).coerceIn(0, 100).toUByte(),
             data.getIntExtra("minutes", 0).coerceIn(0, 1440).toUShort(),
         )
-    }.exceptionOrNull()?.userMessage()
+    }.exceptionOrNull()?.userMessage(ctx)
 }

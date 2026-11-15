@@ -5,27 +5,27 @@
 import FamilyControls
 import Foundation
 
-/// Estado compartido entre la app y sus extensiones (App Group). Las extensiones de Screen Time NO
-/// cargan el núcleo (memoria muy limitada): leen esto. 🔒 Nada de cámara ni audio se escribe nunca aquí.
+/// State shared between the app and its extensions (App Group). The Screen Time extensions do NOT
+/// load the core (very limited memory): they read this. SECURITY: Nothing from the camera or audio is ever written here.
 enum ShieldMode: String, Codable { case sleep, locked, focus, open }
 
 struct SharedState: Codable {
-    /// Apps elegidas con el selector del sistema: tokens opacos válidos solo en ESTE iPhone, por eso
-    /// no viajan en `Config` (08 · 1).
+    /// Apps chosen with the system picker: opaque tokens valid only on THIS iPhone, which is why
+    /// they do not travel in `Config`.
     var essentials = FamilyActivitySelection()
     var focus = FamilyActivitySelection()
-    /// "Todas las categorías": para medir los minutos de uso de un permiso.
+    /// "All categories": to measure the minutes of use of a pass.
     var everything = FamilyActivitySelection()
-    /// Selección más permisiva pedida en un perfil personal: rige desde `pendingFrom` (anti-impulso).
+    /// More permissive selection asked for in a personal profile: takes effect from `pendingFrom` (anti-impulse).
     var pendingEssentials: FamilyActivitySelection?
     var pendingFocus: FamilyActivitySelection?
     var pendingFrom: Date?
 
     var webAllowlist: [String] = []
-    /// Modo fuera de permisos: `open` si ya cumplió las metas llave, si no `locked`.
+    /// Mode outside passes: `open` if the key goals are already done, otherwise `locked`.
     var baseMode: ShieldMode = .locked
     var mode: ShieldMode = .locked
-    /// Del `Config` (para las extensiones): horario y días libres (bit 0 = lunes).
+    /// From `Config` (for the extensions): schedule and free days (bit 0 = Monday).
     var wakeMin = 390
     var bedtimeMin = 1350
     var freeDays = 0
@@ -48,7 +48,7 @@ enum SharedStore {
 }
 
 extension FamilyActivitySelection {
-    /// ¿`self` deja pasar algo que `old` no dejaba? (añadir apps esenciales o de enfoque relaja).
+    /// Does `self` let through something `old` did not? (adding essential or focus apps relaxes).
     func widens(_ old: FamilyActivitySelection) -> Bool {
         !applicationTokens.isSubset(of: old.applicationTokens)
             || !categoryTokens.isSubset(of: old.categoryTokens)
@@ -56,17 +56,17 @@ extension FamilyActivitySelection {
     }
 }
 
-/// Días libres con la misma máscara que el núcleo (bit 0 = lunes … bit 6 = domingo).
+/// Free days with the same mask as the core (bit 0 = Monday … bit 6 = Sunday).
 enum FreeDays {
     static func bit(for date: Date) -> Int {
-        let weekday = Calendar.current.component(.weekday, from: date) // 1 = domingo … 7 = sábado
+        let weekday = Calendar.current.component(.weekday, from: date) // 1 = Sunday … 7 = Saturday
         return 1 << ((weekday + 5) % 7)
     }
 
     static func isFree(_ date: Date, _ s: SharedState) -> Bool { s.freeDays & bit(for: date) != 0 }
 
-    /// La noche que empieza ahora termina en el próximo despertar; es libre si ese día es libre
-    /// (igual que `night_is_free` en core/src/rules.rs).
+    /// The night starting now ends at the next wake-up; it is free if that day is free
+    /// (same as `night_is_free` in core/src/rules.rs).
     static func nightIsFree(_ now: Date, _ s: SharedState) -> Bool {
         let cal = Calendar.current
         let minute = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)

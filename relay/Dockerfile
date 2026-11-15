@@ -1,4 +1,4 @@
-# relay/Dockerfile — 🔒 fijar las imágenes base por digest (@sha256:…) en el PR real
+# relay/Dockerfile — SECURITY: fijar las imágenes base por digest (@sha256:…) en el PR real
 FROM rust:1.100-bookworm AS build
 WORKDIR /src
 COPY . .

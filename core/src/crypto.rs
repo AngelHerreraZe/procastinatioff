@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Claves del dispositivo 🔒. No se guardan en la base de datos: el núcleo le pide a la
-//! plataforma que las guarde en su llavero mediante `SecretStore`.
+//! Device keys (security-critical). They are not stored in the database: the core asks the
+//! platform to keep them in its keystore through `SecretStore`.
 
 use ed25519_dalek::SigningKey;
 use rand::RngCore;
@@ -17,8 +17,8 @@ pub const SECRET_SIGNING: &str = "device_ed25519";
 pub const SECRET_AGE: &str = "device_age";
 pub const SECRET_DB: &str = "db_key";
 
-/// Lo implementa cada plataforma con su llavero (Keystore, DPAPI, Keychain…).
-/// 🔒 La implementación debe proteger los valores con una clave atada al hardware cuando exista.
+/// Each platform implements it with its keystore (Keystore, DPAPI, Keychain…).
+/// SECURITY: The implementation must protect the values with a hardware-bound key when available.
 #[uniffi::export(with_foreign)]
 pub trait SecretStore: Send + Sync {
     fn load(&self, name: String) -> Result<Option<Vec<u8>>, CoreError>;
@@ -31,13 +31,13 @@ pub struct DeviceKeys {
 }
 
 impl DeviceKeys {
-    /// Carga las claves o las crea la primera vez.
+    /// Loads the keys or creates them the first time.
     pub fn load_or_create(store: &dyn SecretStore) -> Result<Self, CoreError> {
         let signing = match store.load(SECRET_SIGNING.into())? {
             Some(bytes) => {
                 let bytes = Zeroizing::new(bytes);
                 let arr: Zeroizing<[u8; 32]> = Zeroizing::new(
-                    bytes.as_slice().try_into().map_err(|_| CoreError::crypto("clave de firma corrupta"))?,
+                    bytes.as_slice().try_into().map_err(|_| CoreError::crypto("corrupted signing key"))?,
                 );
                 SigningKey::from_bytes(&arr)
             }
@@ -71,13 +71,13 @@ impl DeviceKeys {
     }
 }
 
-/// Clave de 32 bytes de la base de datos SQLCipher.
+/// 32-byte key of the SQLCipher database.
 pub fn db_key(store: &dyn SecretStore) -> Result<Zeroizing<Vec<u8>>, CoreError> {
     if let Some(k) = store.load(SECRET_DB.into())? {
         if k.len() == 32 {
             return Ok(Zeroizing::new(k));
         }
-        return Err(CoreError::crypto("clave de base de datos corrupta"));
+        return Err(CoreError::crypto("corrupted database key"));
     }
     let mut k = Zeroizing::new(vec![0u8; 32]);
     OsRng.fill_bytes(&mut k);
@@ -85,7 +85,7 @@ pub fn db_key(store: &dyn SecretStore) -> Result<Zeroizing<Vec<u8>>, CoreError> 
     Ok(k)
 }
 
-/// Implementación en memoria SOLO para pruebas. Nunca usarla en producción.
+/// In-memory implementation ONLY for tests. Never use it in production.
 #[cfg(test)]
 pub mod testing {
     use super::*;

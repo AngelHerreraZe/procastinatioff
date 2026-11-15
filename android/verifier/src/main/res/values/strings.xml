@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Source language (English). Translators: copy this file to values-<lang>/strings.xml and translate the text only.
+     Keep the names and the %1$s / %1$d placeholders. Do not translate entries marked translatable="false". -->
+<resources>
+    <string name="verifier_label">ProcastinaciOFF · Verifier</string>
+    <string name="models_missing">The models for this method are missing.</string>
+    <string name="analyze_failed">The image could not be analyzed.</string>
+    <string name="progress_minutes">%1$d of %2$d min</string>
+    <string name="page_number_missing">I can\'t see the page number. Move the camera closer to the edge of the page.</string>
+    <string name="camera_on_banner">Camera on · nothing is recorded · no Internet</string>
+    <string name="camera_off_banner">Camera off · no Internet</string>
+    <string name="stop">Stop</string>
+    <string name="instr_reading">Place the phone so your face and the book are visible. A sample is taken every 20 s.</string>
+    <string name="instr_first_page">Point at the page where you start reading and tap “Capture”.</string>
+    <string name="instr_read">Read. When you finish, tap “I\'m done”.</string>
+    <string name="instr_last_page">Point at the last page you read and tap “Capture”.</string>
+    <string name="instr_summary">Write in your own words what you read (at least 30 words).</string>
+    <string name="camera_explanation">The camera is only used here, in this verifier without Internet access. It never records or saves images.</string>
+    <string name="allow_camera">Allow the camera</string>
+    <string name="capture">Capture</string>
+    <string name="done_reading">I\'m done</string>
+    <string name="your_summary">Your summary</string>
+    <string name="send_summary">Send summary</string>
+    <string name="listening">Listening… (microphone on)</string>
+    <string name="dictate">Dictate (on the device)</string>
+    <plurals name="progress_reps">
+        <item quantity="one">%1$d of %2$d rep</item>
+        <item quantity="other">%1$d of %2$d reps</item>
+    </plurals>
+    <plurals name="instr_squats">
+        <item quantity="one">Stand in full view of the camera and do %1$d squat.</item>
+        <item quantity="other">Stand in full view of the camera and do %1$d squats.</item>
+    </plurals>
+    <plurals name="instr_fingers">
+        <item quantity="one">Show %1$d finger next to the plate.</item>
+        <item quantity="other">Show %1$d fingers next to the plate.</item>
+    </plurals>
+</resources>

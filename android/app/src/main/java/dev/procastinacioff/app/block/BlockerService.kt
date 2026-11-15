@@ -24,8 +24,8 @@ import uniffi.procastinacioff_core.DayState
 import uniffi.procastinacioff_core.TamperKind
 
 /**
- * 🔒 Único componente de larga vida. Recibe solo el NOMBRE DE PAQUETE de la app en primer plano
- * (canRetrieveWindowContent=false) y muestra el escudo si no está permitida.
+ * SECURITY: The only long-lived component. It receives only the PACKAGE NAME of the foreground app
+ * (canRetrieveWindowContent=false) and shows the shield if it is not allowed.
  */
 class BlockerService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -33,7 +33,7 @@ class BlockerService : AccessibilityService() {
     private var lastState: DayState? = null
     private var lastShieldAt = 0L
 
-    /** Primer desbloqueo tras la hora de dormir: abre el plan del día. */
+    /** First unlock after bedtime: opens the day plan. */
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val st = runCatching { CoreHolder.get(context).status(CoreHolder.clock()) }.getOrNull() ?: return
@@ -57,14 +57,14 @@ class BlockerService : AccessibilityService() {
         enforce(pkg)
     }
 
-    /** Cada 30 s: transiciones de estado (DORMIR, fin de permiso) aunque nadie toque el teléfono. */
+    /** Every 30 s: state transitions (SLEEP, end of a pass) even if nobody touches the phone. */
     private suspend fun ticker() {
         var lastSync = 0L
         var lastWall = System.currentTimeMillis()
         var lastElapsed = SystemClock.elapsedRealtime()
         while (scope.isActive) {
             val core = CoreHolder.get(this)
-            // Cambio de hora manual: se registra y se sincroniza (no se puede impedir sin Device Owner)
+            // Manual time change: recorded and synced (cannot be prevented without Device Owner)
             val wall = System.currentTimeMillis()
             val elapsed = SystemClock.elapsedRealtime()
             if (abs((wall - lastWall) - (elapsed - lastElapsed)) > 120_000) {
@@ -78,7 +78,7 @@ class BlockerService : AccessibilityService() {
             if (state != null && state != lastState) {
                 DndController.apply(this, sleeping = state is DayState.Sleep)
                 lastState = state
-                foreground?.let { enforce(it) } // la app abierta puede haber dejado de estar permitida
+                foreground?.let { enforce(it) } // the open app may no longer be allowed
             }
             if (SystemClock.elapsedRealtime() - lastSync > 5 * 60_000) {
                 lastSync = SystemClock.elapsedRealtime()
@@ -92,7 +92,7 @@ class BlockerService : AccessibilityService() {
         if (pkg == packageName) return
         val core = CoreHolder.get(this)
         val clock = CoreHolder.clock()
-        val state = runCatching { core.status(clock)?.state }.getOrNull() ?: return // sin perfil: no se bloquea nada
+        val state = runCatching { core.status(clock)?.state }.getOrNull() ?: return // no profile: nothing is blocked
         val verdict = Policy.decide(
             state = state,
             pkg = pkg,
@@ -105,7 +105,7 @@ class BlockerService : AccessibilityService() {
 
     private fun showShield(pkg: String) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastShieldAt < 500) return // evita bucles de eventos
+        if (now - lastShieldAt < 500) return // avoids event loops
         lastShieldAt = now
         performGlobalAction(GLOBAL_ACTION_HOME)
         startActivity(
@@ -118,7 +118,7 @@ class BlockerService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
-        // El usuario desactivó la Accesibilidad: queda registrado y se sincroniza.
+        // The user turned off Accessibility: recorded and synced.
         runCatching { CoreHolder.get(this).reportTamper(CoreHolder.clock(), TamperKind.PERMISSION_REVOKED) }
         SyncScheduler.syncNow(this)
         return super.onUnbind(intent)

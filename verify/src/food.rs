@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Comida: las etiquetas vienen del clasificador elegido en el spike E. La tabla de mapeo
-//! depende del modelo y se ajusta con él.
+//! Food: the labels come from the classifier chosen in spike E. The mapping table
+//! depends on the model and is adjusted with it.
 
 use crate::result::{VMethod, VerificationResult, make_result};
 
@@ -13,7 +13,7 @@ pub struct Label {
     pub score: u8, // 0–100
 }
 
-/// Etiquetas consideradas saludables / no saludables. El usuario puede ampliar las saludables.
+/// Labels considered healthy / unhealthy. The user can extend the healthy ones.
 const HEALTHY: &[&str] = &[
     "salad",
     "vegetable",
@@ -45,7 +45,7 @@ const UNHEALTHY: &[&str] = &[
     "chips",
     "cookie",
 ];
-/// Umbrales (perilla de calibración).
+/// Thresholds (calibration knob).
 pub const HEALTHY_MIN: u8 = 50;
 pub const UNHEALTHY_MAX: u8 = 60;
 
@@ -80,12 +80,12 @@ mod tests {
     #[test]
     fn healthy_live_and_new_passes_anything_else_fails() {
         let salad = vec![l("Greek salad", 80)];
-        assert!(judge_food("comer".into(), salad.clone(), vec![], true, false).unwrap().approved);
-        assert!(!judge_food("comer".into(), salad.clone(), vec![], false, false).unwrap().approved, "sin vivacidad");
-        assert!(!judge_food("comer".into(), salad, vec![], true, true).unwrap().approved, "foto repetida");
+        assert!(judge_food("eat".into(), salad.clone(), vec![], true, false).unwrap().approved);
+        assert!(!judge_food("eat".into(), salad.clone(), vec![], false, false).unwrap().approved, "without liveness");
+        assert!(!judge_food("eat".into(), salad, vec![], true, true).unwrap().approved, "foto repetida");
         let mixed = vec![l("salad", 70), l("french fries", 75)];
-        assert!(!judge_food("comer".into(), mixed, vec![], true, false).unwrap().approved);
+        assert!(!judge_food("eat".into(), mixed, vec![], true, false).unwrap().approved);
         let custom = vec![l("ceviche", 90)];
-        assert!(judge_food("comer".into(), custom, vec!["ceviche".into()], true, false).unwrap().approved);
+        assert!(judge_food("eat".into(), custom, vec!["ceviche".into()], true, false).unwrap().approved);
     }
 }

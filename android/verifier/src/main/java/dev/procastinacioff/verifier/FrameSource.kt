@@ -6,9 +6,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 
 /**
- * 🔒 Entrega cuadros como Bitmap en memoria (ya girados), como máximo uno cada `everyMs`.
- * Los cuadros intermedios se cierran sin procesar. Nunca se escribe nada a disco y cada
- * Bitmap se libera en cuanto se procesa.
+ * SECURITY: Delivers frames as in-memory Bitmaps (already rotated), at most one every `everyMs`.
+ * Intermediate frames are closed unprocessed. Nothing is ever written to disk and each
+ * Bitmap is released as soon as it is processed.
  */
 class FrameSource(private val everyMs: Long, private val onFrame: (Bitmap, Long) -> Unit) : ImageAnalysis.Analyzer {
     private var last = 0L
@@ -20,7 +20,7 @@ class FrameSource(private val everyMs: Long, private val onFrame: (Bitmap, Long)
             return
         }
         last = now
-        val raw = image.toBitmap() // copia en RAM
+        val raw = image.toBitmap() // copy in RAM
         val rotation = image.imageInfo.rotationDegrees
         image.close()
         val upright = if (rotation == 0) raw else
@@ -28,7 +28,7 @@ class FrameSource(private val everyMs: Long, private val onFrame: (Bitmap, Long)
         try {
             onFrame(upright, now)
         } finally {
-            upright.recycle() // 🔒 se libera inmediatamente
+            upright.recycle() // SECURITY: released immediately
             if (upright !== raw) raw.recycle()
         }
     }

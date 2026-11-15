@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish translation. Missing entries fall back to English (values/strings.xml). -->
+<resources>
+    <string name="verifier_label">ProcastinaciOFF · Verificador</string>
+    <string name="models_missing">Faltan los modelos de este método.</string>
+    <string name="analyze_failed">No se pudo analizar la imagen.</string>
+    <string name="progress_minutes">%1$d de %2$d min</string>
+    <string name="page_number_missing">No veo el número de página. Acerca la cámara al borde de la página.</string>
+    <string name="camera_on_banner">Cámara activa · no se graba nada · sin Internet</string>
+    <string name="camera_off_banner">Cámara apagada · sin Internet</string>
+    <string name="stop">Detener</string>
+    <string name="instr_reading">Coloca el teléfono para que se vea tu cara y el libro. Se toma una muestra cada 20 s.</string>
+    <string name="instr_first_page">Enfoca la página donde empiezas a leer y pulsa «Capturar».</string>
+    <string name="instr_read">Lee. Cuando termines, pulsa «Ya terminé».</string>
+    <string name="instr_last_page">Enfoca la última página que leíste y pulsa «Capturar».</string>
+    <string name="instr_summary">Escribe en tus palabras qué leíste (al menos 30 palabras).</string>
+    <string name="camera_explanation">La cámara solo se usa aquí, en este verificador sin Internet. Nunca graba ni guarda imágenes.</string>
+    <string name="allow_camera">Permitir la cámara</string>
+    <string name="capture">Capturar</string>
+    <string name="done_reading">Ya terminé</string>
+    <string name="your_summary">Tu resumen</string>
+    <string name="send_summary">Enviar resumen</string>
+    <string name="listening">Escuchando… (micrófono activo)</string>
+    <string name="dictate">Dictar (en el dispositivo)</string>
+    <plurals name="progress_reps">
+        <item quantity="one">%1$d de %2$d repetición</item>
+        <item quantity="other">%1$d de %2$d repeticiones</item>
+        <item quantity="many">%1$d de %2$d repeticiones</item>
+    </plurals>
+    <plurals name="instr_squats">
+        <item quantity="one">Colócate de cuerpo entero frente a la cámara y haz %1$d sentadilla.</item>
+        <item quantity="other">Colócate de cuerpo entero frente a la cámara y haz %1$d sentadillas.</item>
+        <item quantity="many">Colócate de cuerpo entero frente a la cámara y haz %1$d sentadillas.</item>
+    </plurals>
+    <plurals name="instr_fingers">
+        <item quantity="one">Muestra %1$d dedo junto al plato.</item>
+        <item quantity="other">Muestra %1$d dedos junto al plato.</item>
+        <item quantity="many">Muestra %1$d dedos junto al plato.</item>
+    </plurals>
+</resources>

@@ -49,6 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -74,7 +76,7 @@ import uniffi.procastinacioff_verify.pageNumber
 import uniffi.procastinacioff_verify.salt
 import uniffi.procastinacioff_verify.scoreSummary
 
-/** Parámetros que manda la app principal (nada más entra en el verificador). */
+/** Parameters sent by the main app (nothing else enters the verifier). */
 data class Args(val goalId: String, val method: String, val targetMinutes: Int, val targetReps: Int, val minPages: Int)
 
 class VerifyActivity : ComponentActivity() {
@@ -83,7 +85,7 @@ class VerifyActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 🔒 Sin capturas ni vista en recientes; pantalla encendida mientras se verifica
+        // SECURITY: No screenshots nor preview in recents; screen kept on while verifying
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val goalId = intent.getStringExtra("goal_id")
         val method = intent.getStringExtra("method")
@@ -102,7 +104,7 @@ class VerifyActivity : ComponentActivity() {
         setContent { MaterialTheme { VerifyScreen(args, detectors, ::deliver) } }
     }
 
-    /** Devuelve SOLO los 5 campos de VerificationResult a la app principal. Una sola vez. */
+    /** Returns ONLY VerificationResult's 5 fields to the main app. Only once. */
     fun deliver(r: VerificationResult?) {
         if (!done.compareAndSet(false, true)) return
         runOnUiThread {
@@ -122,7 +124,7 @@ class VerifyActivity : ComponentActivity() {
     }
 }
 
-/** Reduce a 9×8 en gris, en memoria (para el hash perceptual). */
+/** Reduces to 9×8 gray, in memory (for the perceptual hash). */
 private fun gray9x8(src: Bitmap): ByteArray {
     val small = Bitmap.createScaledBitmap(src, 9, 8, true)
     val out = ByteArray(72)
@@ -142,16 +144,19 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraOk = it }
     var progress by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val report: (Throwable) -> Unit = { e -> main.execute { error = e.message ?: "No se pudo analizar la imagen" } }
+    // Exception messages are for developers: the user sees a translated, fixed text.
+    val report: (Throwable) -> Unit = { e ->
+        main.execute { error = ctx.getString(if (e is Models.MissingModel) R.string.models_missing else R.string.analyze_failed) }
+    }
 
-    // Estado de los flujos (solo en memoria)
+    // Flow state (in memory only)
     val tracker = remember { ReadingTracker() }
     val counter = remember { RepCounter(Exercise.SQUAT) }
     val challenge = remember { newFingerChallenge() }
-    var step by remember { mutableStateOf(if (args.method == "SUMMARY") 2 else 0) } // páginas: 0 inicio · 1 leyendo · 2 final · 3 resumen
+    var step by remember { mutableStateOf(if (args.method == "SUMMARY") 2 else 0) } // pages: 0 start · 1 reading · 2 end · 3 summary
     var firstPage by remember { mutableStateOf<UShort?>(null) }
     var lastPage by remember { mutableStateOf<UShort?>(null) }
-    var source by remember { mutableStateOf("") } // texto OCR: solo RAM, se descarta al terminar
+    var source by remember { mutableStateOf("") } // OCR text: RAM only, discarded when done
     var summary by remember { mutableStateOf("") }
     val capture = remember { AtomicBoolean(false) }
 
@@ -166,7 +171,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
             "READING_PRESENCE" -> FrameSource(20_000) { bmp, at ->
                 runCatching {
                     val m = tracker.addSample(at, detectors.hasFace(bmp), detectors.hasBook(bmp))
-                    main.execute { progress = "$m de ${args.targetMinutes} min" }
+                    main.execute { progress = ctx.getString(R.string.progress_minutes, m.toInt(), args.targetMinutes) }
                     if (m.toInt() >= args.targetMinutes) deliver(tracker.finish(args.goalId, args.targetMinutes.toUShort()))
                 }.onFailure(report)
             }
@@ -174,7 +179,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
                 runCatching {
                     val lm = detectors.poseLandmarks(bmp) ?: return@FrameSource
                     val reps = counter.feed(lm, at)
-                    main.execute { progress = "$reps de ${args.targetReps} repeticiones" }
+                    main.execute { progress = ctx.resources.getQuantityString(R.plurals.progress_reps, args.targetReps, reps.toInt(), args.targetReps) }
                     if (reps.toInt() >= args.targetReps) {
                         deliver(VerificationResult(args.goalId, VMethod.POSE_REPS, true, 100u, 0u))
                     }
@@ -186,7 +191,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
                     if (fingers != challenge || !capture.compareAndSet(false, true)) return@FrameSource
                     val salted = salt(dhash(gray9x8(bmp)) ?: return@FrameSource, HashStore.mask(ctx))
                     val duplicate = isDuplicate(salted, HashStore.recent(ctx))
-                    HashStore.add(ctx, salted) // solo el hash salado, 7 días
+                    HashStore.add(ctx, salted) // only the salted hash, 7 days
                     deliver(judgeFood(args.goalId, detectors.foodLabels(bmp), emptyList(), true, duplicate))
                 }.onFailure(report)
             }
@@ -198,7 +203,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
                     main.execute {
                         when {
                             args.method == "PAGE_OCR" && page == null ->
-                                error = "No veo el número de página. Acerca la cámara al borde de la página."
+                                error = ctx.getString(R.string.page_number_missing)
                             step == 0 -> { firstPage = page; error = null; step = 1 }
                             else -> { lastPage = page; source = text; error = null; step = 3 }
                         }
@@ -210,33 +215,33 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Banner fijo: el usuario siempre sabe que la cámara está activa y puede detenerla
+        // Fixed banner: the user always knows the camera is on and can stop it
         Row(
             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                if (cameraNeeded) "Cámara activa · no se graba nada · sin Internet" else "Cámara apagada · sin Internet",
+                stringResource(if (cameraNeeded) R.string.camera_on_banner else R.string.camera_off_banner),
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             OutlinedButton(onClick = {
-                // Lectura: lo acumulado cuenta (se aprueba si llega al 85 %); el resto, sin resultado
+                // Reading: what was accumulated counts (approved at 85 %); everything else, no result
                 deliver(if (args.method == "READING_PRESENCE") tracker.finish(args.goalId, args.targetMinutes.toUShort()) else null)
-            }) { Text("Detener") }
+            }) { Text(stringResource(R.string.stop)) }
         }
 
         Text(
             when (args.method) {
-                "READING_PRESENCE" -> "Coloca el teléfono para que se vea tu cara y el libro. Se toma una muestra cada 20 s."
-                "POSE_REPS" -> "Colócate de cuerpo entero frente a la cámara y haz ${args.targetReps} sentadillas."
-                "FOOD_PHOTO" -> "Muestra $challenge ${if (challenge.toInt() == 1) "dedo" else "dedos"} junto al plato."
+                "READING_PRESENCE" -> stringResource(R.string.instr_reading)
+                "POSE_REPS" -> pluralStringResource(R.plurals.instr_squats, args.targetReps, args.targetReps)
+                "FOOD_PHOTO" -> pluralStringResource(R.plurals.instr_fingers, challenge.toInt(), challenge.toInt())
                 else -> when (step) {
-                    0 -> "Enfoca la página donde empiezas a leer y pulsa «Capturar»."
-                    1 -> "Lee. Cuando termines, pulsa «Ya terminé»."
-                    2 -> "Enfoca la última página que leíste y pulsa «Capturar»."
-                    else -> "Escribe en tus palabras qué leíste (al menos 30 palabras)."
+                    0 -> stringResource(R.string.instr_first_page)
+                    1 -> stringResource(R.string.instr_read)
+                    2 -> stringResource(R.string.instr_last_page)
+                    else -> stringResource(R.string.instr_summary)
                 }
             },
             style = MaterialTheme.typography.titleMedium,
@@ -246,17 +251,17 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
 
         if (cameraNeeded) {
             if (!cameraOk) {
-                Text("La cámara solo se usa aquí, en este verificador sin Internet. Nunca graba ni guarda imágenes.")
-                Button(onClick = { askCamera.launch(Manifest.permission.CAMERA) }) { Text("Permitir la cámara") }
+                Text(stringResource(R.string.camera_explanation))
+                Button(onClick = { askCamera.launch(Manifest.permission.CAMERA) }) { Text(stringResource(R.string.allow_camera)) }
             } else if (analyzer != null) {
                 CameraView(analyzer, front, Modifier.fillMaxWidth().height(360.dp))
-                if (pages) Button(onClick = { capture.set(true) }) { Text("Capturar") }
+                if (pages) Button(onClick = { capture.set(true) }) { Text(stringResource(R.string.capture)) }
             }
         }
-        if (pages && step == 1) Button(onClick = { step = 2 }) { Text("Ya terminé") }
+        if (pages && step == 1) Button(onClick = { step = 2 }) { Text(stringResource(R.string.done_reading)) }
         if (pages && step == 3) {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(summary, { summary = it.take(4000) }, label = { Text("Tu resumen") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(summary, { summary = it.take(4000) }, label = { Text(stringResource(R.string.your_summary)) }, modifier = Modifier.fillMaxWidth())
                 Dictation { summary = (summary + " " + it).trim() }
                 Button(onClick = {
                     val s = scoreSummary(args.goalId, source, summary)
@@ -266,7 +271,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
                         judgePages(args.goalId, firstPage ?: 0u, lastPage ?: 0u, args.minPages.toUShort(), s)
                     } else s
                     deliver(result)
-                }) { Text("Enviar resumen") }
+                }) { Text(stringResource(R.string.send_summary)) }
             }
         }
     }
@@ -275,7 +280,7 @@ private fun VerifyScreen(args: Args, detectors: Detectors, deliver: (Verificatio
 private fun granted(ctx: Context, permission: String) =
     ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED
 
-/** Vista previa + análisis en memoria a ~640×480. Se desconecta al salir de la composición. */
+/** Preview + in-memory analysis at ~640×480. Unbinds when leaving the composition. */
 @Composable
 private fun CameraView(analyzer: ImageAnalysis.Analyzer, front: Boolean, modifier: Modifier) {
     val ctx = LocalContext.current
@@ -309,8 +314,8 @@ private fun CameraView(analyzer: ImageAnalysis.Analyzer, front: Boolean, modifie
 }
 
 /**
- * Dictado SOLO con el reconocedor en el dispositivo (Android 12+). Si no existe, no se ofrece:
- * nunca se usa el reconocedor en la nube. El audio no se guarda; el texto solo vive en el campo.
+ * Dictation ONLY with the on-device recognizer (Android 12+), in the user's language. If it does not exist,
+ * it is not offered: the cloud recognizer is never used. Audio is not saved; the text only lives in the field.
  */
 @Composable
 private fun Dictation(onText: (String) -> Unit) {
@@ -346,7 +351,7 @@ private fun Dictation(onText: (String) -> Unit) {
         })
         listening = true
         recognizer?.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES"),
+            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault().toLanguageTag()),
         )
-    }) { Text(if (listening) "Escuchando… (micrófono activo)" else "Dictar (en el dispositivo)") }
+    }) { Text(stringResource(if (listening) R.string.listening else R.string.dictate)) }
 }

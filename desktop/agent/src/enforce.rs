@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Bucle de aplicación. Reglas de experiencia que no se pueden saltar:
-//! - Al pasar de un estado permisivo a uno restrictivo hay 60 s de gracia ("guarda tu trabajo").
-//! - Si el servicio estuvo caído con el equipo encendido → `Tamper::ServiceStopped`.
-//! - Si el reloj del sistema salta más de 2 min respecto al monotónico → `Tamper::ClockChanged`.
+//! Enforcement loop. Experience rules that cannot be skipped:
+//! - Going from a permissive to a restrictive state gives 60 s of grace ("save your work").
+//! - If the service was down while the computer was on → `Tamper::ServiceStopped`.
+//! - If the system clock jumps more than 2 min against the monotonic one → `Tamper::ClockChanged`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -33,7 +33,7 @@ fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
-/// Al arrancar: ¿estuvo el servicio caído con el equipo encendido?
+/// At startup: was the service down while the computer was on?
 pub fn check_downtime(core: &Core, data_dir: &Path) {
     let last: i64 = std::fs::read_to_string(alive_file(data_dir)).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     let uptime_ms = unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } as i64;
@@ -52,15 +52,15 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
     let (mut last_wall, mut last_mono) = (now_ms(), Instant::now());
     let mut last_hb = Instant::now() - HEARTBEAT_EVERY;
     let mut last_ui = Instant::now() - Duration::from_secs(10);
-    let mut last_policy: Option<Option<Vec<String>>> = None; // fuerza la primera escritura
+    let mut last_policy: Option<Option<Vec<String>>> = None; // forces the first write
     if let Err(e) = browser_policy::apply_baseline() {
-        tracing::warn!(error = %e, "no se pudieron aplicar las políticas base del navegador");
+        tracing::warn!(error = %e, "could not apply the base browser policies");
     }
 
     while !stop.load(Ordering::Relaxed) {
         let clock = now_clock(&core);
 
-        // Salto de reloj
+        // Clock jump
         let (wall, mono) = (now_ms(), Instant::now());
         let drift = (wall - last_wall) - mono.duration_since(last_mono).as_millis() as i64;
         if drift.abs() > 120_000 {
@@ -68,7 +68,7 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
         }
         (last_wall, last_mono) = (wall, mono);
 
-        // Estado (sin configurar = no se bloquea nada: el usuario aún está en el onboarding)
+        // State (not configured = nothing is blocked: the user is still onboarding)
         let state = core.status(clock).map(|s| s.state).unwrap_or(DayState::Free);
         let permissive = matches!(state, DayState::Free | DayState::Pass { .. } | DayState::Emergency { .. });
         restrict_since = if permissive { None } else { restrict_since.or(Some(Instant::now())) };
@@ -84,7 +84,7 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
                     s.blocked_app = Some(id.file_name.clone());
                     s.blocked_at_ms = Some(clock.now_ms);
                     drop(s);
-                    tracing::info!("app cerrada por política"); // sin el nombre: dato personal
+                    tracing::info!("app closed by policy"); // no name: personal data
                 }
             }
         }
@@ -98,25 +98,25 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
             }
         }
 
-        // Lista blanca web: solo durante ENFOQUE, y solo se reescribe cuando cambia
+        // Web allowlist: only during FOCUS, and only rewritten when it changes
         let want: Option<Vec<String>> = match (&state, &cfg) {
             (DayState::Focus { .. }, Some(cfg)) => Some(cfg.web_allowlist.clone()),
             _ => None,
         };
         if last_policy.as_ref() != Some(&want) {
             if let Err(e) = browser_policy::apply_allowlist(want.as_deref()) {
-                tracing::warn!(error = %e, "no se pudo aplicar la política del navegador");
+                tracing::warn!(error = %e, "could not apply the browser policy");
             }
             last_policy = Some(want);
         }
 
-        // La UI debe estar siempre viva (el escudo y el plan del día viven en ella)
+        // The UI must always be alive (the shield and the day plan live in it)
         if last_ui.elapsed() > Duration::from_secs(5) {
             last_ui = Instant::now();
             if !procs::is_running(UI_EXE)
                 && let Err(e) = session::spawn_in_active_session(&ui_exe, "--background")
             {
-                tracing::warn!(error = %e, "no se pudo lanzar la UI");
+                tracing::warn!(error = %e, "could not launch the UI");
             }
         }
 
@@ -129,12 +129,12 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
     }
 }
 
-/// Sincronización en segundo plano cada 60 s (los errores de red se ignoran: modo sin conexión).
-/// Antes de cada sync se re-ancla la hora confiable con la hora firmada del relay.
+/// Background sync every 60 s (network errors are ignored: offline mode).
+/// Before each sync, trusted time is re-anchored with the relay's signed time.
 pub fn sync_loop(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>) {
     while !stop.load(Ordering::Relaxed) {
         if let Err(e) = core.anchor_time(crate::clock::device_now_ms(), crate::clock::mono_ms()) {
-            tracing::debug!(error = %e, "sin hora firmada (se usa el reloj del sistema)");
+            tracing::debug!(error = %e, "no signed time (using the system clock)");
         }
         match core.sync(now_clock(&core)) {
             Ok(_) => shared.lock().unwrap_or_else(|p| p.into_inner()).synced_at_ms = Some(now_ms()),

@@ -10,7 +10,7 @@ extension ManagedSettingsStore.Name {
     static let protection = Self("protection")
 }
 
-/// Aplica los escudos de Screen Time según el modo. Lo usan la app y las extensiones.
+/// Applies the Screen Time shields for the mode. Used by the app and the extensions.
 enum Shields {
     static func apply(_ mode: ShieldMode, _ s: SharedState) {
         ManagedSettingsStore(named: .protection).application.denyAppRemoval = true
@@ -20,7 +20,7 @@ enum Shields {
         case .open:
             break
         case .sleep:
-            // El Teléfono es una app del sistema que nunca se bloquea: las llamadas siguen entrando
+            // The Phone is a system app that is never blocked: calls keep coming in
             store.shield.applicationCategories = .all()
             store.shield.webDomainCategories = .all()
         case .locked:

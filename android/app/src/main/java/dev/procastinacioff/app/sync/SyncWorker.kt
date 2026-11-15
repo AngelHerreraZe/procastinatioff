@@ -24,29 +24,29 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val ctx = applicationContext
         val core = CoreHolder.get(ctx)
-        CoreHolder.anchor(core) // hora firmada del relay antes de nada
+        CoreHolder.anchor(core) // relay signed time before anything else
         checkAccessibility(ctx)
         val clock = CoreHolder.clock()
         val result = try {
             core.sync(clock)
             Result.success()
         } catch (e: CoreException.Network) {
-            Result.retry() // sin conexión: WorkManager reintenta con espera exponencial
+            Result.retry() // offline: WorkManager retries with exponential backoff
         } catch (e: CoreException) {
-            Result.success() // sin relay configurado: nada que sincronizar
+            Result.success() // no relay configured: nothing to sync
         }
-        // Mi compañero: solo manipulaciones, emergencias y el resumen de cada día (números)
+        // My partner: only tampering, emergencies and each day's summary (numbers)
         CoreHolder.partnerBoxOrNull(ctx)?.let { box ->
             runCatching { core.forwardToPartner(box, clock); box.sync(clock) }
         }
-        // Teléfono de un menor: lista de categorías (a diario) y protección activa
+        // A minor's phone: category list (daily) and active protection
         if (runCatching { core.myRole() }.getOrNull() == uniffi.procastinacioff_core.Role.MINOR) {
             val prefs = ctx.getSharedPreferences("family", Context.MODE_PRIVATE)
             if (System.currentTimeMillis() - prefs.getLong("lists_at", 0) > 24 * 3_600_000L) {
                 if (runCatching { core.refreshCategoryList() }.isSuccess) prefs.edit().putLong("lists_at", System.currentTimeMillis()).apply()
             }
             runCatching { dev.procastinacioff.app.family.DeviceOwnerPolicies.startMinorProtection(ctx) }
-            // Filtro web sin activar (o quitado en favor de otra VPN): se registra UNA vez; el tutor lo ve
+            // Web filter not enabled (or removed in favor of another VPN): recorded ONCE; the guardian sees it
             val vpnOff = android.net.VpnService.prepare(ctx) != null
             if (vpnOff && !prefs.getBoolean("vpn_reported", false)) {
                 runCatching { core.reportTamper(clock, TamperKind.PERMISSION_REVOKED) }
@@ -55,13 +55,13 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
                 prefs.edit().putBoolean("vpn_reported", false).apply()
             }
         }
-        // Tutor: perfiles de los menores; aviso si llegó algo nuevo y hay solicitudes esperando
+        // Guardian: the minors' profiles; notify if something new arrived and requests are waiting
         CoreHolder.familyProfiles(ctx).keys.forEach { id ->
             val box = CoreHolder.family(ctx, id)
             val report = runCatching { box.sync(clock) }.getOrNull()
             if (report != null && report.received > 0u && box.pendingRequests().isNotEmpty()) LocalNotifications.showFamilyRequest(ctx)
         }
-        // La persona a la que acompaño: traer sus avisos y avisar si hay nuevos
+        // The person I support: fetch their alerts and notify if there are new ones
         CoreHolder.watchingBoxOrNull(ctx)?.let { box ->
             val report = runCatching { box.sync(clock) }.getOrNull()
             if (report != null && report.received > 0u) LocalNotifications.showPartnerAlert(ctx)
@@ -69,7 +69,7 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         result
     }
 
-    /** Si la Accesibilidad está desactivada con un perfil activo, se registra UNA vez. */
+    /** If Accessibility is off with an active profile, it is recorded ONCE. */
     private fun checkAccessibility(ctx: Context) {
         val core = CoreHolder.get(ctx)
         if (core.status(CoreHolder.clock()) == null) return

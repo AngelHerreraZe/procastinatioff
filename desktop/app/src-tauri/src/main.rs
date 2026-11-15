@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! UI de escritorio: no decide nada. Muestra lo que dice el servicio y le pide acciones.
+//! Desktop UI: it decides nothing. It shows what the service says and asks it for actions.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod pipe;
@@ -11,13 +11,13 @@ mod verify;
 use procastinacioff_ipc::{Request, Response};
 use tauri::Manager;
 
-/// Único puente UI → servicio. El JSON de la UI se valida al deserializar `Request`.
+/// The only UI → service bridge. The UI's JSON is validated when deserializing `Request`.
 #[tauri::command]
 async fn agent(request: Request) -> Result<Response, String> {
     tauri::async_runtime::spawn_blocking(move || pipe::call(&request)).await.map_err(|e| e.to_string())?
 }
 
-/// Bloquea la sesión de Windows (al entrar en DORMIR).
+/// Locks the Windows session (when entering SLEEP).
 #[tauri::command]
 fn lock_screen() {
     #[cfg(windows)]
@@ -26,11 +26,11 @@ fn lock_screen() {
     }
 }
 
-/// QR de vinculación como SVG, generado en local.
+/// Pairing QR as SVG, generated locally.
 #[tauri::command]
 fn qr_svg(text: String) -> Result<String, String> {
     if text.len() > 2048 {
-        return Err("texto demasiado largo".into());
+        return Err("error.too_large".into());
     }
     let code = qrcode::QrCode::new(text.as_bytes()).map_err(|e| e.to_string())?;
     Ok(code.render::<qrcode::render::svg::Color>().min_dimensions(256, 256).quiet_zone(true).build())
@@ -46,7 +46,7 @@ fn main() {
             verify::stop_verification
         ])
         .on_window_event(|window, event| {
-            // Cerrar la ventana solo la oculta: la protección sigue y el escudo debe poder volver.
+            // Closing the window only hides it: protection continues and the shield must be able to come back.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
@@ -61,7 +61,7 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .unwrap_or_else(|e| eprintln!("error al iniciar la app: {e}"));
+        .unwrap_or_else(|e| eprintln!("error starting the app: {e}"));
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
-# UniFFI usa JNA por reflexión
+# UniFFI uses JNA through reflection
 -keep class com.sun.jna.** { *; }
 -keep class * implements com.sun.jna.** { *; }
 -keep class uniffi.procastinacioff_verify.** { *; }
 -dontwarn java.awt.**
-# MediaPipe Tasks usa protobuf por reflexión
+# MediaPipe Tasks uses protobuf through reflection
 -keep class com.google.mediapipe.** { *; }
 -dontwarn com.google.mediapipe.**

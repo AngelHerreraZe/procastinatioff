@@ -1,5 +1,6 @@
 package dev.procastinacioff.app.family
 
+import dev.procastinacioff.app.R
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -15,10 +16,10 @@ import java.util.concurrent.Executors
 import uniffi.procastinacioff_core.DnsAction
 
 /**
- * 🔒 VPN local SOLO para el DNS (07b · 3): únicamente la IP falsa del DNS (10.111.0.1) entra al túnel;
- * el resto del tráfico sale por la red normal. No se reimplementa TCP/IP ni se toca el contenido de
- * ninguna conexión. QUÉ se responde lo decide el núcleo (`dnsStep`/`dnsFinish`).
- * 🔒 No se registra ningún nombre consultado.
+ * SECURITY: Local VPN ONLY for DNS: only the fake DNS IP (10.111.0.1) enters the tunnel;
+ * the rest of the traffic goes through the normal network. TCP/IP is not reimplemented and the content of
+ * no connection is touched. WHAT gets answered is decided by the core (`dnsStep`/`dnsFinish`).
+ * SECURITY: No queried name is logged.
  */
 class DnsVpnService : VpnService() {
     @Volatile private var running = false
@@ -28,10 +29,10 @@ class DnsVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (running) return START_STICKY
         val fd = Builder()
-            .setSession("ProcastinaciOFF · filtro")
+            .setSession(getString(R.string.vpn_session))
             .addAddress("10.111.0.2", 32)
             .addDnsServer("10.111.0.1")
-            .addRoute("10.111.0.1", 32) // SOLO el DNS entra al túnel
+            .addRoute("10.111.0.1", 32) // ONLY DNS enters the tunnel
             .setBlocking(true)
             .establish() ?: return START_NOT_STICKY
         tun = fd
@@ -40,7 +41,7 @@ class DnsVpnService : VpnService() {
         return START_STICKY
     }
 
-    /** DNS de la red física (no de la VPN), para reenviar las consultas permitidas. */
+    /** DNS of the physical network (not the VPN's), to forward allowed queries. */
     private fun upstream(): InetAddress {
         val cm = getSystemService(ConnectivityManager::class.java)
         @Suppress("DEPRECATION")
@@ -49,7 +50,7 @@ class DnsVpnService : VpnService() {
                 it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && !it.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
             } == true
         }
-        // ponytail: si la red no anuncia DNS IPv4 se usa Quad9 (sin registro, sin filtrado propio).
+        // ponytail: if the network announces no IPv4 DNS, Quad9 is used (no logging, no filtering of its own).
         return net?.let { cm.getLinkProperties(it)?.dnsServers?.firstOrNull { a -> a.address.size == 4 } }
             ?: InetAddress.getByName("9.9.9.9")
     }
@@ -91,7 +92,7 @@ class DnsVpnService : VpnService() {
 
     private fun forward(packet: ByteArray): ByteArray? = try {
         DatagramSocket().use { s ->
-            protect(s) // este socket NO pasa por la VPN
+            protect(s) // this socket does NOT go through the VPN
             s.soTimeout = 3_000
             s.send(DatagramPacket(packet, packet.size, upstream(), 53))
             val resp = DatagramPacket(ByteArray(4096), 4096)
@@ -103,7 +104,7 @@ class DnsVpnService : VpnService() {
     }
 
     override fun onRevoke() {
-        // Sin Device Owner, el usuario puede quitar la VPN: queda registrado (el tutor lo ve).
+        // Without Device Owner, the user can remove the VPN: it is recorded (the guardian sees it).
         runCatching {
             CoreHolder.get(this).reportTamper(CoreHolder.clock(), uniffi.procastinacioff_core.TamperKind.PERMISSION_REVOKED)
         }
@@ -118,7 +119,7 @@ class DnsVpnService : VpnService() {
     }
 
     companion object {
-        /** Cabecera IPv4 (20 bytes) + UDP (8 bytes, checksum 0 permitido en IPv4) + datos. */
+        /** IPv4 header (20 bytes) + UDP (8 bytes, checksum 0 allowed on IPv4) + data. */
         fun ipv4Udp(src: ByteArray, dst: ByteArray, srcPort: Int, dstPort: Int, payload: ByteArray): ByteArray {
             val total = 28 + payload.size
             val b = ByteArray(total)

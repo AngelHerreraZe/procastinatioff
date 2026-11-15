@@ -8,11 +8,11 @@ import android.provider.Telephony
 import android.telecom.TelecomManager
 import java.security.MessageDigest
 
-/** Identidad de apps por paquete + certificado: un APK falso con el mismo paquete no pasa. */
+/** App identity by package + certificate: a fake APK with the same package does not pass. */
 object AppIdentity {
     private val certCache = HashMap<String, String?>()
 
-    /** SHA-256 (hex) del certificado de firma actual del paquete. */
+    /** SHA-256 (hex) of the package's current signing certificate. */
     fun certSha256(context: Context, pkg: String): String? = synchronized(certCache) {
         certCache.getOrPut(pkg) {
             try {
@@ -26,12 +26,12 @@ object AppIdentity {
         }
     }
 
-    /** Identificador en el formato de Config: "android:<paquete>@<sha256>". */
+    /** Identifier in the Config format: "android:<package>@<sha256>". */
     fun idOf(context: Context, pkg: String): String? = certSha256(context, pkg)?.let { "android:$pkg@$it" }
 
     fun invalidate(pkg: String) = synchronized(certCache) { certCache.remove(pkg) }
 
-    /** Paquetes del sistema que nunca se bloquean (sin ellos el teléfono no se puede usar). */
+    /** System packages that are never blocked (without them the phone cannot be used). */
     fun systemAllowed(context: Context, sleeping: Boolean): Set<String> {
         val pm = context.packageManager
         val set = mutableSetOf(context.packageName, "com.android.systemui")
@@ -40,11 +40,11 @@ object AppIdentity {
         pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
             ?.activityInfo?.packageName?.let { set += it }                       // launcher
         Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-            ?.substringBefore('/')?.let { set += it }                            // teclado
+            ?.substringBefore('/')?.let { set += it }                            // keyboard
         set += listOf("com.google.android.permissioncontroller", "com.android.permissioncontroller")
         if (!sleeping) {
-            Telephony.Sms.getDefaultSmsPackage(context)?.let { set += it }       // SMS (de día)
-            set += "com.android.settings"                                        // ajustes (de día)
+            Telephony.Sms.getDefaultSmsPackage(context)?.let { set += it }       // SMS (during the day)
+            set += "com.android.settings"                                        // settings (during the day)
         }
         return set
     }

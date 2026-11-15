@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Une listas de dominios (formato hosts o uno por línea), normaliza, deduplica y escribe el formato v1.
+"""Merges domain lists (hosts format or one per line), normalizes, deduplicates and writes the v1 format.
 
-Uso:  python scripts/build_category_list.py categories.txt fuentes/*.txt
-      python scripts/build_category_list.py --test
-Después, en el equipo aislado: minisign -S -s listas.key -m categories.txt   (07b · 4.3)
-Solo fuentes registradas en lists/sources.toml con licencia compatible (MIT, CC0, CC-BY…).
+Usage:  python scripts/build_category_list.py categories.txt sources/*.txt
+        python scripts/build_category_list.py --test
+Then, on the air-gapped machine: minisign -S -s lists.key -m categories.txt
+Only sources registered in lists/sources.toml with a compatible license (MIT, CC0, CC-BY…).
 """
 import re
 import sys
 
 DOMAIN = re.compile(r"^(?=.{1,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
 HEADER = "procastinacioff-categories v1"
-# Nunca bloquear lo que el filtro necesita (también lo protege ESSENTIAL_DOMAINS en el núcleo).
+# Never block what the filter needs (ESSENTIAL_DOMAINS also protects it in the core).
 NEVER = {"localhost", "localhost.localdomain", "local", "broadcasthost"}
 
 
@@ -21,7 +21,7 @@ def domains(lines):
         if not line:
             continue
         parts = line.split()
-        d = parts[-1] if len(parts) > 1 else parts[0]  # "0.0.0.0 ejemplo.com" o "ejemplo.com"
+        d = parts[-1] if len(parts) > 1 else parts[0]  # "0.0.0.0 example.com" or "example.com"
         d = d.rstrip(".")
         if d not in NEVER and DOMAIN.match(d):
             yield d

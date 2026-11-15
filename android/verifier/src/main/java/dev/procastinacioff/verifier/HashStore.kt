@@ -13,15 +13,15 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * 🔒 Lo ÚNICO que el verificador guarda: la máscara del dispositivo (64 bits aleatorios) y los
- * hashes perceptuales SALADOS de las fotos de comida de los últimos 7 días (no permiten
- * reconstruir la imagen). Cifrado con una clave del Keystore, en noBackupFilesDir.
+ * SECURITY: The ONLY thing the verifier stores: the device mask (64 random bits) and the
+ * SALTED perceptual hashes of the food photos from the last 7 days (they cannot
+ * reconstruct the image). Encrypted with a Keystore key, in noBackupFilesDir.
  */
 object HashStore {
     private const val ALIAS = "procastinacioff_verifier_hashes_v1"
     private const val KEEP_MS = 7L * 24 * 3600 * 1000
 
-    private class Data(val mask: Long, val entries: List<Pair<Long, Long>>) // (instante, hash salado)
+    private class Data(val mask: Long, val entries: List<Pair<Long, Long>>) // (instant, salted hash)
 
     private fun file(ctx: Context) = File(ctx.noBackupFilesDir, "hashes.bin")
 

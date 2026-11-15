@@ -45,7 +45,7 @@ import uniffi.procastinacioff_core.Goal
 import uniffi.procastinacioff_core.Method
 import uniffi.procastinacioff_core.Role
 
-/** FragmentActivity (no ComponentActivity): la confirmación biométrica del tutor la necesita. */
+/** FragmentActivity (not ComponentActivity): the guardian's biometric confirmation needs it. */
 class MainActivity : FragmentActivity() {
     companion object {
         const val EXTRA_ROUTE = "route"
@@ -61,7 +61,7 @@ class MainActivity : FragmentActivity() {
                 .putExtra(EXTRA_GOAL, goalId)
     }
 
-    /** Petición externa (escudo o primer desbloqueo): ruta + meta. */
+    /** External request (shield or first unlock): route + goal. */
     private var request by mutableStateOf<Pair<String, String?>?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +96,7 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
     val look = lookFor(snap.status, focus = route?.startsWith("focus") == true, isSystemInDarkTheme(), snap.nowMs)
     val minor = remember(snap.status != null) { runCatching { CoreHolder.get(ctx).myRole() == Role.MINOR }.getOrDefault(false) }
 
-    // Abrir una meta: con tiempo → sesión de ENFOQUE en el núcleo; sin tiempo → declaración (pantalla Foco).
+    // Open a goal: timed → FOCUS session in the core; untimed → declaration (Focus screen).
     fun start(goal: Goal) {
         scope.launch {
             if (Method.FOCUS_SESSION in goal.methods && snap.status?.state !is DayState.Focus) {
@@ -106,7 +106,7 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
         }
     }
 
-    // Primer desbloqueo tras dormir: el plan del día
+    // First unlock after sleep: the day plan
     val st = snap.status
     LaunchedEffect(st?.needsPlan, route) {
         if (st?.needsPlan == true && st.state is DayState.Locked && route == "home") nav.navigate("plan")
@@ -134,7 +134,7 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
                     onFamily = { nav.navigate("family-consent") },
                 )
             }
-            // Modo familiar: tutor
+            // Family mode: guardian
             composable("family-consent") { FamilyConsentScreen(onAccept = { nav.navigate("family-new") }, onBack = { nav.popBackStack() }) }
             composable("family-new") { ConfigScreen(family = true) { nav.navigate("family") { popUpTo(0) } } }
             composable("family") { FamilyListScreen(onOpen = { nav.navigate("child/$it") }, onNew = { nav.navigate("family-consent") }) }
@@ -153,9 +153,9 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
                 val role = if (e.arguments?.getString("role") == Role.GUARDIAN.name) Role.GUARDIAN else Role.MINOR
                 InviteScreen(CoreHolder.family(ctx, id), role) { nav.popBackStack() }
             }
-            // Modo familiar: menor
+            // Family mode: minor
             composable("tutor") { TutorScreen { nav.popBackStack() } }
-            // Compañero de rendición de cuentas
+            // Accountability partner
             composable("partner") { PartnerScreen(onInvite = { nav.navigate("partner-invite") }, onBack = { nav.popBackStack() }) }
             composable("partner-invite") { InviteScreen(CoreHolder.partnerBox(ctx)) { nav.popBackStack() } }
             composable("watch-join") { JoinScreen(CoreHolder.watchingBox(ctx)) { nav.navigate("watch") { popUpTo(0) } } }

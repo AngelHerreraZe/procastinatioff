@@ -1,5 +1,9 @@
 package dev.procastinacioff.app.ui
 
+import android.icu.text.MeasureFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.procastinacioff.app.R
 import dev.procastinacioff.app.core.CoreHolder
 import dev.procastinacioff.app.core.userMessage
 import java.text.SimpleDateFormat
@@ -56,7 +62,7 @@ import uniffi.procastinacioff_core.GoalProgress
 import uniffi.procastinacioff_core.Method
 import uniffi.procastinacioff_core.Status
 
-// ── Sistema visual (ADR 0004): 01 Calma de base · 03 Nocturno 1 h antes de dormir · 08 Foco ──
+// ── Visual system: 01 Calm by default · 03 Night 1 h before bedtime · 08 Focus ──
 
 enum class Look { CALMA, NOCTURNO, FOCO }
 
@@ -88,7 +94,7 @@ private val Foco = lightColorScheme(
     outline = Color(0xFFD9D6E8), error = Color(0xFF9A3412),
 )
 
-/** Nocturno al dormir, en la última hora antes de dormir o con el sistema en oscuro; Foco en la meta en curso. */
+/** Night while sleeping, in the last hour before bedtime or with a dark system theme; Focus on the current goal. */
 fun lookFor(status: Status?, focus: Boolean, systemDark: Boolean, nowMs: Long): Look = when {
     status?.state is DayState.Sleep || systemDark -> Look.NOCTURNO
     status?.sleepAtMs?.let { nowMs >= it - 3_600_000 } == true -> Look.NOCTURNO
@@ -108,7 +114,7 @@ fun PcoTheme(look: Look, content: @Composable () -> Unit) {
     ) { Surface(color = MaterialTheme.colorScheme.background, content = content) }
 }
 
-// ── Estado del núcleo, consultado cada segundo fuera del hilo principal ──
+// ── Core state, polled every second off the main thread ──
 
 data class Snapshot(
     val status: Status?,
@@ -135,27 +141,27 @@ fun rememberSnapshot(): Snapshot {
     return snap
 }
 
-/** Otros dispositivos que no reportan en más de 24 h (de noche se apagan; por eso no menos). */
+/** Other devices that have not reported for over 24 h (they are off at night; hence not less). */
 fun silentDevices(snap: Snapshot) =
     snap.devices.filter { !it.isMe && it.lastSeenMs > 0 && snap.nowMs - it.lastSeenMs > 24 * 3_600_000L }
 
-fun hoursAgo(ms: Long, now: Long): String {
+fun hoursAgo(ctx: android.content.Context, ms: Long, now: Long): String {
     val h = ((now - ms) / 3_600_000).toInt()
     return when {
-        h < 1 -> "hace menos de 1 h"
-        h < 48 -> "hace $h h"
-        else -> "hace ${h / 24} días"
+        h < 1 -> ctx.getString(R.string.time_ago_lt1h)
+        h < 48 -> ctx.getString(R.string.time_ago_h, h)
+        else -> ctx.resources.getQuantityString(R.plurals.time_ago_days, h / 24, h / 24)
     }
 }
 
-/** Cómo se comprueba una meta. Siempre queda la opción sin cámara (marcar como hecha). */
-enum class Check(val label: String, val usesMinutes: Boolean) {
-    FOCUS("Enfoque", true),
-    READING("Lectura (cámara)", true),
-    PAGES("Páginas + resumen", false),
-    EXERCISE("Ejercicio (cámara)", false),
-    FOOD("Comida sana (foto)", false),
-    MARK("Marcar como hecha", false),
+/** How a goal is checked. There is always a camera-free option (mark as done). */
+enum class Check(@StringRes val label: Int, val usesMinutes: Boolean) {
+    FOCUS(R.string.check_focus, true),
+    READING(R.string.check_reading, true),
+    PAGES(R.string.check_pages, false),
+    EXERCISE(R.string.check_exercise, false),
+    FOOD(R.string.check_food, false),
+    MARK(R.string.check_mark, false),
 }
 
 fun methodsFor(check: Check, minutes: Int): List<Method> = when (check) {
@@ -167,32 +173,42 @@ fun methodsFor(check: Check, minutes: Int): List<Method> = when (check) {
     Check.MARK -> listOf(Method.HONOR_DECLARATION)
 }
 
-/** Métodos que comprueba el APK verificador (cámara/micrófono, sin Internet). */
+/** Methods checked by the verifier APK (camera/microphone, no Internet). */
 val CAMERA_METHODS = setOf(Method.READING_PRESENCE, Method.PAGE_OCR, Method.SUMMARY, Method.POSE_REPS, Method.FOOD_PHOTO)
 
-/** Ejecuta una acción del núcleo fuera del hilo principal; devuelve el mensaje de error o null. */
+/** Runs a core action off the main thread; returns the translated error message or null. */
 suspend fun coreAction(ctx: android.content.Context, block: (uniffi.procastinacioff_core.Core) -> Unit): String? =
-    withContext(Dispatchers.IO) { runCatching { block(CoreHolder.get(ctx)) }.exceptionOrNull()?.userMessage() }
+    withContext(Dispatchers.IO) { runCatching { block(CoreHolder.get(ctx)) }.exceptionOrNull()?.userMessage(ctx) }
 
-// ── Formatos ──
+// ── Formats, in the user's language (no translation files needed) ──
 
-fun hhmm(ms: Long): String = SimpleDateFormat("HH:mm", Locale("es")).format(Date(ms))
+fun hhmm(ms: Long): String = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(Date(ms))
 fun minutesUntil(ms: Long, now: Long): Int = maxOf(0, ((ms - now + 59_999) / 60_000).toInt())
-fun duration(minutes: Int): String = when {
-    minutes < 60 -> "$minutes min"
-    minutes % 60 == 0 -> "${minutes / 60} h"
-    else -> "${minutes / 60} h ${"%02d".format(minutes % 60)} min"
+fun duration(minutes: Int): String {
+    val f = MeasureFormat.getInstance(Locale.getDefault(), MeasureFormat.FormatWidth.SHORT)
+    val (h, m) = minutes / 60 to minutes % 60
+    return when {
+        h == 0 -> f.formatMeasures(Measure(m, MeasureUnit.MINUTE))
+        m == 0 -> f.formatMeasures(Measure(h, MeasureUnit.HOUR))
+        else -> f.formatMeasures(Measure(h, MeasureUnit.HOUR), Measure(m, MeasureUnit.MINUTE))
+    }
 }
-fun todayText(): String =
-    SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es")).format(Date()).replaceFirstChar { it.uppercase() }
+fun todayText(): String {
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEEdMMMM")
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date()).replaceFirstChar { it.uppercase() }
+}
+
+/** Narrow weekday names, Monday first ("M T W…" / "L M X…"), from the system. */
+fun dayLabels(): List<String> =
+    java.time.DayOfWeek.values().map { it.getDisplayName(java.time.format.TextStyle.NARROW, Locale.getDefault()) }
 
 fun methodsFor(minutes: Int): List<Method> =
     if (minutes > 0) listOf(Method.FOCUS_SESSION, Method.HONOR_DECLARATION) else listOf(Method.HONOR_DECLARATION)
 
-/** Identificador estable a partir del título: minúsculas, sin tildes, con guiones. */
+/** Stable identifier from the title: lowercase, no accents, hyphens. */
 fun slug(title: String, taken: Collection<String>): String {
     val base = java.text.Normalizer.normalize(title.lowercase(), java.text.Normalizer.Form.NFD)
-        .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9]+"), "-").trim('-').take(24).ifEmpty { "meta" }
+        .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9]+"), "-").trim('-').take(24).ifEmpty { "goal" }
     var id = base
     var n = 2
     while (id in taken) id = "${base.take(20)}-${n++}"
@@ -201,17 +217,18 @@ fun slug(title: String, taken: Collection<String>): String {
 
 data class Progress(val done: Int, val total: Int, val text: String)
 
-fun progressOf(g: GoalProgress): Progress {
+fun progressOf(ctx: android.content.Context, g: GoalProgress): Progress {
     val minutes = g.targetMinutes.toInt()
     return if (minutes > 0) {
         val done = if (g.completed) minutes else minOf(g.focusMinutes.toInt(), minutes)
-        Progress(done, minutes, "$done de $minutes min")
+        Progress(done, minutes, ctx.getString(R.string.progress_minutes, done, minutes))
     } else {
-        Progress(g.doneCount.toInt(), g.targetCount.toInt(), "${g.doneCount} de ${g.targetCount}")
+        val (done, total) = g.doneCount.toInt() to g.targetCount.toInt()
+        Progress(done, total, ctx.getString(R.string.progress_count, done, total))
     }
 }
 
-// ── Componentes ──
+// ── Components ──
 
 @Composable
 fun KindChip(kind: GoalKind) {
@@ -221,7 +238,7 @@ fun KindChip(kind: GoalKind) {
         color = if (key) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Text(
-            if (key) "Desbloquea" else "Hábito",
+            stringResource(if (key) R.string.kind_key else R.string.kind_habit),
             Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
@@ -247,7 +264,7 @@ fun ProgressBar(done: Int, total: Int, label: String, thick: Boolean = false) {
 
 @Composable
 fun GoalRow(g: GoalProgress, actionLabel: String?, onAction: () -> Unit) {
-    val p = progressOf(g)
+    val p = progressOf(LocalContext.current, g)
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = MaterialTheme.shapes.medium,
@@ -260,7 +277,7 @@ fun GoalRow(g: GoalProgress, actionLabel: String?, onAction: () -> Unit) {
                 }
                 ProgressBar(p.done, p.total, g.title)
                 Text(
-                    if (g.completed) "Hecha" else p.text,
+                    if (g.completed) stringResource(R.string.goal_done) else p.text,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -289,14 +306,14 @@ fun SecondaryButton(text: String, enabled: Boolean = true, onClick: () -> Unit) 
     }
 }
 
-/** "Romper el cristal": esperar 60 s + escribir el motivo. El motivo NO se guarda ni se envía. */
+/** "Break the glass": wait 60 s + write the reason. The reason is NOT saved or sent. */
 @Composable
 fun EmergencySection(onUse: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
     if (!open) {
         TextButton(onClick = { open = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Emergencia", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.emergency_title), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
         }
         return
     }
@@ -304,21 +321,21 @@ fun EmergencySection(onUse: () -> Unit) {
     LaunchedEffect(Unit) { while (left > 0) { delay(1_000); left-- } }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Emergencia", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-            Text("Te da 15 minutos libres. Cuesta un permiso mañana y queda registrado.")
+            Text(stringResource(R.string.emergency_title), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.emergency_body))
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it.take(200) },
-                label = { Text("¿Por qué lo necesitas?") },
-                supportingText = { Text("El motivo no se guarda ni se envía a nadie.") },
+                label = { Text(stringResource(R.string.emergency_why)) },
+                supportingText = { Text(stringResource(R.string.emergency_not_saved)) },
                 modifier = Modifier.fillMaxWidth(),
             )
             SecondaryButton(
-                if (left > 0) "Espera $left s" else "Usar emergencia (15 min)",
+                if (left > 0) stringResource(R.string.wait_seconds, left) else stringResource(R.string.emergency_use),
                 enabled = left == 0 && reason.trim().length >= 10,
                 onClick = onUse,
             )
-            TextButton(onClick = { open = false }) { Text("Cancelar") }
+            TextButton(onClick = { open = false }) { Text(stringResource(R.string.cancel)) }
         }
     }
 }

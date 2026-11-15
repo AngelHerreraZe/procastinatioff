@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Llavero de Windows con DPAPI 🔒. El servicio corre como SYSTEM: solo SYSTEM puede descifrar.
-//! ponytail: un administrador puede obtener privilegios de SYSTEM y leer los secretos; es aceptable
-//! porque el administrador es el dueño o el tutor. Mejora: clave envuelta por el TPM (NCrypt).
+//! Windows keystore with DPAPI (security-critical). The service runs as SYSTEM: only SYSTEM can decrypt.
+//! ponytail: an administrator can obtain SYSTEM privileges and read the secrets; acceptable
+//! because the administrator is the owner or the guardian. Improvement: TPM-wrapped key (NCrypt).
 
 use std::path::PathBuf;
 
@@ -27,9 +27,9 @@ impl DpapiStore {
     }
 
     fn path(&self, name: &str) -> Result<PathBuf, CoreError> {
-        // Evita rutas tipo "..\\..\\x": solo letras, números y guion bajo.
+        // Avoids paths like "..\\..\\x": only letters, digits and underscore.
         if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-            return Err(CoreError::Secret { msg: "nombre de secreto inválido".into() });
+            return Err(CoreError::Secret { msg: "invalid secret name".into() });
         }
         Ok(self.dir.join(format!("{name}.bin")))
     }
@@ -65,7 +65,7 @@ impl SecretStore for DpapiStore {
         let path = self.path(&name)?;
         let tmp = path.with_extension("tmp");
         std::fs::write(&tmp, blob).map_err(|e| CoreError::Secret { msg: e.to_string() })?;
-        std::fs::rename(&tmp, &path).map_err(|e| CoreError::Secret { msg: e.to_string() }) // escritura atómica
+        std::fs::rename(&tmp, &path).map_err(|e| CoreError::Secret { msg: e.to_string() }) // atomic write
     }
 }
 
@@ -79,10 +79,10 @@ mod tests {
         let store = DpapiStore::new(dir.clone()).unwrap();
         store.save("db_key".into(), vec![7u8; 32]).unwrap();
         assert_eq!(store.load("db_key".into()).unwrap(), Some(vec![7u8; 32]));
-        // En disco no queda el valor en claro
+        // The value is not left in plain text on disk
         assert_ne!(std::fs::read(dir.join("db_key.bin")).unwrap(), vec![7u8; 32]);
         assert!(store.load("..\\x".into()).is_err());
-        assert_eq!(store.load("nada".into()).unwrap(), None);
+        assert_eq!(store.load("nothing".into()).unwrap(), None);
         std::fs::remove_dir_all(dir).ok();
     }
 }

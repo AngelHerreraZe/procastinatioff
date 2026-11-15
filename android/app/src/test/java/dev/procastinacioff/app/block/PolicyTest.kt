@@ -38,7 +38,7 @@ class PolicyTest {
     }
 
     @Test fun freeDayAllowsEverything() {
-        // El núcleo devuelve LIBRE en los días libres: nada se bloquea
+        // The core returns FREE on free days: nothing is blocked
         assertEquals(Verdict.ALLOW, Policy.decide(DayState.Free, "com.instagram.android", null, cfg, system))
     }
 }

@@ -2,33 +2,33 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Modelos ONNX con tract, verificados por SHA-256 ANTES de interpretarlos (se analizan los
-//! mismos bytes que se verificaron: no hay ventana para cambiar el archivo entre medias).
+//! ONNX models with tract, verified by SHA-256 BEFORE parsing them (the same bytes that were
+//! verified are parsed: there is no window to swap the file in between).
 //!
-//! ⚠️ Spike E: elegir los modelos definitivos, fijar aquí sus hashes y comprobar sus entradas/salidas.
-//! Mientras un hash no esté fijado, el modelo no se carga y el verificador lo dice.
+//! VERIFY: Spike E: choose the final models, pin their hashes here and check their inputs/outputs.
+//! While a hash is not pinned, the model is not loaded and the verifier says so.
 
 use sha2::{Digest, Sha256};
 use tract_onnx::prelude::*;
 
-/// (archivo, SHA-256). Mismos valores que `scripts/models.lock`.
+/// (file, SHA-256). Same values as `scripts/models.lock`.
 pub const MOVENET: (&str, &str) = ("movenet_singlepose_lightning.onnx", "PENDIENTE_SPIKE_E");
 pub const DETECTOR: (&str, &str) = ("ssd_mobilenet_v1_coco.onnx", "PENDIENTE_SPIKE_E");
 
-/// Ids COCO del mapa de etiquetas de TF Object Detection (1 = persona, 84 = libro).
+/// COCO ids of the TF Object Detection label map (1 = person, 84 = book).
 const COCO_PERSON: i64 = 1;
 const COCO_BOOK: i64 = 84;
-const DETECT_MIN_SCORE: f32 = 0.4; // perilla de calibración
+const DETECT_MIN_SCORE: f32 = 0.4; // calibration knob
 
 type Plan = std::sync::Arc<TypedRunnableModel>;
 
 fn load_verified(dir: &std::path::Path, (file, sha): (&str, &str)) -> Result<Vec<u8>, String> {
     if sha.len() != 64 {
-        return Err(format!("modelo {file} sin hash fijado (spike E)"));
+        return Err(format!("model {file} has no pinned hash (spike E)"));
     }
-    let bytes = std::fs::read(dir.join(file)).map_err(|_| format!("falta el modelo {file}"))?;
+    let bytes = std::fs::read(dir.join(file)).map_err(|_| format!("missing model {file}"))?;
     if hex::encode(Sha256::digest(&bytes)) != sha {
-        return Err(format!("modelo alterado: {file}"));
+        return Err(format!("tampered model: {file}"));
     }
     Ok(bytes)
 }
@@ -42,7 +42,7 @@ fn plan(bytes: &[u8], input: InferenceFact) -> Result<Plan, String> {
         .map_err(|e| format!("modelo no compatible: {e}"))
 }
 
-/// Imagen RGB en RAM (la del cuadro de cámara); se redimensiona por vecino más cercano.
+/// RGB image in RAM (the camera frame); resized by nearest neighbor.
 pub struct Frame<'a> {
     pub width: usize,
     pub height: usize,
@@ -78,7 +78,7 @@ impl Models {
         Ok(Self { movenet, detector })
     }
 
-    /// MoveNet (17 puntos COCO) en el formato de 33 puntos de MediaPipe que espera `RepCounter`.
+    /// MoveNet (17 COCO points) in the 33-point MediaPipe format that `RepCounter` expects.
     pub fn pose_as_mediapipe(&self, f: &Frame) -> Option<Vec<f32>> {
         let model = self.movenet.as_ref()?;
         const S: usize = 192;
@@ -90,14 +90,14 @@ impl Models {
         movenet_to_mediapipe(&flat)
     }
 
-    /// ¿Hay una persona y un libro en el cuadro?
+    /// Is there a person and a book in the frame?
     pub fn person_and_book(&self, f: &Frame) -> (bool, bool) {
         let Some((model, side)) = self.detector.as_ref() else { return (false, false) };
         let side = *side;
         let input: Tensor =
             tract_ndarray::Array4::from_shape_fn((1, side, side, 3), |(_, y, x, c)| f.sample(side, x, y, c)).into();
         let Ok(out) = model.run(tvec!(input.into())) else { return (false, false) };
-        // Exportación TF Object Detection: [cajas, clases, puntuaciones, número] ⚠️ comprobar en el spike E
+        // TF Object Detection export: [boxes, classes, scores, count] VERIFY: check in spike E
         let view = |i: usize| -> Option<Vec<f32>> {
             out.get(i).and_then(|t| t.to_plain_array_view::<f32>().ok()).map(|a| a.iter().copied().collect())
         };
@@ -106,7 +106,7 @@ impl Models {
     }
 }
 
-/// Correspondencia MoveNet → MediaPipe (índices que usa `RepCounter`); el resto queda invisible.
+/// MoveNet → MediaPipe mapping (indices used by `RepCounter`); the rest stays invisible.
 pub fn movenet_to_mediapipe(kp: &[f32]) -> Option<Vec<f32>> {
     if kp.len() != 51 {
         return None;
@@ -152,9 +152,9 @@ mod tests {
     #[test]
     fn movenet_points_land_where_rep_counter_reads_them() {
         let mut kp = vec![0.0f32; 51];
-        kp[13 * 3] = 0.6; // rodilla izquierda: y
+        kp[13 * 3] = 0.6; // left knee: y
         kp[13 * 3 + 1] = 0.4; // x
-        kp[13 * 3 + 2] = 0.9; // puntuación
+        kp[13 * 3 + 2] = 0.9; // score
         let mp = movenet_to_mediapipe(&kp).unwrap();
         assert_eq!(&mp[25 * 3..25 * 3 + 3], &[0.4, 0.6, 0.9]);
         assert!(movenet_to_mediapipe(&[0.0; 10]).is_none());
@@ -176,7 +176,7 @@ mod tests {
         let good = hex::encode(Sha256::digest(b"modelo"));
         assert!(load_verified(&dir, ("m.onnx", &good)).is_ok());
         let wrong = hex::encode(Sha256::digest(b"otro"));
-        assert!(load_verified(&dir, ("m.onnx", &wrong)).unwrap_err().contains("alterado"));
+        assert!(load_verified(&dir, ("m.onnx", &wrong)).unwrap_err().contains("tampered"));
         std::fs::remove_dir_all(dir).ok();
     }
 }

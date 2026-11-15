@@ -1,5 +1,5 @@
 # .gitignore
-# Documentación interna y planes: viven solo en local, no en el repositorio público
+# Internal docs and plans: kept locally only, not in the public repository
 /PLAN_MAESTRO.md
 /PLAN_DESARROLLO.md
 /plan-desarrollo/
@@ -23,11 +23,11 @@ __pycache__/
 .env.*
 **/DerivedData/
 .DS_Store
-# Modelos ML: se descargan con script y se verifican por hash (ver Fase 2)
+# ML models: downloaded by a script and verified by hash
 /models/*.task
 /models/*.onnx
 /models/*.gguf
-# Generados en cada build (núcleo Rust para Android y sus bindings)
+# Generated on every build (Rust core for Android and its bindings)
 /android/app/src/main/jniLibs/
 /android/app/src/main/java/uniffi/
 # Tauri

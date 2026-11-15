@@ -4,8 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// FCM solo si existe google-services.json (proyecto Firebase con SOLO Cloud Messaging habilitado).
-// Sin él la app funciona igual; la sincronización se hace cada 15 min y al abrir la app.
+// FCM only if google-services.json exists (Firebase project with ONLY Cloud Messaging enabled).
+// Without it the app works the same; sync runs every 15 min and when the app opens.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -37,9 +37,11 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // Per-app language picker (Android 13+): built from the values-<lang>/ folders. Source language: res/resources.properties
+    androidResources { generateLocaleConfig = true }
     packaging { jniLibs { useLegacyPackaging = false } }
     testOptions { unitTests.isReturnDefaultValues = true }
-    // Los bindings generados de UniFFI usan java.lang.ref.Cleaner con comprobación en tiempo de ejecución
+    // The generated UniFFI bindings use java.lang.ref.Cleaner with a runtime check
     lint { lintConfig = file("lint.xml") }
 }
 
@@ -56,25 +58,25 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation(libs.work.runtime)
     implementation(libs.coroutines.android)
-    implementation("${libs.jna.get()}@aar")          // requerido por los bindings de UniFFI
-    implementation(libs.camerax.camera2)              // solo para escanear el QR de vinculación
+    implementation("${libs.jna.get()}@aar")          // required by the UniFFI bindings
+    implementation(libs.camerax.camera2)              // only to scan the pairing QR
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.zxing.core)                   // decodifica/genera QR en el dispositivo
-    implementation(libs.biometric)                    // modo familiar: el tutor confirma con huella o PIN
+    implementation(libs.zxing.core)                   // decodes/generates QR codes on the device
+    implementation(libs.biometric)                    // family mode: the guardian confirms with fingerprint or PIN
     implementation(libs.fragment)
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)           // SOLO mensajería; nada de Analytics
+    implementation(libs.firebase.messaging)           // messaging ONLY; no Analytics
     testImplementation(libs.junit)
-    testImplementation(libs.jna)                      // los tipos de UniFFI cargan JNA en la JVM de pruebas
+    testImplementation(libs.jna)                      // the UniFFI types load JNA in the test JVM
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.espresso.core)
 }
 
-// Compila el núcleo Rust antes de cada build (necesita cargo-ndk y el NDK).
-// En Windows sin Strawberry Perl, compilar con `-x buildRust` y jniLibs ya generados (CI: Linux).
+// Builds the Rust core before every build (needs cargo-ndk and the NDK).
+// On Windows without Strawberry Perl, build with `-x buildRust` and prebuilt jniLibs (CI: Linux).
 val buildRust by tasks.registering(Exec::class) {
-    workingDir = rootProject.projectDir.parentFile   // raíz del monorepo
+    workingDir = rootProject.projectDir.parentFile   // monorepo root
     commandLine(
         "cargo", "ndk",
         "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86_64",

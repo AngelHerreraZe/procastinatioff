@@ -1,9 +1,10 @@
 <script lang="ts">
-  // Vista del día (01 Calma · Windows): barra lateral, estado con la acción principal integrada y resumen.
+  // Day view (01 Calm · Windows): sidebar, state with the main action built in, and summary.
   import {
     call, devices, type AgentStatus, type Config, type DeviceSeen, type Goal, type GoalProgress, type Status,
   } from '../lib/agent';
   import { duration, hhmm, minutesUntil, today } from '../lib/format';
+  import { t, tn } from '../lib/i18n';
   import Icon from '../components/Icon.svelte';
   import Emergency from '../components/Emergency.svelte';
 
@@ -17,17 +18,17 @@
     focusActive: boolean;
     onstart: (g: Goal) => void;
     onact: (r: Record<string, unknown>) => void;
-    onerror: (m: string) => void;
+    onerror: (e: unknown) => void;
     onpair: () => void;
     onplan: () => void;
     onback: () => void;
-    /** Solo en el PC de un menor: pedir al tutor y "Lo que ve tu tutor". */
+    /** Only on a minor's PC: ask the guardian and "What your guardian sees". */
     onfamily: (() => void) | null;
   } = $props();
 
   let cfg = $state<Config | null>(null);
 
-  // Latidos cruzados: avisar si otro dispositivo no reporta en más de 24 h (de noche se apagan; por eso no menos).
+  // Cross heartbeats: warn if another device has not reported for over 24 h (they are off at night; hence not less).
   const SILENT_MS = 24 * 3_600_000;
   let devs = $state<DeviceSeen[]>([]);
   $effect(() => {
@@ -39,7 +40,7 @@
   const silent = $derived(devs.filter((d) => !d.is_me && d.last_seen_ms > 0 && now - d.last_seen_ms > SILENT_MS));
   const ago = (ms: number) => {
     const h = Math.floor((now - ms) / 3_600_000);
-    return h < 1 ? 'hace menos de 1 h' : h < 48 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} días`;
+    return h < 1 ? t('time.ago_lt1h') : h < 48 ? t('time.ago_h', { n: h }) : t('time.ago_days', { n: Math.floor(h / 24) });
   };
   $effect(() => {
     call({ cmd: 'active_config' })
@@ -58,11 +59,11 @@
 
   const title = $derived.by(() => {
     switch (st.state) {
-      case 'locked': return `Bloqueado · ${pending.length === 1 ? 'falta 1 meta' : `faltan ${pending.length} metas`}`;
-      case 'pass': return `Permiso activo · quedan ${minutesUntil(st.until_ms, now)} min`;
-      case 'emergency': return `Emergencia · quedan ${minutesUntil(st.until_ms, now)} min`;
-      case 'focus': return 'Enfoque en marcha';
-      case 'free': return status.free_day ? 'Día libre' : 'Libre';
+      case 'locked': return tn('home.title_locked', pending.length);
+      case 'pass': return t('home.title_pass', { n: minutesUntil(st.until_ms, now) });
+      case 'emergency': return t('home.title_emergency', { n: minutesUntil(st.until_ms, now) });
+      case 'focus': return t('home.title_focus');
+      case 'free': return status.free_day ? t('home.title_free_day') : t('home.title_free');
       default: return '';
     }
   });
@@ -70,13 +71,13 @@
   const sentence = $derived.by(() => {
     switch (st.state) {
       case 'locked':
-        return next ? `Completa ${pending.length === 1 ? 'la meta que falta' : `${pending.length} metas`} para desbloquear. Sigue con «${next.title}».` : '';
-      case 'pass': return 'Cuando termine, vuelve el bloqueo.';
-      case 'emergency': return 'Todo está disponible. Queda registrado.';
-      case 'focus': return 'Tu sesión sigue contando mientras miras el día.';
+        return next ? tn('home.sentence_locked', pending.length, { goal: next.title }) : '';
+      case 'pass': return t('home.sentence_pass');
+      case 'emergency': return t('home.sentence_emergency');
+      case 'focus': return t('home.sentence_focus');
       case 'free':
-        if (status.free_day) return 'Hoy no hay metas ni bloqueo en ningún dispositivo.';
-        return status.sleep_at_ms ? `Libre hasta las ${hhmm(status.sleep_at_ms)}.` : 'Libre hasta mañana.';
+        if (status.free_day) return t('home.sentence_free_day');
+        return status.sleep_at_ms ? t('home.sentence_free_until', { time: hhmm(status.sleep_at_ms) }) : t('home.sentence_free_tomorrow');
       default: return '';
     }
   });
@@ -84,52 +85,55 @@
   function value(g: GoalProgress): { done: number; total: number; text: string } {
     if (g.target_minutes > 0) {
       const done = g.completed ? g.target_minutes : Math.min(g.focus_minutes, g.target_minutes);
-      return { done, total: g.target_minutes, text: `${done} de ${g.target_minutes} min` };
+      return { done, total: g.target_minutes, text: t('home.progress_minutes', { done, total: g.target_minutes }) };
     }
-    return { done: g.done_count, total: g.target_count, text: `${g.done_count} de ${g.target_count}` };
+    return { done: g.done_count, total: g.target_count, text: t('home.progress_count', { done: g.done_count, total: g.target_count }) };
   }
 
   function actionLabel(g: GoalProgress): string {
     const def = goals.find((d) => d.id === g.goal_id);
-    if (def?.methods.includes('focus_session')) return g.focus_minutes > 0 ? 'Continuar' : 'Empezar';
-    return 'Marcar como hecha';
+    if (def?.methods.includes('focus_session')) return g.focus_minutes > 0 ? t('home.continue') : t('home.start');
+    return t('common.mark_done');
   }
 
   function primaryLabel(g: GoalProgress): string {
-    const left = g.target_minutes > 0 ? ` · faltan ${duration(Math.max(0, g.target_minutes - g.focus_minutes))}` : '';
-    return `${actionLabel(g)}: ${g.title}${left}`;
+    const vars = { action: actionLabel(g), goal: g.title };
+    if (g.target_minutes === 0) return t('home.primary', vars);
+    return t('home.primary_left', { ...vars, left: duration(Math.max(0, g.target_minutes - g.focus_minutes)) });
   }
 
   const syncText = $derived(
-    agent.synced_at_ms ? `Sincronizado hace ${Math.max(0, Math.round((now - agent.synced_at_ms) / 60_000))} min` : 'Sin sincronizar todavía',
+    agent.synced_at_ms
+      ? t('home.synced', { n: Math.max(0, Math.round((now - agent.synced_at_ms) / 60_000)) })
+      : t('home.not_synced'),
   );
 </script>
 
 <div class="layout">
-  <nav class="side" aria-label="Secciones">
+  <nav class="side" aria-label={t('home.nav_label')}>
     <p class="brand">ProcastinaciOFF</p>
-    <button class="nav-item active" aria-current="page"><Icon name="home" /> Hoy</button>
+    <button class="nav-item active" aria-current="page"><Icon name="home" /> {t('home.today')}</button>
     {#if !status.free_day && !status.needs_plan}
-      <button class="nav-item" onclick={onplan}><Icon name="plus" /> Añadir meta a hoy</button>
+      <button class="nav-item" onclick={onplan}><Icon name="plus" /> {t('home.add_goal')}</button>
     {/if}
     {#if onfamily}
-      <button class="nav-item" onclick={onfamily}><Icon name="target" /> Tu tutor</button>
+      <button class="nav-item" onclick={onfamily}><Icon name="target" /> {t('home.your_guardian')}</button>
     {:else}
-      <button class="nav-item" onclick={onpair}><Icon name="link" /> Vincular dispositivo</button>
+      <button class="nav-item" onclick={onpair}><Icon name="link" /> {t('home.pair')}</button>
     {/if}
-    <p class="side-note muted">Cerrar esta ventana no detiene la protección.</p>
+    <p class="side-note muted">{t('home.close_note')}</p>
   </nav>
 
   <main class="main stack">
     <header>
       <p class="muted date">{today()}</p>
-      <h1>Hoy</h1>
+      <h1>{t('home.today')}</h1>
     </header>
 
     {#each silent as d (d.device_id)}
       <p class="card silent" role="status">
-        <strong>«{d.label}» no reporta {ago(d.last_seen_ms)}.</strong>
-        Si lo apagaste, no pasa nada. Si no, revisa que la app siga activa en ese dispositivo.
+        <strong>{t('home.silent_title', { device: d.label, ago: ago(d.last_seen_ms) })}</strong>
+        {t('home.silent_body')}
       </p>
     {/each}
 
@@ -141,13 +145,13 @@
         <h2 id="state-title">{title}</h2>
         <p class="muted">{sentence}</p>
         <div class="row" style="gap:8px">
-          {#if status.sleep_at_ms}<span class="chip"><Icon name="moon" size={14} /> Dormir a las {hhmm(status.sleep_at_ms)}</span>{/if}
-          {#if !status.free_day}<span class="chip neutral num">{status.permits_left} {status.permits_left === 1 ? 'permiso disponible' : 'permisos disponibles'}</span>{/if}
+          {#if status.sleep_at_ms}<span class="chip"><Icon name="moon" size={14} /> {t('home.sleep_at', { time: hhmm(status.sleep_at_ms) })}</span>{/if}
+          {#if !status.free_day}<span class="chip neutral num">{tn('home.passes_available', status.permits_left)}</span>{/if}
         </div>
       </div>
       <div class="banner-action">
         {#if focusActive}
-          <button class="btn-primary" onclick={onback}>Volver a la tarea</button>
+          <button class="btn-primary" onclick={onback}>{t('home.back_to_task')}</button>
         {:else if canWork && next && nextGoal}
           <button class="btn-primary" onclick={() => onstart(nextGoal)}>{primaryLabel(next)}</button>
         {/if}
@@ -156,7 +160,7 @@
 
     {#if status.goals.length > 0}
       <section class="stack" aria-labelledby="goals-title" style="gap:8px">
-        <h3 id="goals-title">Metas de hoy</h3>
+        <h3 id="goals-title">{t('common.today_goals')}</h3>
         <ul class="goals">
           {#each status.goals as g (g.goal_id)}
             {@const v = value(g)}
@@ -166,12 +170,12 @@
               <div class="goal-body">
                 <div class="row" style="gap:8px">
                   <span class="goal-name">{g.title}</span>
-                  <span class="chip {g.kind === 'key' ? '' : 'neutral'}">{g.kind === 'key' ? 'Desbloquea' : 'Hábito'}</span>
+                  <span class="chip {g.kind === 'key' ? '' : 'neutral'}">{g.kind === 'key' ? t('common.unlocks') : t('common.habit')}</span>
                 </div>
                 <div class="bar" role="progressbar" aria-label={g.title} aria-valuemin="0" aria-valuemax={v.total} aria-valuenow={v.done}>
                   <i style="width:{v.total ? (100 * v.done) / v.total : 0}%"></i>
                 </div>
-                <p class="muted num small">{g.completed ? 'Hecha' : v.text}</p>
+                <p class="muted num small">{g.completed ? t('home.done') : v.text}</p>
               </div>
               {#if !g.completed && canWork && def}
                 <button class="btn-text" onclick={() => onstart(def)}>{actionLabel(g)}</button>
@@ -185,7 +189,7 @@
     {#if st.state === 'locked' || st.state === 'focus'}
       <div class="row">
         <button class="btn-secondary" disabled={status.permits_left === 0} onclick={() => onact({ cmd: 'start_pass' })}>
-          Usar un permiso{cfg ? ` de ${cfg.permit_minutes} min` : ''}
+          {cfg ? t('home.use_pass_minutes', { n: cfg.permit_minutes }) : t('home.use_pass')}
         </button>
         <Emergency minutes={cfg?.emergency_minutes} penalty={cfg?.emergency_penalty} {onerror} />
       </div>
@@ -194,23 +198,23 @@
     <footer class="muted small row" style="gap:6px"><Icon name="sync" size={16} /> {syncText}</footer>
   </main>
 
-  <aside class="aside stack" aria-label="Resumen">
+  <aside class="aside stack" aria-label={t('home.summary')}>
     <section class="card stack" style="gap:8px">
-      <h3>Resumen</h3>
+      <h3>{t('home.summary')}</h3>
       {#if status.free_day}
-        <p>Hoy es día libre.</p>
+        <p>{t('home.free_day_today')}</p>
       {:else}
-        <p class="num">{keys.length - pending.length} de {keys.length} metas que desbloquean</p>
-        <p class="num">{status.permits_left} {status.permits_left === 1 ? 'permiso' : 'permisos'} hoy</p>
+        <p class="num">{t('home.keys_done', { done: keys.length - pending.length, total: keys.length })}</p>
+        <p class="num">{tn('home.passes_today', status.permits_left)}</p>
       {/if}
-      <p>{status.sleep_at_ms ? `Dormir a las ${hhmm(status.sleep_at_ms)}` : 'Esta noche no hay hora de dormir'}</p>
-      <p>Despiertas a las {hhmm(status.next_wake_ms)}</p>
+      <p>{status.sleep_at_ms ? t('home.sleep_at', { time: hhmm(status.sleep_at_ms) }) : t('home.no_bedtime')}</p>
+      <p>{t('home.wake_at', { time: hhmm(status.next_wake_ms) })}</p>
     </section>
     {#if devs.length > 1}
       <section class="card stack" style="gap:8px">
-        <h3>Dispositivos</h3>
+        <h3>{t('home.devices')}</h3>
         {#each devs as d (d.device_id)}
-          <p>{d.label}{d.is_me ? ' (este)' : ''} <span class="muted small">· {d.last_seen_ms ? ago(d.last_seen_ms) : 'sin datos'}</span></p>
+          <p>{d.is_me ? t('home.device_me', { name: d.label }) : d.label} <span class="muted small">· {d.last_seen_ms ? ago(d.last_seen_ms) : t('home.no_data')}</span></p>
         {/each}
       </section>
     {/if}

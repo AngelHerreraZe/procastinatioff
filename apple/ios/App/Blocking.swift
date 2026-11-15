@@ -6,13 +6,13 @@ import FamilyControls
 import Foundation
 
 enum Authorization {
-    /// Modo personal: el propio usuario autoriza.
+    /// Personal mode: the user authorizes themselves.
     static func requestIndividual() async throws {
         try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
     }
 
-    /// iPhone de un menor: Apple pide el Apple ID del tutor (En Familia). Con esta autorización el
-    /// menor no puede borrar la app ni revocarla sin el tutor.
+    /// A minor's iPhone: Apple asks for the guardian's Apple ID (Family Sharing). With this authorization the
+    /// minor cannot delete the app nor revoke it without the guardian.
     static func requestChild() async throws {
         try await AuthorizationCenter.shared.requestAuthorization(for: .child)
     }
@@ -20,14 +20,14 @@ enum Authorization {
     static var granted: Bool { AuthorizationCenter.shared.authorizationStatus == .approved }
 }
 
-/// Traduce el estado del núcleo a escudos de Screen Time. Llamar tras cada acción, cada sync y al
-/// volver a primer plano. El núcleo es la fuente de verdad; las extensiones solo cubren los huecos
-/// mientras la app está cerrada.
+/// Translates the core's state into Screen Time shields. Call after every action, every sync and when
+/// returning to the foreground. The core is the source of truth; the extensions only cover the gaps
+/// while the app is closed.
 enum StateBridge {
     static func refresh() {
         guard let core = try? CoreHolder.shared() else { return }
         let clock = CoreHolder.clock()
-        guard let status = core.status(clock: clock) else { return } // sin perfil: no se bloquea nada
+        guard let status = core.status(clock: clock) else { return } // no profile: nothing is blocked
         var s = SharedStore.load()
         let cfg = core.activeConfig(clock: clock)
         s.webAllowlist = cfg?.webAllowlist ?? []
@@ -38,7 +38,7 @@ enum StateBridge {
             }
             (s.wakeMin, s.bedtimeMin, s.freeDays) = (wake, bed, Int(cfg.freeDays))
         }
-        // Selección de apps más permisiva pedida ayer: hoy ya rige (anti-impulso)
+        // More permissive app selection asked for yesterday: it takes effect today (anti-impulse)
         if let from = s.pendingFrom, Date() >= from {
             if let e = s.pendingEssentials { s.essentials = e }
             if let f = s.pendingFocus { s.focus = f }
@@ -56,9 +56,9 @@ enum StateBridge {
         Shields.apply(s.mode, s)
     }
 
-    /// Guarda la selección de apps. Añadir apps relaja: en un perfil personal rige desde el próximo
-    /// despertar; en el iPhone de un menor no se permite (solo el tutor, en persona, al configurarlo).
-    /// Quitar apps rige al momento. Devuelve un texto para la UI.
+    /// Saves the app selection. Adding apps relaxes: in a personal profile it takes effect at the next
+    /// wake-up; on a minor's iPhone it is not allowed (only the guardian, in person, when setting it up).
+    /// Removing apps takes effect immediately. Returns a text for the UI.
     static func saveSelection(essentials: FamilyActivitySelection, focus: FamilyActivitySelection,
                               everything: FamilyActivitySelection, setup: Bool) -> String {
         var s = SharedStore.load()
@@ -70,14 +70,14 @@ enum StateBridge {
             (s.essentials, s.focus, s.pendingEssentials, s.pendingFocus, s.pendingFrom) = (essentials, focus, nil, nil, nil)
             SharedStore.save(s)
             refresh()
-            return "Guardado."
+            return String(localized: "Saved.")
         }
         if core?.myRole() == .minor {
-            return "Añadir apps solo lo puede hacer tu tutor al configurar este iPhone. Puedes pedírselo."
+            return String(localized: "Only your guardian can add apps, when setting up this iPhone. You can ask them.")
         }
         let wake = Date(timeIntervalSince1970: Double(status!.nextWakeMs) / 1000)
         (s.pendingEssentials, s.pendingFocus, s.pendingFrom) = (essentials, focus, wake)
         SharedStore.save(s)
-        return "Añadir apps relaja tus reglas: rige desde mañana al despertar."
+        return String(localized: "Adding apps relaxes your rules: it takes effect tomorrow when you wake up.")
     }
 }

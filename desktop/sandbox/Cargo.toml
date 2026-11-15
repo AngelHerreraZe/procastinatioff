@@ -1,4 +1,4 @@
-# 🔒 Lanzador AppContainer: ejecuta el verificador con SOLO la capacidad "webcam" (sin red).
+# SECURITY: AppContainer launcher: runs the verifier with ONLY the "webcam" capability (no network).
 [package]
 name = "procastinacioff-sandbox"
 version = "0.1.0"

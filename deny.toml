@@ -1,32 +1,32 @@
-# deny.toml — lo ejecuta `cargo deny check` en local y en CI
+# deny.toml — run by `cargo deny check` locally and in CI
 [graph]
 all-features = true
 
 [advisories]
 version = 2
-yanked = "deny"             # versiones retiradas por su autor: prohibidas
-# "Sin mantenimiento" bloquea solo en dependencias directas; las transitivas se revisan en la
-# actualización trimestral (ADR 0006). Las VULNERABILIDADES bloquean siempre.
+yanked = "deny"             # versions yanked by their author: forbidden
+# "Unmaintained" only blocks direct dependencies; transitive ones are reviewed in the
+# quarterly update. VULNERABILITIES always block.
 unmaintained = "workspace"
-ignore = []                 # cada excepción necesita un ADR en docs/decisions/
+ignore = []                 # every exception needs a written justification and 2 reviews
 
 [licenses]
 version = 2
 confidence-threshold = 0.9
-# Licencias compatibles con MPL-2.0 y con la App Store
+# Licenses compatible with MPL-2.0 and with the App Store
 allow = [
   "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
   "ISC", "Zlib", "MPL-2.0", "Unicode-3.0", "Unicode-DFS-2016", "CC0-1.0", "BSL-1.0",
   "OpenSSL",
-  # Datos de certificados raíz de Mozilla (webpki-roots, que usa rustls). Licencia permisiva de datos.
+  # Mozilla root certificate data (webpki-roots, used by rustls). Permissive data license.
   "CDLA-Permissive-2.0",
 ]
-# GPL/AGPL/LGPL quedan prohibidas por omisión (conflicto con App Store)
+# GPL/AGPL/LGPL are forbidden by omission (conflict with the App Store)
 exceptions = [
-  # Código fuente de SQLCipher/SQLite ("blessing" = dominio público) y libtomcrypt (WTFPL), solo en este crate.
+  # SQLCipher/SQLite source ("blessing" = public domain) and libtomcrypt (WTFPL), only in this crate.
   { allow = ["blessing", "WTFPL"], crate = "sqlcipher-src" },
-  # Decodificador MJPEG de la webcam (verificador de escritorio, vía nokhwa). IJG: permisiva con atribución
-  # obligatoria en la documentación del producto (pendiente para el lanzamiento, ADR 0009).
+  # Webcam MJPEG decoder (desktop verifier, via nokhwa). IJG: permissive with attribution
+  # required in the product documentation (pending for the launch).
   { allow = ["IJG"], crate = "mozjpeg" },
   { allow = ["IJG"], crate = "mozjpeg-sys" },
 ]
@@ -34,13 +34,13 @@ exceptions = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-allow-wildcard-paths = true # dependencias internas por ruta (publish = false)
+allow-wildcard-paths = true # internal path dependencies (publish = false)
 deny = [
-  # Telemetría / reportes de errores a terceros
+  # Third-party telemetry / crash reporting
   { name = "sentry" },
   { name = "sentry-core" },
   { name = "opentelemetry-otlp" },
-  # TLS nativo: usamos solo rustls (comportamiento idéntico en todas las plataformas)
+  # Native TLS: we only use rustls (identical behavior on every platform)
   { name = "native-tls" },
 ]
 

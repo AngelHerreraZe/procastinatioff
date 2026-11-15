@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Almacenamiento cifrado 🔒 (SQLCipher). Sin la clave, el archivo es ilegible.
+//! Encrypted storage with SQLCipher (security-critical). Without the key, the file is unreadable.
 
 use rusqlite::{Connection, OptionalExtension, params};
 use zeroize::Zeroizing;
@@ -28,14 +28,14 @@ pub struct Db {
 }
 
 impl Db {
-    /// Abre (o crea) la base de datos cifrada. Falla si la clave no es la correcta.
+    /// Opens (or creates) the encrypted database. Fails if the key is wrong.
     pub fn open(path: &str, key: &[u8]) -> Result<Self, CoreError> {
         let conn = Connection::open(path)?;
-        // 🔒 La clave en hex se borra de memoria al salir de este bloque.
+        // SECURITY: The hex key is wiped from memory when leaving this block.
         let pragma = Zeroizing::new(format!("PRAGMA key = \"x'{}'\";", Zeroizing::new(hex::encode(key)).as_str()));
         conn.execute_batch(&pragma)?;
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0))
-            .map_err(|_| CoreError::storage("clave incorrecta o base de datos dañada"))?;
+            .map_err(|_| CoreError::storage("wrong key or damaged database"))?;
         conn.execute_batch("PRAGMA cipher_memory_security = ON; PRAGMA secure_delete = ON; PRAGMA foreign_keys = ON;")?;
         conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get::<_, String>(0))?;
         conn.execute_batch(SCHEMA)?;
@@ -63,12 +63,12 @@ impl Db {
         self.query("SELECT json FROM events WHERE author = ?1 ORDER BY seq", [author])
     }
 
-    /// Todo lo pendiente de subir, en el orden en que se aceptó.
+    /// Everything pending upload, in the order it was accepted.
     pub fn pending_all(&self) -> Result<Vec<SignedEvent>, CoreError> {
         self.query("SELECT json FROM events WHERE uploaded = 0 ORDER BY rowid", [])
     }
 
-    /// Marca todos los eventos para volver a subirlos (cifrados para la nueva lista de miembros).
+    /// Marks every event for re-upload (encrypted for the new member list).
     pub fn mark_all_for_reupload(&self) -> Result<(), CoreError> {
         self.conn.execute("UPDATE events SET uploaded = 0", [])?;
         Ok(())
@@ -95,7 +95,7 @@ impl Db {
         Ok(())
     }
 
-    /// Retención local (por defecto 90 días, sección 9.5 del plan maestro).
+    /// Local retention (90 days by default).
     pub fn prune_before(&self, before_ms: i64) -> Result<usize, CoreError> {
         Ok(self.conn.execute("DELETE FROM events WHERE at_ms < ?1 AND uploaded = 1", [before_ms])?)
     }
@@ -111,13 +111,13 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("t.db");
         let path_str = path.to_str().unwrap();
-        Db::open(path_str, &[1u8; 32]).unwrap().set_meta("a", "secreto-legible").unwrap();
+        Db::open(path_str, &[1u8; 32]).unwrap().set_meta("a", "readable-secret").unwrap();
         assert!(Db::open(path_str, &[2u8; 32]).is_err());
-        assert_eq!(Db::open(path_str, &[1u8; 32]).unwrap().meta("a").unwrap().as_deref(), Some("secreto-legible"));
-        // Prueba manual del plan, automatizada: ni cabecera SQLite ni texto legible en disco.
+        assert_eq!(Db::open(path_str, &[1u8; 32]).unwrap().meta("a").unwrap().as_deref(), Some("readable-secret"));
+        // The plan's manual test, automated: no SQLite header nor readable text on disk.
         let raw = std::fs::read(&path).unwrap();
         assert!(!raw.starts_with(b"SQLite format 3"));
-        assert!(!raw.windows(15).any(|w| w == b"secreto-legible"));
+        assert!(!raw.windows(15).any(|w| w == b"readable-secret"));
         std::fs::remove_dir_all(dir).ok();
     }
 }

@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Procesos de las sesiones de usuario.
-//! ponytail: sondeo cada 300 ms (~1–2 ms por vuelta); si el spike C da p95 > 500 ms, cambiar a eventos ETW
-//! de creación de procesos manteniendo la misma `policy::decide`.
+//! Processes of the user sessions.
+//! ponytail: polling every 300 ms (~1–2 ms per round); if spike C gives p95 > 500 ms, switch to ETW
+//! process-creation events keeping the same `policy::decide`.
 
 use std::path::PathBuf;
 
@@ -27,7 +27,7 @@ pub struct Proc {
     pub path: PathBuf,
 }
 
-/// Procesos de las sesiones de usuario (sesión > 0) con su ruta completa.
+/// Processes of the user sessions (session > 0) with their full path.
 pub fn user_processes() -> Vec<Proc> {
     let mut out = Vec::new();
     unsafe {

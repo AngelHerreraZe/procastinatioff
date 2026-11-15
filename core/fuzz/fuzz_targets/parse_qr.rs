@@ -1,5 +1,5 @@
 #![no_main]
-// Contenido de un QR escaneado (lo controla quien lo imprime).
+// Content of a scanned QR (controlled by whoever prints it).
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

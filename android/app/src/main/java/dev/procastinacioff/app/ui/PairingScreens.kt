@@ -1,5 +1,7 @@
 package dev.procastinacioff.app.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.procastinacioff.app.R
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -67,7 +69,7 @@ fun qrBitmap(text: String, size: Int = 640): Bitmap {
     }
 }
 
-/** (A) Muestra el QR y el código de 6 dígitos a comparar. */
+/** (A) Shows the QR and the 6-digit code to compare. */
 @Composable
 fun InviteScreen(box: Core? = null, role: Role? = null, onDone: () -> Unit) {
     val ctx = LocalContext.current
@@ -83,51 +85,51 @@ fun InviteScreen(box: Core? = null, role: Role? = null, onDone: () -> Unit) {
             val o = withContext(Dispatchers.IO) { core.pairingOffer() }
             offer = o
             qr = withContext(Dispatchers.Default) { qrBitmap(o) }
-            while (code == null) { // espera a que el otro dispositivo escanee
+            while (code == null) { // waits for the other device to scan
                 delay(2_000)
                 code = withContext(Dispatchers.IO) { core.pairingPoll() }
             }
         } catch (e: Exception) {
-            error = e.userMessage()
+            error = e.userMessage(ctx)
         }
     }
 
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (code == null) {
-            Text("Vincular otro dispositivo", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("En el otro dispositivo elige «Unirme a un perfil» y escanea este código.")
-            qr?.let { Image(it.asImageBitmap(), contentDescription = "Código QR de vinculación", modifier = Modifier.size(280.dp)) }
+            Text(stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.pair_instructions))
+            qr?.let { Image(it.asImageBitmap(), contentDescription = stringResource(R.string.pair_qr_label), modifier = Modifier.size(280.dp)) }
             offer?.let { o ->
                 TextButton(onClick = {
-                    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Código", o))
-                }) { Text("Copiar código (para un PC sin cámara)") }
+                    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(ctx.getString(R.string.pair_code), o))
+                }) { Text(stringResource(R.string.pair_copy_for_pc)) }
             }
-            Text("El código caduca en 10 minutos. Tus metas viajan cifradas.", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { core.pairingCancel(); onDone() }) { Text("Volver") }
+            Text(stringResource(R.string.pair_expires), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { core.pairingCancel(); onDone() }) { Text(stringResource(R.string.back)) }
         } else {
-            Text("¿El otro dispositivo muestra este número?", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.pair_match_question), style = MaterialTheme.typography.titleMedium)
             Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
-            PrimaryButton("Sí, coinciden") {
+            PrimaryButton(stringResource(R.string.pair_match_yes)) {
                 scope.launch {
-                    // Sobre ESTE núcleo (perfil, buzón del compañero o perfil de un menor)
+                    // On THIS core (profile, partner mailbox or a minor's profile)
                     error = withContext(Dispatchers.IO) {
-                        runCatching { core.pairingConfirm(CoreHolder.clock(), role) }.exceptionOrNull()?.userMessage()
+                        runCatching { core.pairingConfirm(CoreHolder.clock(), role) }.exceptionOrNull()?.userMessage(ctx)
                     }
                     if (error == null) onDone()
                 }
             }
-            SecondaryButton("No coinciden: cancelar") { core.pairingCancel(); onDone() }
+            SecondaryButton(stringResource(R.string.pair_match_no)) { core.pairingCancel(); onDone() }
         }
         ErrorText(error)
     }
 }
 
-/** (B) Escanea el QR del otro dispositivo (o pega su código) y espera su confirmación. */
+/** (B) Scans the other device's QR (or pastes its code) and waits for its confirmation. */
 @Composable
 fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val core = remember { box ?: CoreHolder.get(ctx) }
-    // Perfil propio: listo cuando llega la configuración. Buzón de compañero: cuando llegan los miembros.
+    // Own profile: ready when the configuration arrives. Partner mailbox: when the members arrive.
     val ready: () -> Boolean = { if (box == null) core.status(CoreHolder.clock()) != null else core.members().isNotEmpty() }
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf<String?>(null) }
@@ -141,38 +143,38 @@ fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
     fun join(qr: String) = scope.launch {
         try {
             code = withContext(Dispatchers.IO) { core.pairingJoin(qr, Build.MODEL.take(64)) }
-            // Esperar a que el otro dispositivo confirme y nos envíe el historial
+            // Wait for the other device to confirm and send us the history
             while (!withContext(Dispatchers.IO) { ready() }) {
                 delay(3_000)
                 runCatching { withContext(Dispatchers.IO) { core.sync(CoreHolder.clock()) } }
             }
             onDone()
         } catch (e: Exception) {
-            error = e.userMessage()
+            error = e.userMessage(ctx)
         }
     }
 
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (code == null) {
-            Text("Escanea el código que muestra tu otro dispositivo", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.join_scan), style = MaterialTheme.typography.titleMedium)
             if (cameraOk) {
                 QrScanner(Modifier.fillMaxWidth().height(320.dp)) { join(it) }
             } else {
-                Text("La cámara solo se usa para leer el código. Nunca graba ni guarda imágenes.")
-                SecondaryButton("Usar la cámara") { askCamera.launch(Manifest.permission.CAMERA) }
+                Text(stringResource(R.string.join_camera_note))
+                SecondaryButton(stringResource(R.string.join_use_camera)) { askCamera.launch(Manifest.permission.CAMERA) }
             }
-            OutlinedTextField(pasted, { pasted = it }, label = { Text("O pega el código") }, modifier = Modifier.fillMaxWidth())
-            SecondaryButton("Unirme con el código", enabled = pasted.isNotBlank()) { join(pasted.trim()) }
+            OutlinedTextField(pasted, { pasted = it }, label = { Text(stringResource(R.string.join_paste)) }, modifier = Modifier.fillMaxWidth())
+            SecondaryButton(stringResource(R.string.join_with_code), enabled = pasted.isNotBlank()) { join(pasted.trim()) }
         } else {
-            Text("Comprueba que el otro dispositivo muestra:")
+            Text(stringResource(R.string.join_check_code))
             Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
-            Text("Confirma allí. Esta pantalla avanzará sola.")
+            Text(stringResource(R.string.join_confirm_there))
         }
         ErrorText(error)
     }
 }
 
-/** 🔒 Solo ImageAnalysis: cada cuadro se analiza en memoria y se descarta (el búfer se sobrescribe con ceros). */
+/** SECURITY: ImageAnalysis only: each frame is analyzed in memory and discarded (the buffer is overwritten with zeros). */
 private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
     private val reader = QRCodeReader()
     @Volatile private var done = false
@@ -187,7 +189,7 @@ private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis
             done = true
             onResult(text)
         } catch (_: Exception) {
-            // No hay QR en este cuadro: seguir
+            // No QR in this frame: keep going
         } finally {
             data.fill(0)
             image.close()

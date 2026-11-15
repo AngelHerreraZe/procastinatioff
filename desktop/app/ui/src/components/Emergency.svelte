@@ -1,9 +1,10 @@
 <script lang="ts">
-  // "Romper el cristal": fricción que protege (esperar 60 s + escribir el motivo). El motivo NO se guarda ni se envía.
+  // "Break the glass": protective friction (wait 60 s + write the reason). The reason is NOT saved or sent.
   import { call } from '../lib/agent';
+  import { t, tn } from '../lib/i18n';
   import Icon from './Icon.svelte';
 
-  let { minutes = 15, penalty = 1, onerror }: { minutes?: number; penalty?: number; onerror: (m: string) => void } =
+  let { minutes = 15, penalty = 1, onerror }: { minutes?: number; penalty?: number; onerror: (e: unknown) => void } =
     $props();
 
   const WAIT = 60;
@@ -24,34 +25,34 @@
       open = false;
       reason = '';
     } catch (e) {
-      onerror(String(e));
+      onerror(e);
     }
   }
 </script>
 
 {#if !open}
   <button class="btn-danger" onclick={() => (open = true)}>
-    <span class="row" style="gap:6px"><Icon name="alert" size={18} /> Emergencia</span>
+    <span class="row" style="gap:6px"><Icon name="alert" size={18} /> {t('emergency.title')}</span>
   </button>
 {:else}
   <section class="card emergency stack" aria-labelledby="emergency-title">
-    <h3 id="emergency-title">Emergencia</h3>
+    <h3 id="emergency-title">{t('emergency.title')}</h3>
     <p class="muted">
-      Te da {minutes} minutos libres. {#if penalty > 0}Cuesta {penalty} {penalty === 1 ? 'permiso' : 'permisos'} mañana y
-        queda registrado.{:else}Queda registrado.{/if}
+      {t('emergency.gives', { minutes })}
+      {penalty > 0 ? tn('emergency.cost', penalty) : t('emergency.recorded')}
     </p>
     <label>
-      <span>¿Por qué lo necesitas?</span>
+      <span>{t('emergency.why')}</span>
       <textarea rows="2" bind:value={reason} maxlength="200"></textarea>
-      <small>El motivo no se guarda ni se envía a nadie.</small>
+      <small>{t('emergency.not_saved')}</small>
     </label>
     <div class="row">
       <button class="btn-secondary" disabled={left > 0 || reason.trim().length < 10} onclick={use}>
-        {left > 0 ? `Espera ${left} s` : `Usar emergencia (${minutes} min)`}
+        {left > 0 ? t('common.wait_seconds', { n: left }) : t('emergency.use', { minutes })}
       </button>
-      <button class="btn-text" onclick={() => (open = false)}>Cancelar</button>
+      <button class="btn-text" onclick={() => (open = false)}>{t('common.cancel')}</button>
     </div>
-    <p class="sr-only" aria-live="polite">{left === 0 ? 'Ya puedes usar la emergencia' : ''}</p>
+    <p class="sr-only" aria-live="polite">{left === 0 ? t('emergency.ready') : ''}</p>
   </section>
 {/if}
 

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Cliente del pipe del servicio.
+//! Client of the service pipe.
 
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use procastinacioff_ipc::{MAX_LINE, PIPE_NAME, Request, Response};
 
-/// Una conexión por petición. ponytail: simple y suficiente a 1–2 peticiones por segundo.
+/// One connection per request. ponytail: simple and enough at 1–2 requests per second.
 pub fn call(req: &Request) -> Result<Response, String> {
     let mut last = String::new();
     for _ in 0..5 {
@@ -25,7 +25,7 @@ pub fn call(req: &Request) -> Result<Response, String> {
             }
             Err(e) => {
                 last = e.to_string();
-                std::thread::sleep(Duration::from_millis(100)); // pipe ocupado: reintentar
+                std::thread::sleep(Duration::from_millis(100)); // pipe busy: retry
             }
         }
     }

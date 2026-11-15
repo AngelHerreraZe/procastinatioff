@@ -1,4 +1,4 @@
-# Rutas críticas: requieren revisión de seguridad (2 aprobaciones por ruleset)
+# Critical paths: require a security review (2 approvals via ruleset)
 /core/src/crypto.rs          @procastinacioff/security
 /core/src/events.rs          @procastinacioff/security
 /core/src/ledger.rs          @procastinacioff/security

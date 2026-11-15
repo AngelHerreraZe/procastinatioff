@@ -1,7 +1,7 @@
-/* Sistema visual (ADR 0004): 01 Calma de base · 03 Nocturno 1 h antes de dormir · 08 Foco en la meta en curso.
-   Todos los pares de color vienen medidos en diseno/<dirección>/design.md (WCAG 2.2 AA o mejor).
-   ponytail: tipografías del sistema; Inter/Manrope/Lexend se empaquetarán como archivos locales (la CSP no
-   permite fuentes remotas) cuando se cierre la licencia de cada una. */
+/* Visual system: 01 Calm by default · 03 Night 1 h before bedtime · 08 Focus on the current goal.
+      All color pairs are measured against WCAG 2.2 AA or better.
+      ponytail: system fonts; Inter/Manrope/Lexend will be bundled as local files (the CSP does not
+      allow remote fonts) once each one's license is cleared. */
 
 :root,
 [data-theme='calma'] {
@@ -81,7 +81,7 @@ p { margin: 0; }
 
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* Botones: una acción principal por pantalla, objetivos ≥ 32 px en escritorio */
+/* Buttons: one main action per screen, targets ≥ 32 px on desktop */
 button { font: inherit; cursor: pointer; border-radius: 999px; min-height: 40px; padding: 0 20px; border: 0; }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 .btn-primary { background: var(--accent); color: var(--on-accent); font-weight: 600; min-height: 48px; padding: 0 24px; }
@@ -111,7 +111,7 @@ label > span { font-weight: 600; }
 .stack { display: grid; gap: 16px; }
 .error { color: var(--danger); font-weight: 600; }
 
-/* Barra de progreso: número también en texto (no solo color) */
+/* Progress bar: the number is also shown as text (not only color) */
 .bar { height: 8px; background: var(--track); border-radius: 8px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 8px; transition: width 200ms ease; }
 

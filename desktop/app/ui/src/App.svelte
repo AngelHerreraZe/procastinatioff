@@ -1,7 +1,8 @@
 <script lang="ts">
-  // Decide qué pantalla y qué tema mostrar a partir del estado del servicio (consultado cada segundo).
+  // Decides which screen and theme to show from the service status (polled every second).
   import { bringToFront, lockScreen, setShield } from './lib/native';
   import { call, myRole, status, todayGoals, type AgentStatus, type Goal, type Role } from './lib/agent';
+  import { errorText, t } from './lib/i18n';
   import Onboarding from './screens/Onboarding.svelte';
   import PlanDay from './screens/PlanDay.svelte';
   import Home from './screens/Home.svelte';
@@ -18,7 +19,7 @@
   let now = $state(Date.now());
   let view = $state<'home' | 'pair' | 'plan' | 'overview' | 'family'>('home');
   let role = $state<Role | null>(null);
-  let declaring = $state<string | null>(null); // meta sin temporizador en curso (declaración con fricción)
+  let declaring = $state<string | null>(null); // untimed goal in progress (declaration with friction)
   let dismissedAt = $state<number | null>(null);
   let prefersDark = $state(dark.matches);
   let planShownFor = 0;
@@ -42,7 +43,7 @@
   );
   const inFocus = $derived(st === 'focus' || declaring !== null);
   const needsPlan = $derived(!!core?.needs_plan && st === 'locked');
-  // Nocturno: dormir, la última hora antes de dormir o el sistema en modo oscuro. Foco: meta en curso.
+  // Night theme: sleep, the last hour before bedtime or a dark system theme. Focus: goal in progress.
   const theme = $derived(
     st === 'sleep' || nearSleep || prefersDark ? 'nocturno' : inFocus && !shield && view !== 'overview' ? 'foco' : 'calma',
   );
@@ -56,7 +57,7 @@
       const a = await status();
       const g = a.core ? await todayGoals() : [];
       role = a.core ? await myRole() : null;
-      // Ambos a la vez: el plan del día se monta con sus metas ya cargadas.
+      // Both at once: the day plan mounts with its goals already loaded.
       agent = a;
       goals = g;
       now = Date.now();
@@ -64,11 +65,11 @@
       if (declaring && !goals.some((g) => g.id === declaring)) declaring = null;
       if (st !== 'focus' && view === 'overview' && !declaring) view = 'home';
     } catch (e) {
-      message = String(e);
+      message = errorText(e);
     }
   }
 
-  // Escudo a pantalla completa (al cerrar una app, en DORMIR o durante la cuenta atrás).
+  // Full-screen shield (when an app is closed, during SLEEP or during the countdown).
   $effect(() => {
     const want = shield !== null;
     if (want === shieldOn) return;
@@ -76,10 +77,10 @@
     (async () => {
       await setShield(want);
       if (shield === 'sleep') await lockScreen();
-    })().catch((e) => (message = String(e)));
+    })().catch((e) => (message = errorText(e)));
   });
 
-  // Primer desbloqueo tras la hora de dormir: la ventana se abre sola con el plan del día.
+  // First unlock after bedtime: the window opens by itself with the day plan.
   $effect(() => {
     if (!needsPlan || !core || planShownFor === core.day_start_ms) return;
     planShownFor = core.day_start_ms;
@@ -97,7 +98,7 @@
       await call(request);
       await refresh();
     } catch (e) {
-      message = String(e);
+      message = errorText(e);
     }
   }
 
@@ -107,13 +108,13 @@
     else declaring = goal.id;
   }
 
-  const fail = (m: string) => (message = m);
+  const fail = (e: unknown) => (message = errorText(e));
 </script>
 
 {#if !agent}
   <main class="center stack">
     <h1>ProcastinaciOFF</h1>
-    <p class="muted" aria-live="polite">{message ? 'El servicio no responde. Comprueba que está instalado.' : 'Conectando con el servicio…'}</p>
+    <p class="muted" aria-live="polite">{message ? t('app.no_service') : t('app.connecting')}</p>
   </main>
 {:else if !core}
   <Onboarding onerror={fail} ondone={refresh} />

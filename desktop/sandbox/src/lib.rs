@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Ejecuta un proceso en un AppContainer con SOLO la capacidad "webcam": sin `internetClient`,
-//! Windows le niega la red (también localhost). Lo usa la UI para lanzar el verificador.
+//! Runs a process in an AppContainer with ONLY the "webcam" capability: without `internetClient`,
+//! Windows denies it the network (localhost too). The UI uses it to launch the verifier.
 //!
-//! El ejecutable y sus modelos deben ser legibles por "ALL APPLICATION PACKAGES" (S-1-15-2-1):
-//! `C:\Program Files\` ya lo es; otras rutas necesitan `icacls <ruta> /grant *S-1-15-2-1:(OI)(CI)RX`.
+//! The executable and its models must be readable by "ALL APPLICATION PACKAGES" (S-1-15-2-1):
+//! `C:\Program Files\` already is; other paths need `icacls <path> /grant *S-1-15-2-1:(OI)(CI)RX`.
 
 #[cfg(windows)]
 mod imp {
@@ -34,19 +34,19 @@ mod imp {
     const CONTAINER: PCWSTR = w!("ProcastinaciOFF.Verifier");
     const SE_GROUP_ENABLED: u32 = 0x4; // winnt.h
 
-    /// Salida del proceso aislado.
+    /// Output of the sandboxed process.
     #[derive(Debug)]
     pub struct Output {
-        /// Primera línea de stdout (el `VerificationResult` en JSON).
+        /// First stdout line (the `VerificationResult` as JSON).
         pub line: String,
         pub exit_code: u32,
     }
 
     unsafe fn container_sid() -> windows::core::Result<PSID> {
         unsafe {
-            match CreateAppContainerProfile(CONTAINER, CONTAINER, w!("Verificador sin red"), None) {
+            match CreateAppContainerProfile(CONTAINER, CONTAINER, w!("Offline verifier"), None) {
                 Ok(sid) => Ok(sid),
-                Err(_) => DeriveAppContainerSidFromAppContainerName(CONTAINER), // ya existía
+                Err(_) => DeriveAppContainerSidFromAppContainerName(CONTAINER), // already existed
             }
         }
     }
@@ -59,12 +59,12 @@ mod imp {
             if ncaps == 0 {
                 return Err(windows::core::Error::from_win32());
             }
-            // ponytail: los arrays de grupos (y el propio array de capacidades) no se liberan: una vez por sesión.
+            // ponytail: the group arrays (and the capabilities array itself) are not freed: once per session.
             Ok(*caps)
         }
     }
 
-    /// Termina un proceso aislado (botón "Detener" de la UI).
+    /// Ends a sandboxed process (the UI's "Stop" button).
     pub fn terminate(pid: u32) {
         unsafe {
             use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE};
@@ -75,8 +75,8 @@ mod imp {
         }
     }
 
-    /// Ejecuta `cmdline` en el AppContainer. `on_start` recibe el pid (para poder detenerlo).
-    /// Espera la primera línea de stdout y el final del proceso (hasta `timeout_ms`; si se pasa, lo termina).
+    /// Runs `cmdline` in the AppContainer. `on_start` receives the pid (so it can be stopped).
+    /// Waits for the first stdout line and the end of the process (up to `timeout_ms`; past that, kills it).
     pub fn run_sandboxed(cmdline: &str, timeout_ms: u32, on_start: impl FnOnce(u32)) -> windows::core::Result<Output> {
         unsafe {
             let app_sid = container_sid()?;
@@ -88,7 +88,7 @@ mod imp {
                 Reserved: 0,
             };
 
-            // Tubería para leer el stdout del verificador (solo el extremo de escritura es heredable)
+            // Pipe to read the verifier's stdout (only the write end is inheritable)
             let sa = SECURITY_ATTRIBUTES {
                 nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
                 bInheritHandle: true.into(),
@@ -98,7 +98,7 @@ mod imp {
             CreatePipe(&mut read, &mut write, Some(&sa), 0)?;
             SetHandleInformation(read, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))?;
 
-            // Atributos: capacidades del contenedor + lista EXPLÍCITA de handles heredados (solo `write`)
+            // Attributes: container capabilities + EXPLICIT list of inherited handles (only `write`)
             let mut size = 0usize;
             let _ = InitializeProcThreadAttributeList(LPPROC_THREAD_ATTRIBUTE_LIST::default(), 2, 0, &mut size);
             let mut buf = vec![0u8; size];
@@ -159,7 +159,7 @@ mod imp {
             on_start(pi.dwProcessId);
 
             let mut line = String::new();
-            // Límite de lectura: el verificador solo puede devolver una línea corta.
+            // Read limit: the verifier can only return a short line.
             let _ = BufReader::new(std::io::Read::take(File::from_raw_handle(read.0 as _), 4096)).read_line(&mut line);
             if WaitForSingleObject(pi.hProcess, timeout_ms) == WAIT_TIMEOUT {
                 let _ = TerminateProcess(pi.hProcess, 1);

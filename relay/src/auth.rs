@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Autenticación, anti-repetición y límite de peticiones 🔒.
+//! Autenticación, anti-repetición y límite de peticiones (security-critical).
 
 use std::collections::HashMap;
 use std::sync::Mutex;

@@ -2,37 +2,37 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Filtro DNS del modo familiar 🔒. Las plataformas solo mueven paquetes (Windows: 127.0.0.1:53;
-//! Android: VPN local); QUÉ se responde se decide aquí, igual en todas.
+//! Family-mode DNS filter (security-critical). The platforms only move packets (Windows: 127.0.0.1:53;
+//! Android: local VPN); WHAT gets answered is decided here, the same everywhere.
 //!
-//! 🔒 Privacidad: nada de lo que pasa por aquí se guarda ni se registra. Solo se cuenta, en memoria,
-//! cuántos sitios distintos se bloquearon por categoría (api.rs registra el número una vez al día).
+//! SECURITY: Privacy: nothing that passes through here is stored or logged. Only how many distinct
+//! sites were blocked per category is counted, in memory (api.rs records the number once a day).
 
 use std::collections::HashSet;
 
 use hickory_proto::op::{Message, MessageType, OpCode, Query, ResponseCode};
 use hickory_proto::rr::{Name, RData, Record, RecordType};
 
-/// Dominios que siempre deben resolverse (si no, el teléfono o el PC dejan de funcionar).
-/// El relay del perfil se añade aparte (api.rs). Ampliar con cuidado y con revisión.
-/// ponytail: lista mínima; se afina con el uso real en dispositivo (pruebas de la Fase 3).
+/// Domains that must always resolve (otherwise the phone or the PC stops working).
+/// The profile's relay is added separately (api.rs). Extend carefully and with review.
+/// ponytail: minimal list; refined with real on-device use (family-mode tests).
 pub const ESSENTIAL_DOMAINS: &[&str] = &[
     "whatsapp.com",
     "whatsapp.net",
-    "wa.me", // mensajería esencial
+    "wa.me", // essential messaging
     "accounts.google.com",
-    "login.microsoftonline.com", // inicio de sesión en plataformas de estudio
+    "login.microsoftonline.com", // sign-in for study platforms
     "mtalk.google.com",
-    "android.clients.google.com", // notificaciones (FCM)
+    "android.clients.google.com", // notifications (FCM)
     "fcm.googleapis.com",
     "android.googleapis.com",
     "time.android.com",
-    "time.windows.com", // hora automática
+    "time.windows.com", // automatic time
     "connectivitycheck.gstatic.com",
-    "msftconnecttest.com", // detección de conectividad
+    "msftconnecttest.com", // connectivity check
 ];
 
-/// Reescrituras para forzar búsquedas seguras (nombre exacto → destino). Google: ver `safe_target`.
+/// Rewrites that force safe search (exact name → target). Google: see `safe_target`.
 const SAFE: &[(&str, &str)] = &[
     ("www.youtube.com", "restrict.youtube.com"),
     ("youtube.com", "restrict.youtube.com"),
@@ -48,15 +48,15 @@ const SAFE: &[(&str, &str)] = &[
 
 const GOOGLE_SAFE: &str = "forcesafesearch.google.com";
 
-/// TTL máximo de las respuestas: al acabar un permiso, las IP ya resueltas caducan en 1 minuto.
+/// Maximum TTL of answers: when a pass ends, already resolved IPs expire within 1 minute.
 const MAX_TTL: u32 = 60;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilterMode {
     Off,
-    /// Solo esenciales + la lista dada.
+    /// Only essentials + the given list.
     Allowlist(Vec<String>),
-    /// Todo menos las categorías prohibidas.
+    /// Everything except the forbidden categories.
     Categories,
 }
 
@@ -71,12 +71,12 @@ pub fn normalize(domain: &str) -> String {
     domain.trim().trim_end_matches('.').to_ascii_lowercase()
 }
 
-/// ¿`domain` es `entry` o un subdominio suyo?
+/// Is `domain` equal to `entry` or one of its subdomains?
 pub fn matches(domain: &str, entry: &str) -> bool {
     !entry.is_empty() && (domain == entry || domain.strip_suffix(entry).is_some_and(|rest| rest.ends_with('.')))
 }
 
-/// Destino de búsqueda segura: google.<país> y www.google.<país> (google.com.mx, google.es…) + `SAFE`.
+/// Safe-search target: google.<country> and www.google.<country> (google.com.mx, google.es…) + `SAFE`.
 fn safe_target(domain: &str) -> Option<&'static str> {
     let bare = domain.strip_prefix("www.").unwrap_or(domain);
     if let Some(tld) = bare.strip_prefix("google.")
@@ -89,13 +89,13 @@ fn safe_target(domain: &str) -> Option<&'static str> {
     SAFE.iter().find(|(from, _)| *from == domain).map(|(_, to)| *to)
 }
 
-/// Conjunto de dominios prohibidos por categoría, cargado de una lista firmada (api.rs verifica la firma).
-/// ponytail: HashSet en memoria (≈ 6 MB con 200 000 dominios); si crece, filtro de Bloom o FST.
+/// Set of domains forbidden by category, loaded from a signed list (api.rs verifies the signature).
+/// ponytail: in-memory HashSet (≈ 6 MB with 200,000 domains); if it grows, a Bloom filter or FST.
 #[derive(Default)]
 pub struct CategorySet(HashSet<String>);
 
 impl CategorySet {
-    /// Formato: primera línea "procastinacioff-categories v1", luego un dominio por línea ("#" = comentario).
+    /// Format: first line "procastinacioff-categories v1", then one domain per line ("#" = comment).
     pub fn parse(text: &str) -> Option<Self> {
         let mut lines = text.lines();
         if lines.next()?.trim() != "procastinacioff-categories v1" {
@@ -112,7 +112,7 @@ impl CategorySet {
         self.0.is_empty()
     }
 
-    /// Comprueba el dominio y todos sus padres (a.b.c.com → b.c.com → c.com).
+    /// Checks the domain and all its parents (a.b.c.com → b.c.com → c.com).
     pub fn contains(&self, domain: &str) -> bool {
         let mut d = domain;
         loop {
@@ -144,9 +144,9 @@ pub fn decide(domain: &str, mode: &FilterMode, categories: &CategorySet) -> Deci
 }
 
 pub enum DnsStep {
-    /// Respuesta lista para devolver al cliente.
+    /// Answer ready to return to the client.
     Reply(Vec<u8>),
-    /// Enviar este paquete al DNS real y pasar la respuesta a `finish`.
+    /// Send this packet to the real DNS and pass the answer to `finish`.
     Upstream { packet: Vec<u8>, rewritten: bool },
 }
 
@@ -159,8 +159,8 @@ fn reply_to(req: &Message, code: ResponseCode) -> Message {
     r
 }
 
-/// "Sitio" de un nombre para contarlo una vez: sus dos últimas etiquetas (cdn.x.com → x.com).
-/// ponytail: aproximación (x.co.uk cuenta como co.uk); solo sirve para un número, nunca se guarda.
+/// "Site" of a name, to count it once: its last two labels (cdn.x.com → x.com).
+/// ponytail: approximation (x.co.uk counts as co.uk); only feeds a number, never stored.
 fn site(domain: &str) -> &str {
     match domain.rmatch_indices('.').nth(1) {
         Some((i, _)) => &domain[i + 1..],
@@ -168,8 +168,8 @@ fn site(domain: &str) -> &str {
     }
 }
 
-/// Primer paso: decide qué hacer con una consulta. `None` = paquete inválido (se descarta).
-/// `blocked_sites`: sitios distintos bloqueados POR CATEGORÍA hoy (en memoria; solo se registra el número).
+/// First step: decides what to do with a query. `None` = invalid packet (dropped).
+/// `blocked_sites`: distinct sites blocked BY CATEGORY today (in memory; only the number is recorded).
 pub fn step(
     query: &[u8],
     mode: &FilterMode,
@@ -184,7 +184,7 @@ pub fn step(
         return None;
     }
     let q = req.queries.first()?.clone();
-    // Sin registros HTTPS/SVCB → el navegador no usa ECH y el nombre del sitio sigue visible para las demás capas
+    // No HTTPS/SVCB records → the browser does not use ECH and the site name stays visible to the other layers
     if *mode != FilterMode::Off && matches!(q.query_type(), RecordType::HTTPS | RecordType::SVCB) {
         return Some(DnsStep::Reply(reply_to(&req, ResponseCode::NoError).to_vec().ok()?));
     }
@@ -206,11 +206,11 @@ pub fn step(
     }
 }
 
-/// Segundo paso: la respuesta final. Descarta respuestas que no son de esta consulta (otro id).
-/// Si hubo reescritura, devuelve las IP del destino seguro con el nombre que pidió el cliente.
-/// En todo caso el TTL se limita a `MAX_TTL` (el estado del día cambia; la caché no debe durar horas).
-/// ponytail: sin reescritura, los CNAME del DNS real no se siguen (uno hacia un dominio prohibido
-/// pasaría); las capas de navegador y de apps cubren ese caso.
+/// Second step: the final answer. Drops answers that are not for this query (other id).
+/// If there was a rewrite, returns the safe target's IPs under the name the client asked for.
+/// In any case the TTL is capped at `MAX_TTL` (the day state changes; the cache must not last hours).
+/// ponytail: without a rewrite, the real DNS's CNAMEs are not followed (one pointing to a forbidden
+/// domain would pass); the browser and app layers cover that case.
 pub fn finish(original_query: &[u8], upstream_reply: &[u8], rewritten: bool) -> Option<Vec<u8>> {
     if upstream_reply.len() < 12 || original_query.get(..2) != upstream_reply.get(..2) {
         return None;
@@ -254,11 +254,11 @@ mod tests {
     fn allowlist_mode() {
         let m = FilterMode::Allowlist(vec!["udemy.com".into()]);
         assert_eq!(decide("www.udemy.com.", &m, &cats()), Decision::Allow);
-        assert_eq!(decide("udemy.com.evil.net", &m, &cats()), Decision::Block); // no es subdominio
+        assert_eq!(decide("udemy.com.evil.net", &m, &cats()), Decision::Block); // not a subdomain
         assert_eq!(decide("evil-udemy.com", &m, &cats()), Decision::Block);
-        assert_eq!(decide("web.whatsapp.com", &m, &cats()), Decision::Allow); // esencial
+        assert_eq!(decide("web.whatsapp.com", &m, &cats()), Decision::Allow); // essential
         assert_eq!(decide("facebook.com", &m, &cats()), Decision::Block);
-        // Un sitio permitido que es un buscador sigue con búsqueda segura
+        // An allowed site that is a search engine still gets safe search
         let g = FilterMode::Allowlist(vec!["google.com".into()]);
         assert_eq!(decide("www.google.com", &g, &cats()), Decision::Rewrite(GOOGLE_SAFE));
     }
@@ -291,14 +291,14 @@ mod tests {
         for name in ["a.example-adult.com", "b.example-adult.com"] {
             let Some(DnsStep::Reply(r)) = step(&query(name, RecordType::A), &FilterMode::Categories, &cats(), &mut b)
             else {
-                panic!("debía bloquearse")
+                panic!("should have been blocked")
             };
             let r = Message::from_vec(&r).unwrap();
             assert_eq!((r.metadata.id, r.metadata.response_code), (0x1234, ResponseCode::NXDomain));
             assert_eq!(r.queries[0].name().to_ascii(), format!("{name}."));
         }
         assert_eq!(b.len(), 1);
-        // En lista blanca (BLOQUEADO/ENFOQUE) bloquear es lo normal: no cuenta
+        // On an allowlist (LOCKED/FOCUS) blocking is the norm: it does not count
         step(&query("x.com", RecordType::A), &FilterMode::Allowlist(vec![]), &cats(), &mut b);
         assert_eq!(b.len(), 1);
     }
@@ -322,11 +322,11 @@ mod tests {
         let q = query("www.google.com", RecordType::A);
         let Some(DnsStep::Upstream { packet, rewritten: true }) = step(&q, &FilterMode::Categories, &cats(), &mut b)
         else {
-            panic!("debía reescribirse")
+            panic!("should have been rewritten")
         };
         let up = Message::from_vec(&packet).unwrap();
         assert_eq!(up.queries[0].name().to_ascii(), "forcesafesearch.google.com.");
-        // Respuesta simulada del DNS real
+        // Simulated answer from the real DNS
         let mut ans = up.clone();
         ans.metadata.message_type = MessageType::Response;
         let safe_name = up.queries[0].name().clone();
@@ -337,10 +337,10 @@ mod tests {
         assert_eq!(out.answers.len(), 1);
         assert_eq!(out.answers[0].name.to_ascii(), "www.google.com.");
         assert_eq!(out.answers[0].ttl, MAX_TTL);
-        // Sin reescritura, la respuesta pasa con el TTL limitado
+        // Without a rewrite, the answer passes with a capped TTL
         let plain = finish(&packet, &ans.to_vec().unwrap(), false).unwrap();
         assert_eq!(Message::from_vec(&plain).unwrap().answers[0].ttl, MAX_TTL);
-        // Una respuesta con otro id (inyectada desde la red) se descarta
+        // An answer with another id (injected from the network) is dropped
         let mut forged = ans.clone();
         forged.metadata.id = 1;
         assert!(finish(&q, &forged.to_vec().unwrap(), true).is_none());

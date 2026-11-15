@@ -59,7 +59,7 @@ impl Apns {
             return Err("token APNs inválido".into());
         }
         let host = if sandbox { "api.sandbox.push.apple.com" } else { "api.push.apple.com" };
-        // 🔒 El texto visible es genérico: el contenido real lo descifra la
+        // SECURITY: El texto visible es genérico: el contenido real lo descifra la
         // Notification Service Extension en el iPhone (Fase 4).
         let (push_type, priority, payload) = if urgent {
             (

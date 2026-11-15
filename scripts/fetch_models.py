@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Descarga los modelos del verificador Android fijados en android/verifier/models.lock y comprueba
-su SHA-256. Un modelo con otro hash NO se guarda. Los modelos no se suben al repositorio.
+"""Downloads the Android verifier models pinned in android/verifier/models.lock and checks
+their SHA-256. A model with a different hash is NOT saved. Models are not committed to the repository.
 
-Uso: python scripts/fetch_models.py
+Usage: python scripts/fetch_models.py
 """
 import hashlib
 import pathlib
@@ -25,17 +25,17 @@ def entries():
 def main() -> int:
     items = list(entries())
     if not items:
-        print("models.lock no fija ningún modelo todavía (spike E).")
+        print("models.lock does not pin any model yet (spike E).")
         return 0
     DEST.mkdir(parents=True, exist_ok=True)
     for sha, name, url in items:
         if not url.startswith("https://"):
-            print(f"{name}: solo https")
+            print(f"{name}: https only")
             return 1
         data = urllib.request.urlopen(url, timeout=60).read()
         got = hashlib.sha256(data).hexdigest()
         if got != sha:
-            print(f"{name}: hash distinto ({got}); NO se guarda")
+            print(f"{name}: different hash ({got}); NOT saved")
             return 1
         (DEST / name).write_bytes(data)
         print(f"{name}: OK")

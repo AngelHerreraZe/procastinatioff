@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Filtro web del PC de un menor (07b · §2) 🔒. Capas:
-//! 2. DNS local (`netfilter`) con la política del núcleo; las tarjetas de red apuntan a 127.0.0.1.
-//! 3. Firewall: sin DNS cifrado externo (DoT y DoH públicos conocidos).
+//! Web filter on a minor's PC (security-critical). Layers:
+//! 2. Local DNS (`netfilter`) with the core's policy; network adapters point to 127.0.0.1.
+//! 3. Firewall: no external encrypted DNS (known public DoT and DoH).
 //!
-//! Límite honesto: con el Firewall de Windows no se puede bloquear el puerto 53 "para todos menos
-//! nuestro servicio" (el bloqueo gana al permiso); consultar directamente el DNS del router sigue siendo
-//! posible. ponytail: filtros WFP con permiso de mayor peso para el agente si el pentest lo explota.
+//! Honest limit: the Windows Firewall cannot block port 53 "for everyone except
+//! our service" (block wins over allow); querying the router's DNS directly is still
+//! possible. ponytail: WFP filters with a higher-weight permit for the agent if the pentest exploits it.
 
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
@@ -22,7 +22,7 @@ use procastinacioff_core::model::Role;
 
 use crate::clock::now_clock;
 
-/// Resolutores DoH públicos conocidos (ampliar con la lista mantenida en el repositorio).
+/// Known public DoH resolvers (extend with the list maintained in the repository).
 const DOH_IPS: &str = "1.1.1.1,1.0.0.1,8.8.8.8,8.8.4.4,9.9.9.9,149.112.112.112,94.140.14.14,94.140.15.15,\
 208.67.222.222,208.67.220.220,2606:4700:4700::1111,2606:4700:4700::1001,2001:4860:4860::8888,\
 2001:4860:4860::8844,2620:fe::fe";
@@ -40,7 +40,7 @@ fn netsh(args: &[&str]) {
     let _ = Command::new("netsh").args(args).output();
 }
 
-/// DNS actuales de la red (excepto el nuestro). Se llama ANTES de apuntar las tarjetas a 127.0.0.1.
+/// Current DNS servers of the network (except ours). Called BEFORE pointing the adapters to 127.0.0.1.
 fn current_upstreams() -> Vec<IpAddr> {
     ps("Get-DnsClientServerAddress | ForEach-Object { $_.ServerAddresses }")
         .unwrap_or_default()
@@ -50,10 +50,10 @@ fn current_upstreams() -> Vec<IpAddr> {
         .collect()
 }
 
-/// DNS reales a los que se reenvían las consultas permitidas: los de la red al activar el filtro.
-/// Se guardan en `upstream.txt` la primera vez (después las tarjetas ya apuntan a nosotros).
-/// ponytail: si el equipo cambia de red, se usan los DNS guardados; si no responden, falla la
-/// resolución y se nota en las pruebas (mejora: leer el DNS del DHCP de cada red).
+/// Real DNS servers that allowed queries are forwarded to: the network's when the filter is enabled.
+/// Saved in `upstream.txt` the first time (afterwards the adapters already point to us).
+/// ponytail: if the computer changes network, the saved DNS servers are used; if they do not answer,
+/// resolution fails and shows up in testing (improvement: read each network's DHCP DNS).
 fn upstreams(data_dir: &Path) -> Vec<SocketAddr> {
     let file = data_dir.join("upstream.txt");
     if !file.exists() {
@@ -120,7 +120,7 @@ fn firewall_remove() {
     }
 }
 
-/// Deshace todo: DNS por DHCP y sin reglas. Lo llama el desinstalador (`agent restore-dns`).
+/// Undoes everything: DNS via DHCP and no rules. Called by the uninstaller (`agent restore-dns`).
 pub fn restore(data_dir: &Path) {
     let _ = ps(
         "Get-NetAdapter | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ResetServerAddresses }; \
@@ -130,12 +130,12 @@ pub fn restore(data_dir: &Path) {
     let _ = std::fs::remove_file(data_dir.join("upstream.txt"));
 }
 
-/// Arranca el servidor DNS en un runtime propio (127.0.0.1:53 y [::1]:53).
+/// Starts the DNS server on its own runtime (127.0.0.1:53 and [::1]:53).
 fn start_dns(core: Arc<Core>, upstreams: Vec<SocketAddr>) {
     std::thread::spawn(move || {
         let rt = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
             Ok(rt) => rt,
-            Err(e) => return tracing::error!(error = %e, "sin runtime para el DNS local"),
+            Err(e) => return tracing::error!(error = %e, "no runtime for the local DNS"),
         };
         rt.block_on(async move {
             let clock_core = core.clone();
@@ -149,21 +149,21 @@ fn start_dns(core: Arc<Core>, upstreams: Vec<SocketAddr>) {
                         upstreams.clone(),
                         clock.clone(),
                     ))),
-                    // Otro programa (p. ej. "Conexión compartida a Internet") ocupa el puerto 53.
-                    Err(e) => tracing::error!(error = %e, "no se pudo abrir el puerto 53"),
+                    // Another program (e.g. "Internet Connection Sharing") holds port 53.
+                    Err(e) => tracing::error!(error = %e, "could not open port 53"),
                 }
             }
             for t in tasks {
                 if let Ok(Err(e)) = t.await {
-                    tracing::error!(error = %e, "el DNS local se detuvo");
+                    tracing::error!(error = %e, "the local DNS stopped");
                 }
             }
         });
     });
 }
 
-/// Cada minuto: si este PC es de un menor, activa (una vez) el DNS local y el firewall, vuelve a
-/// apuntar las tarjetas cada 5 min (otra red, cambios a mano) y renueva la lista de categorías a diario.
+/// Every minute: if this PC belongs to a minor, enables (once) the local DNS and the firewall, re-points
+/// the adapters every 5 min (another network, manual changes) and refreshes the category list daily.
 pub fn run(core: Arc<Core>, data_dir: std::path::PathBuf, stop: Arc<AtomicBool>) {
     let mut started = false;
     let (mut next_point, mut next_list) = (Instant::now(), Instant::now());
@@ -173,7 +173,7 @@ pub fn run(core: Arc<Core>, data_dir: std::path::PathBuf, stop: Arc<AtomicBool>)
                 start_dns(core.clone(), upstreams(&data_dir));
                 firewall_apply();
                 started = true;
-                tracing::info!("filtro web del modo familiar activo");
+                tracing::info!("family-mode web filter active");
             }
             if Instant::now() >= next_point {
                 point_to_local();
@@ -183,7 +183,7 @@ pub fn run(core: Arc<Core>, data_dir: std::path::PathBuf, stop: Arc<AtomicBool>)
                 let wait = match core.refresh_category_list() {
                     Ok(_) => LIST_EVERY,
                     Err(e) => {
-                        tracing::warn!(error = %e, "lista de categorías no actualizada");
+                        tracing::warn!(error = %e, "category list not updated");
                         LIST_RETRY
                     }
                 };

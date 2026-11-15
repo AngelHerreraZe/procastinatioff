@@ -4,16 +4,16 @@ import android.app.NotificationManager
 import android.content.Context
 
 /**
- * DORMIR: solo llamadas de cualquiera. Al despertar se restaura el filtro previo del usuario.
- * ⚠️ Android 15 + targetSdk 35: setInterruptionFilter crea una AutomaticZenRule a nombre de la app;
- * verificar en Pixel y Samsung (spike B).
+ * SLEEP: only calls from anyone. On waking up the user's previous filter is restored.
+ * VERIFY: Android 15 + targetSdk 35: setInterruptionFilter creates an AutomaticZenRule in the app's name;
+ * check on Pixel and Samsung (spike B).
  */
 object DndController {
     private const val PREFS = "dnd"
 
     fun apply(context: Context, sleeping: Boolean) {
         val nm = context.getSystemService(NotificationManager::class.java)
-        if (!nm.isNotificationPolicyAccessGranted) return // el onboarding pide este permiso
+        if (!nm.isNotificationPolicyAccessGranted) return // onboarding asks for this permission
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (sleeping) {
             if (!prefs.contains("previous")) prefs.edit().putInt("previous", nm.currentInterruptionFilter).apply()

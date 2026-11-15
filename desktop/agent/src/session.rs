@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Lanza la UI en la sesión del usuario (el servicio vive en la sesión 0, sin pantalla).
+//! Launches the UI in the user's session (the service lives in session 0, without a screen).
 
 use std::path::Path;
 
@@ -15,12 +15,12 @@ use windows::Win32::System::Threading::{
 };
 use windows::core::{PCWSTR, PWSTR};
 
-/// Inicia `exe args` como el usuario de la sesión de consola activa.
+/// Starts `exe args` as the user of the active console session.
 pub fn spawn_in_active_session(exe: &Path, args: &str) -> windows::core::Result<()> {
     unsafe {
         let session = WTSGetActiveConsoleSessionId();
         if session == u32::MAX {
-            return Ok(()); // nadie ha iniciado sesión
+            return Ok(()); // nobody is signed in
         }
         let mut user_token = HANDLE::default();
         WTSQueryUserToken(session, &mut user_token)?;

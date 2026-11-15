@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Vinculación por QR 🔒. La clave efímera solo viaja en el QR (el relay nunca la ve);
-//! un código de 6 dígitos comparado en ambas pantallas evita el MITM.
+//! QR pairing (security-critical). The ephemeral key only travels in the QR (the relay never sees it);
+//! a 6-digit code compared on both screens prevents MITM.
 
 use std::io::{Read, Write};
 
@@ -20,9 +20,9 @@ pub struct PairingOffer {
     pub relay: String,
     pub mailbox: String,
     pub token: String,
-    /// Destinatario age efímero (solo existe en el QR).
+    /// Ephemeral age recipient (exists only in the QR).
     pub eph: String,
-    /// ID del dispositivo que invita (único génesis aceptable para B).
+    /// ID of the inviting device (the only genesis B accepts).
     pub inviter: String,
 }
 
@@ -39,7 +39,7 @@ pub struct PendingPairing {
     pub joiner: Option<JoinRequest>,
 }
 
-/// Código de 6 dígitos que ambos dispositivos calculan por separado.
+/// 6-digit code that both devices compute separately.
 pub fn sas(offer: &PairingOffer, joiner: &JoinRequest) -> String {
     let d = Sha256::new()
         .chain_update(b"procastinacioff/sas/v1\n")
@@ -61,9 +61,9 @@ fn is_hex(s: &str, len: usize) -> bool {
 
 pub fn parse_offer(qr: &str) -> Result<PairingOffer, CoreError> {
     if qr.len() > 2048 {
-        return Err(CoreError::protocol("QR demasiado grande"));
+        return Err(CoreError::protocol("QR too large"));
     }
-    let o: PairingOffer = serde_json::from_str(qr).map_err(|_| CoreError::protocol("QR inválido"))?;
+    let o: PairingOffer = serde_json::from_str(qr).map_err(|_| CoreError::protocol("invalid QR"))?;
     let relay_ok = o.relay.starts_with("https://")
         || o.relay.starts_with("http://127.0.0.1")
         || o.relay.starts_with("http://localhost");
@@ -73,14 +73,14 @@ pub fn parse_offer(qr: &str) -> Result<PairingOffer, CoreError> {
         || !is_hex(&o.mailbox, 32)
         || procastinacioff_proto::parse_key(&o.inviter).is_none()
     {
-        return Err(CoreError::protocol("QR inválido"));
+        return Err(CoreError::protocol("invalid QR"));
     }
-    o.eph.parse::<age::x25519::Recipient>().map_err(|_| CoreError::protocol("QR inválido"))?;
+    o.eph.parse::<age::x25519::Recipient>().map_err(|_| CoreError::protocol("invalid QR"))?;
     Ok(o)
 }
 
 pub fn seal_join(req: &JoinRequest, eph: &str) -> Result<Vec<u8>, CoreError> {
-    let r: age::x25519::Recipient = eph.parse().map_err(|_| CoreError::protocol("clave efímera inválida"))?;
+    let r: age::x25519::Recipient = eph.parse().map_err(|_| CoreError::protocol("invalid ephemeral key"))?;
     let enc = age::Encryptor::with_recipients(std::iter::once(&r as &dyn age::Recipient)).map_err(CoreError::crypto)?;
     let mut out = Vec::new();
     let mut w = enc.wrap_output(&mut out).map_err(CoreError::crypto)?;
@@ -96,9 +96,9 @@ pub fn open_join(blob: &[u8], eph: &age::x25519::Identity) -> Result<JoinRequest
     r.by_ref().take(4096).read_to_end(&mut buf).map_err(CoreError::crypto)?;
     let req: JoinRequest = serde_json::from_slice(&buf).map_err(CoreError::protocol)?;
     if procastinacioff_proto::parse_key(&req.device_id).is_none() || req.label.chars().count() > MAX_LABEL_CHARS {
-        return Err(CoreError::protocol("solicitud de vinculación inválida"));
+        return Err(CoreError::protocol("invalid pairing request"));
     }
-    req.age_recipient.parse::<age::x25519::Recipient>().map_err(|_| CoreError::protocol("destinatario inválido"))?;
+    req.age_recipient.parse::<age::x25519::Recipient>().map_err(|_| CoreError::protocol("invalid recipient"))?;
     Ok(req)
 }
 

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! La frontera de datos del verificador: lo ÚNICO que sale de él.
+//! The verifier's data boundary: the ONLY thing that leaves it.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum VMethod {
@@ -13,7 +13,7 @@ pub enum VMethod {
     PoseReps,
 }
 
-/// Tamaño fijo: sin bytes, sin texto libre (el id de meta se valida).
+/// Fixed size: no bytes, no free text (the goal id is validated).
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct VerificationResult {
     pub goal_id: String,
@@ -23,7 +23,7 @@ pub struct VerificationResult {
     pub minutes: u16,
 }
 
-/// Valida el id de meta (corto y sin texto libre) antes de emitir un resultado.
+/// Validates the goal id (short and without free text) before emitting a result.
 pub fn make_result(
     goal_id: &str,
     method: VMethod,
@@ -43,8 +43,8 @@ mod tests {
 
     #[test]
     fn free_text_cannot_leave_through_the_goal_id() {
-        assert!(make_result("leer-30", VMethod::Summary, true, 250, 0).is_some_and(|r| r.score == 100));
-        assert!(make_result("Hoy leí sobre mi vida privada", VMethod::Summary, true, 90, 0).is_none());
+        assert!(make_result("read-30", VMethod::Summary, true, 250, 0).is_some_and(|r| r.score == 100));
+        assert!(make_result("Today I read about my private life", VMethod::Summary, true, 90, 0).is_none());
         assert!(make_result(&"a".repeat(33), VMethod::Summary, true, 90, 0).is_none());
         assert!(make_result("", VMethod::Summary, true, 90, 0).is_none());
     }

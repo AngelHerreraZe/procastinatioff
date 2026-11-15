@@ -1,0 +1,437 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ asks: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ pide: %@"
+          }
+        }
+      }
+    },
+    "%lld more min today": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld min más hoy"
+          }
+        }
+      }
+    },
+    "Adding apps relaxes your rules: it takes effect tomorrow when you wake up.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir apps relaja tus reglas: rige desde mañana al despertar."
+          }
+        }
+      }
+    },
+    "Allow %@ during focus": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir %@ en el enfoque"
+          }
+        }
+      }
+    },
+    "Bedtime": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hora de dormir"
+          }
+        }
+      }
+    },
+    "Calls keep working.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las llamadas siguen funcionando."
+          }
+        }
+      }
+    },
+    "During focus only that task's apps are available.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durante el enfoque solo están disponibles las apps de esa tarea."
+          }
+        }
+      }
+    },
+    "Got it": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entendido"
+          }
+        }
+      }
+    },
+    "No connection with your other devices. It will retry.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin conexión con tus otros dispositivos. Se reintentará."
+          }
+        }
+      }
+    },
+    "Only your guardian can add apps, when setting up this iPhone. You can ask them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir apps solo lo puede hacer tu tutor al configurar este iPhone. Puedes pedírselo."
+          }
+        }
+      }
+    },
+    "Open ProcastinaciOFF": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ProcastinaciOFF"
+          }
+        }
+      }
+    },
+    "Open ProcastinaciOFF to see what's left or use a pass.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre ProcastinaciOFF para ver qué te falta o usar un permiso."
+          }
+        }
+      }
+    },
+    "Rest day today": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Día de descanso hoy"
+          }
+        }
+      }
+    },
+    "Saved.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardado."
+          }
+        }
+      }
+    },
+    "Sleep %lld min later (changes the schedule)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dormir %lld min más tarde (cambia el horario)"
+          }
+        }
+      }
+    },
+    "Something went wrong. Please try again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo falló. Inténtalo de nuevo."
+          }
+        }
+      }
+    },
+    "Tap here to see your goals or use a pass.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca aquí para ver tus metas o usar un permiso."
+          }
+        }
+      }
+    },
+    "There are alerts from the person you support": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay avisos de la persona a la que acompañas"
+          }
+        }
+      }
+    },
+    "There is news from your other device": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay novedades de tu otro dispositivo"
+          }
+        }
+      }
+    },
+    "Time for your task": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora toca tu tarea"
+          }
+        }
+      }
+    },
+    "You haven't met your goals yet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no cumples tus metas"
+          }
+        }
+      }
+    },
+    "denied.already_completed": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa meta ya está cumplida."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That goal is already done."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.cooldown": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera %lld min antes del siguiente permiso."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait %lld min before the next pass."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.guardian_only": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo tu tutor puede relajar las reglas; puedes pedírselo."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only your guardian can relax the rules; you can ask them."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.invalid_domain": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa no es una dirección web válida."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That is not a valid website address."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.invalid_plan": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El plan tiene metas incompletas."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The plan has incomplete goals."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.method_not_allowed": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese método no se acepta para esta meta."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That method is not accepted for this goal."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.no_key_goal": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El plan necesita al menos una meta que desbloquee."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The plan needs at least one goal that unlocks."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.no_permits_left": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No quedan permisos hoy."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No passes left today."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.not_configured": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay configuración."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no configuration yet."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.plan_laxer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El plan de hoy solo se puede endurecer."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today's plan can only be made stricter."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.too_many_requests": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya tienes varias solicitudes esperando respuesta."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You already have several requests waiting for an answer."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.unknown_goal": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meta desconocida o inactiva hoy."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown goal, or not active today."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.wrong_state": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No disponible en este momento."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available right now."
+          }
+        }
+      },
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

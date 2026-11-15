@@ -5,12 +5,12 @@
 import Foundation
 import Security
 
-/// Acceso único a los núcleos Rust (app y extensión de avisos). Todos comparten las claves del iPhone:
-/// - core.db: el perfil de este iPhone (propio, o el del menor si es su iPhone).
-/// - partner.db / watching.db: buzones de compañero (Fase 2).
-/// - family-<id>.db: (tutor) un perfil por cada menor que administro. Nunca bloquean ESTE iPhone.
-/// Las bases viven en el App Group con la protección por defecto (`completeUntilFirstUserAuthentication`):
-/// la extensión de avisos las abre de noche con el iPhone bloqueado.
+/// Single access point to the Rust cores (app and notification extension). They all share the iPhone's keys:
+/// - core.db: this iPhone's profile (its own, or the minor's if it is their iPhone).
+/// - partner.db / watching.db: partner mailboxes.
+/// - family-<id>.db: (guardian) one profile per minor I manage. They never block THIS iPhone.
+/// The databases live in the App Group with the default protection (`completeUntilFirstUserAuthentication`):
+/// the notification extension opens them at night with the iPhone locked.
 enum CoreHolder {
     private static let lock = NSLock()
     private static var cores: [String: Core] = [:]
@@ -24,7 +24,7 @@ enum CoreHolder {
         defer { lock.unlock() }
         if let c = cores[file] { return c }
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.id) else {
-            throw CoreError.Storage(msg: "sin App Group")
+            throw CoreError.Storage(msg: "no App Group")
         }
         let c = try Core.open(dbPath: dir.appendingPathComponent(file).path, secrets: KeychainSecretStore(accessGroup: keychainGroup))
         cores[file] = c
@@ -35,7 +35,7 @@ enum CoreHolder {
     static func partnerBox() throws -> Core { try open("partner.db") }
     static func watchingBox() throws -> Core { try open("watching.db") }
 
-    /// El buzón solo cuenta si ya se creó o se unió (no se abre una base vacía por curiosidad).
+    /// The mailbox only counts if it was created or joined (an empty database is never opened out of curiosity).
     static func existing(_ file: String) -> Core? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.id),
               FileManager.default.fileExists(atPath: dir.appendingPathComponent(file).path),
@@ -45,7 +45,7 @@ enum CoreHolder {
 
     static func family(_ id: String) throws -> Core {
         guard id.range(of: "^[0-9a-f]{16}$", options: .regularExpression) != nil else {
-            throw CoreError.Protocol(msg: "id de perfil inválido")
+            throw CoreError.Protocol(msg: "invalid profile id")
         }
         return try open("family-\(id).db")
     }
@@ -53,7 +53,7 @@ enum CoreHolder {
     static func clock() -> Clock { CoreClock.now(try? shared()) }
 }
 
-/// (Tutor) Perfiles de menores: id → nombre. Solo en este iPhone; el nombre nunca sale de aquí.
+/// (Guardian) Minors' profiles: id → name. Only on this iPhone; the name never leaves it.
 enum FamilyProfiles {
     private static let key = "family-profiles"
     private static var defaults: UserDefaults? { UserDefaults(suiteName: AppGroup.id) }
@@ -66,7 +66,7 @@ enum FamilyProfiles {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Se registra solo cuando el perfil ya existe en el núcleo.
+    /// Registered only once the profile exists in the core.
     static func save(id: String, name: String) {
         var all = all()
         all[id] = String(name.prefix(64))
@@ -77,10 +77,10 @@ enum FamilyProfiles {
 enum Texts {
     static func describe(_ what: RequestKind) -> String {
         switch what {
-        case .extraPermit(let minutes): return "\(minutes) min más hoy"
-        case .addSite(let domain): return "Permitir \(domain) en el enfoque"
-        case .laterBedtime(let minutes): return "Dormir \(minutes) min más tarde (cambia el horario)"
-        case .restDay: return "Día de descanso hoy"
+        case .extraPermit(let minutes): return String(localized: "\(Int(minutes)) more min today")
+        case .addSite(let domain): return String(localized: "Allow \(domain) during focus")
+        case .laterBedtime(let minutes): return String(localized: "Sleep \(Int(minutes)) min later (changes the schedule)")
+        case .restDay: return String(localized: "Rest day today")
         }
     }
 }

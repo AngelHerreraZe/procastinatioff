@@ -1,4 +1,4 @@
-# Una sola librería estática para iOS y macOS (08 · Paso 1).
+# A single static library for iOS and macOS.
 [package]
 name = "procastinacioff-apple"
 version = "0.1.0"

@@ -1,11 +1,11 @@
-// 🔒 Verificador: tiene CAMERA y RECORD_AUDIO y NO tiene INTERNET (Android le niega la red).
+// SECURITY: Verifier: has CAMERA and RECORD_AUDIO and does NOT have INTERNET (Android denies it the network).
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
-// Hashes de los modelos: una sola fuente, `models.lock` ("<sha256>  <archivo>  <url>").
+// Model hashes: a single source, `models.lock` ("<sha256>  <file>  <url>").
 val modelHashes = file("models.lock").readLines()
     .map { it.substringBefore('#').trim() }
     .filter { it.isNotEmpty() }
@@ -25,6 +25,8 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
         buildConfigField("String", "MODEL_HASHES", "\"$modelHashes\"")
     }
+    // Per-app language picker (Android 13+), like the app
+    androidResources { generateLocaleConfig = true }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -40,7 +42,7 @@ android {
         compose = true
         buildConfig = true
     }
-    androidResources { noCompress += listOf("task", "tflite") } // los modelos se leen sin descomprimir
+    androidResources { noCompress += listOf("task", "tflite") } // models are read without decompressing
 }
 
 dependencies {
@@ -52,9 +54,9 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.mediapipe.tasks.vision)   // pose, manos, rostro, objetos, clasificador
-    implementation(libs.mlkit.text.recognition)   // OCR con modelo empaquetado (sin descarga)
-    implementation("${libs.jna.get()}@aar")       // bindings de procastinacioff-verify
+    implementation(libs.mediapipe.tasks.vision)   // pose, hands, face, objects, classifier
+    implementation(libs.mlkit.text.recognition)   // OCR with a bundled model (no download)
+    implementation("${libs.jna.get()}@aar")       // procastinacioff-verify bindings
 }
 
 val buildVerifyRust by tasks.registering(Exec::class) {

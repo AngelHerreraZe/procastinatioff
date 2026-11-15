@@ -14,9 +14,9 @@ tauri = { version = "2.1.1", features = [] }
 procastinacioff-ipc = { path = "../../ipc" }
 serde.workspace = true
 serde_json.workspace = true
-# QR de vinculación generado en local como SVG (sin dependencias JavaScript)
+# pairing QR generated locally as SVG (no JavaScript dependencies)
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58.0", features = ["Win32_System_Shutdown"] }
-procastinacioff-sandbox = { path = "../../sandbox" }   # verificador en AppContainer sin red
+procastinacioff-sandbox = { path = "../../sandbox" }   # verifier in an AppContainer without network

@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Conteo de repeticiones por pose. Entrada: los 33 puntos de MediaPipe Pose como
-//! `[x, y, visibilidad]` × 33 (99 números). Índices usados: 11/12 hombros, 13/14 codos,
-//! 15/16 muñecas, 23/24 caderas, 25/26 rodillas, 27/28 tobillos.
+//! Rep counting by pose. Input: MediaPipe Pose's 33 points as
+//! `[x, y, visibility]` × 33 (99 numbers). Indices used: 11/12 shoulders, 13/14 elbows,
+//! 15/16 wrists, 23/24 hips, 25/26 knees, 27/28 ankles.
 
 use std::sync::Mutex;
 
@@ -23,10 +23,10 @@ struct P {
 
 fn point(lm: &[f32], i: usize) -> Option<P> {
     let p = P { x: *lm.get(i * 3)?, y: *lm.get(i * 3 + 1)?, v: *lm.get(i * 3 + 2)? };
-    (p.v >= 0.5 && p.x.is_finite() && p.y.is_finite()).then_some(p) // ignorar puntos poco visibles o inválidos
+    (p.v >= 0.5 && p.x.is_finite() && p.y.is_finite()).then_some(p) // ignore barely visible or invalid points
 }
 
-/// Ángulo en `b` (grados) formado por a-b-c.
+/// Angle at `b` (degrees) formed by a-b-c.
 fn angle(a: P, b: P, c: P) -> f32 {
     let (v1, v2) = ((a.x - b.x, a.y - b.y), (c.x - b.x, c.y - b.y));
     let dot = v1.0 * v2.0 + v1.1 * v2.1;
@@ -53,16 +53,16 @@ impl RepCounter {
         Self { exercise, state: Mutex::new(State { down: false, reps: 0, last_rep_ms: i64::MIN / 2 }) }
     }
 
-    /// Procesa un cuadro. Devuelve el total de repeticiones.
+    /// Processes a frame. Returns the total reps.
     pub fn feed(&self, landmarks: Vec<f32>, at_ms: i64) -> u32 {
         let mut s = self.state.lock().unwrap_or_else(|p| p.into_inner());
         if landmarks.len() != 99 {
             return s.reps;
         }
-        // Umbrales (perilla de calibración: ajustar con datos del spike E)
+        // Thresholds (calibration knob: tune with spike E data)
         let (joints, down_below, up_above) = match self.exercise {
-            Exercise::Squat => ([(23, 25, 27), (24, 26, 28)], 100.0, 160.0), // cadera-rodilla-tobillo
-            Exercise::PushUp => ([(11, 13, 15), (12, 14, 16)], 90.0, 155.0), // hombro-codo-muñeca
+            Exercise::Squat => ([(23, 25, 27), (24, 26, 28)], 100.0, 160.0), // hip-knee-ankle
+            Exercise::PushUp => ([(11, 13, 15), (12, 14, 16)], 90.0, 155.0), // shoulder-elbow-wrist
         };
         let angles = joints
             .iter()
@@ -72,7 +72,7 @@ impl RepCounter {
             s.down = true;
         } else if s.down && min_angle > up_above {
             s.down = false;
-            // Anti-trampa: una repetición real dura al menos 0,6 s
+            // Anti-cheat: a real rep lasts at least 0.6 s
             if at_ms - s.last_rep_ms >= 600 {
                 s.reps += 1;
                 s.last_rep_ms = at_ms;
@@ -86,7 +86,7 @@ impl RepCounter {
 mod tests {
     use super::*;
 
-    /// Construye 33 puntos visibles con un ángulo dado en ambas rodillas.
+    /// Builds 33 visible points with a given angle at both knees.
     fn squat_frame(knee_angle_deg: f32) -> Vec<f32> {
         let mut lm = vec![0.0f32; 99];
         let set = |lm: &mut Vec<f32>, i: usize, x: f32, y: f32| {
@@ -97,8 +97,8 @@ mod tests {
         let rad = knee_angle_deg.to_radians();
         for (hip, knee, ankle) in [(23, 25, 27), (24, 26, 28)] {
             set(&mut lm, knee, 0.5, 0.5);
-            set(&mut lm, ankle, 0.5, 0.8); // tobillo justo debajo
-            set(&mut lm, hip, 0.5 + 0.3 * rad.sin(), 0.5 + 0.3 * rad.cos()); // cadera según el ángulo
+            set(&mut lm, ankle, 0.5, 0.8); // ankle right below
+            set(&mut lm, hip, 0.5 + 0.3 * rad.sin(), 0.5 + 0.3 * rad.cos()); // hip according to the angle
         }
         lm
     }
@@ -116,7 +116,7 @@ mod tests {
             t += 500;
         }
         assert_eq!(c.feed(squat_frame(170.0), t), 3);
-        // Media sentadilla (no baja de 100°) no cuenta
+        // Half squat (not below 100°) does not count
         c.feed(squat_frame(120.0), t + 500);
         assert_eq!(c.feed(squat_frame(170.0), t + 1000), 3);
     }

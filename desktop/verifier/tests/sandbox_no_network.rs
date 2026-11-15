@@ -1,5 +1,5 @@
-// Auditoría de la Fase 2, prueba 4 🔒: el verificador lanzado en el AppContainer NO tiene red.
-// Copia el ejecutable a una carpeta legible por "ALL APPLICATION PACKAGES" y lo ejecuta aislado.
+// Privacy audit, test 4 (security-critical): the verifier launched in the AppContainer has NO network.
+// Copies the executable to a folder readable by "ALL APPLICATION PACKAGES" and runs it sandboxed.
 #![cfg(windows)]
 
 use std::process::Command;
@@ -10,13 +10,13 @@ fn verifier_inside_appcontainer_has_no_network() {
     std::fs::create_dir_all(&dir).unwrap();
     let exe = dir.join("procastinacioff-verifier.exe");
     std::fs::copy(env!("CARGO_BIN_EXE_procastinacioff-verifier"), &exe).unwrap();
-    // S-1-15-2-1 = ALL APPLICATION PACKAGES: sin lectura, Windows no deja arrancar el proceso aislado
+    // S-1-15-2-1 = ALL APPLICATION PACKAGES: without read access, Windows will not start the sandboxed process
     let ok = Command::new("icacls").arg(&dir).args(["/grant", "*S-1-15-2-1:(OI)(CI)RX"]).output().unwrap();
-    assert!(ok.status.success(), "icacls falló");
+    assert!(ok.status.success(), "icacls failed");
 
     let out = procastinacioff_sandbox::run_sandboxed(&format!("\"{}\" --selftest-net", exe.display()), 30_000, |_| {})
-        .expect("no se pudo lanzar el AppContainer");
-    assert_eq!(out.line, "NET_BLOCKED", "el verificador aislado consiguió red");
+        .expect("could not launch the AppContainer");
+    assert_eq!(out.line, "NET_BLOCKED", "the sandboxed verifier got network access");
     assert_eq!(out.exit_code, 0);
     std::fs::remove_dir_all(dir).ok();
 }

@@ -3,15 +3,15 @@ package dev.procastinacioff.verifier
 import android.content.Context
 import java.security.MessageDigest
 
-/** Modelos empaquetados: se verifica su SHA-256 (fijado en models.lock) antes de cargarlos. */
+/** Bundled models: their SHA-256 (pinned in models.lock) is verified before loading them. */
 object Models {
     private val expected: Map<String, String> = BuildConfig.MODEL_HASHES.split(';')
         .filter { it.contains('=') }
         .associate { it.substringBefore('=') to it.substringAfter('=') }
 
-    class MissingModel(path: String) : Exception("Faltan los modelos de este método ($path). Ver spike E.")
+    class MissingModel(path: String) : Exception("missing models for this method ($path); see spike E")
 
-    /** Devuelve la ruta del asset si coincide con el hash fijado; si no, falla. */
+    /** Returns the asset path if it matches the pinned hash; otherwise fails. */
     fun verified(ctx: Context, name: String): String {
         val path = "models/$name"
         val sha = expected[name] ?: throw MissingModel(name)
@@ -29,7 +29,7 @@ object Models {
         } catch (e: java.io.IOException) {
             throw MissingModel(name)
         }
-        check(digest == sha) { "Modelo alterado: $name" }
+        check(digest == sha) { "tampered model: $name" }
         return path
     }
 }

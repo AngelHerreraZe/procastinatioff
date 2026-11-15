@@ -1,4 +1,4 @@
-# 🔒 Prohibido: std::fs, std::net y cualquier crate de red (privacy_scan.py + check_verify_no_net.py).
+# SECURITY: Forbidden: std::fs, std::net and any network crate (privacy_scan.py + check_verify_no_net.py).
 [package]
 name = "procastinacioff-verify"
 version = "0.1.0"

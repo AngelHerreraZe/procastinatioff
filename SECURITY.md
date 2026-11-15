@@ -1,21 +1,19 @@
-# Política de seguridad
+# Security policy
 
-Si encuentras una vulnerabilidad, **no abras un issue público**. Repórtala en privado con
-**"Report a vulnerability"** en la pestaña *Security* de este repositorio (GitHub Private
-Vulnerability Reporting).
+If you find a vulnerability, **do not open a public issue**. Report it privately with
+**"Report a vulnerability"** in this repository's *Security* tab (GitHub Private Vulnerability
+Reporting).
 
-- Confirmamos la recepción en 72 horas.
-- Te mantenemos informado al menos cada 7 días.
-- Publicamos la corrección y te damos crédito (si lo deseas) tras un máximo de 90 días.
+- We acknowledge receipt within 72 hours.
+- We keep you informed at least every 7 days.
+- We publish the fix and credit you (if you want) within 90 days at most.
 
-**Alcance:** apps (Android, iOS, escritorio), servicio privilegiado y su IPC, verificadores
-sin red, sincronización entre dispositivos (vinculación por QR, protocolo P2P, descubrimiento
-en la red local), formato de eventos y criptografía, métodos de autorización de cambios
-(contraseña, patrón, biometría, firmas de tutor y de contacto de confianza, códigos sin red)
-y filtro DNS.
+**In scope:** the apps (Android, iOS, desktop), the privileged service and its IPC, the offline
+verifiers, sync between devices (QR pairing, peer-to-peer protocol, local network discovery),
+the event format and cryptography, the methods that authorize changes (password, pattern,
+biometrics, guardian and trusted-contact signatures, offline codes) and the DNS filter.
 
-**Fuera de alcance:** ataques que requieren desbloquear físicamente el dispositivo con el
-código del usuario; el código de `relay/` y `push-gateway/`, que está en proceso de eliminación
-y no forma parte de ninguna versión publicada.
+**Out of scope:** attacks that require physically unlocking the device with the user's own code;
+the code in `relay/` and `push-gateway/`, which is being removed and is not part of any release.
 
-ProcastinaciOFF no tiene servidores: no hay datos de usuarios en manos del proyecto.
+ProcastinaciOFF has no servers: the project holds no user data.

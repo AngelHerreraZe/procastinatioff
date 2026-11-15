@@ -2,18 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Tipos del dominio. 🔒 Los que viajan en eventos se firman y sincronizan:
-//! nunca `HashMap`/`HashSet` (orden no determinista) ni `f32`/`f64`.
-//! Los textos que escribe el usuario (`title`, `label`) son datos personales: jamás a logs.
+//! Domain types. SECURITY: Those that travel in events are signed and synced:
+//! never `HashMap`/`HashSet` (non-deterministic order) nor `f32`/`f64`.
+//! Text written by the user (`title`, `label`) is personal data: never to logs.
 
 use serde::{Deserialize, Serialize};
 
-/// Máscara de días: bit 0 = lunes … bit 6 = domingo.
+/// Weekday mask: bit 0 = Monday … bit 6 = Sunday.
 pub const ALL_DAYS: u8 = 0b0111_1111;
 pub const SATURDAY: u8 = 1 << 5;
 pub const SUNDAY: u8 = 1 << 6;
 
-/// Minutos desde medianoche, 0..=1439. Ejemplo: 22:30 → 1350.
+/// Minutes since midnight, 0..=1439. Example: 22:30 → 1350.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, uniffi::Record)]
 pub struct TimeOfDay {
     pub minutes: u16,
@@ -25,7 +25,7 @@ impl TimeOfDay {
     }
 }
 
-/// Horario de sueño. Si `bedtime == wake` no hay periodo de sueño.
+/// Sleep schedule. If `bedtime == wake` there is no sleep period.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct Schedule {
     pub wake: TimeOfDay,
@@ -35,13 +35,13 @@ pub struct Schedule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum GoalKind {
-    /// Hay que cumplirla para pasar a LIBRE.
+    /// Must be completed to reach FREE.
     Key,
-    /// Solo se registra; si se incumple puede restar permisos mañana.
+    /// Only recorded; missing it may take passes away tomorrow.
     Habit,
 }
 
-/// Métodos de verificación (sección 7.1 del plan maestro).
+/// Verification methods (see the README's goal verification section).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum Method {
@@ -59,18 +59,18 @@ pub enum Method {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct Goal {
-    /// Identificador estable (ej. "leer-30"): minúsculas, cifras y guiones. No cambia nunca.
+    /// Stable identifier (e.g. "read-30"): lowercase letters, digits and hyphens. Never changes.
     pub id: String,
-    /// Texto del usuario. 🔒 Dato personal: nunca a logs.
+    /// User text. SECURITY: Personal data: never to logs.
     pub title: String,
     pub kind: GoalKind,
-    /// Minutos necesarios (0 si la meta no se mide por tiempo).
+    /// Required minutes (0 if the goal is not measured by time).
     pub target_minutes: u16,
-    /// Veces que hay que cumplirla en el día (mínimo 1). Ej. "comer sano 2 de 3" → 2.
+    /// Times it must be done in the day (minimum 1). E.g. "eat healthy 2 of 3" → 2.
     pub target_count: u8,
-    /// Métodos aceptados. En Fase 1 basta con cumplir uno; las recetas completas llegan en Fase 2.
+    /// Accepted methods. For now completing one is enough; full recipes come later.
     pub methods: Vec<Method>,
-    /// Días en los que la meta es fija (base del plan): máscara `ALL_DAYS`.
+    /// Days on which the goal is fixed (base of the plan): `ALL_DAYS` mask.
     pub weekdays: u8,
 }
 
@@ -79,28 +79,28 @@ pub struct Config {
     pub schedule: Schedule,
     pub permits_per_day: u8,
     pub permit_minutes: u16,
-    /// Minutos mínimos entre el fin de un permiso y el inicio del siguiente.
+    /// Minimum minutes between the end of a pass and the start of the next one.
     pub permit_cooldown_minutes: u16,
     pub emergency_minutes: u16,
-    /// Permisos que se restan al día siguiente por cada emergencia.
+    /// Passes taken from the next day for each emergency.
     pub emergency_penalty: u8,
-    /// Si es true, cada meta hábito incumplida resta 1 permiso al día siguiente.
+    /// If true, each missed habit goal takes 1 pass from the next day.
     pub habit_penalty: bool,
-    /// Metas fijas: forman la base del plan de cada mañana en los días marcados.
+    /// Fixed goals: the base of each morning's plan on the marked days.
     pub goals: Vec<Goal>,
-    /// Días libres (misma máscara que `Goal::weekdays`): ese día no hay metas ni bloqueo
-    /// en ningún dispositivo, y la noche anterior tampoco hay DORMIR.
+    /// Free days (same mask as `Goal::weekdays`): that day there are no goals nor blocking
+    /// on any device, and no SLEEP the night before.
     pub free_days: u8,
-    /// Apps permitidas siempre (salvo en DORMIR), por plataforma. Formatos:
-    /// "android:<paquete>@<sha256 cert>", "windows:pfn:<PackageFamilyName>", "windows:exe:<firmante>|<archivo.exe>".
+    /// Apps always allowed (except during SLEEP), per platform. Formats:
+    /// "android:<package>@<sha256 cert>", "windows:pfn:<PackageFamilyName>", "windows:exe:<signer>|<file.exe>".
     pub essential_apps: Vec<String>,
-    /// Apps permitidas además durante ENFOQUE (Word, navegador gestionado, lector de PDF…).
+    /// Apps also allowed during FOCUS (Word, managed browser, PDF reader…).
     pub focus_apps: Vec<String>,
-    /// Dominios permitidos durante ENFOQUE (ej. "udemy.com").
+    /// Domains allowed during FOCUS (e.g. "udemy.com").
     pub web_allowlist: Vec<String>,
-    /// Permisos extra preaprobados por el tutor, a gastar cualquier día (ventana móvil de 7 días).
-    /// 🔒 Se omite al serializar si es 0: así los eventos firmados antes de existir el campo
-    /// se re-serializan igual y su firma sigue siendo válida.
+    /// Extra passes pre-approved by the guardian, to spend on any day (rolling 7-day window).
+    /// SECURITY: Omitted when serializing if 0: events signed before the field existed
+    /// re-serialize identically and their signature stays valid.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub weekly_bonus_permits: u8,
 }
@@ -110,7 +110,7 @@ fn is_zero(n: &u8) -> bool {
 }
 
 impl Config {
-    /// Configuración de ejemplo usada en pruebas y como punto de partida del onboarding.
+    /// Example configuration used in tests (the UIs build their own, translated, during onboarding).
     pub fn example() -> Self {
         Self {
             schedule: Schedule { wake: TimeOfDay::hm(6, 30), bedtime: TimeOfDay::hm(22, 30) },
@@ -122,8 +122,8 @@ impl Config {
             habit_penalty: true,
             goals: vec![
                 Goal {
-                    id: "leer-30".into(),
-                    title: "Leer 30 minutos".into(),
+                    id: "read-30".into(),
+                    title: "Read for 30 minutes".into(),
                     kind: GoalKind::Key,
                     target_minutes: 30,
                     target_count: 1,
@@ -131,8 +131,8 @@ impl Config {
                     weekdays: ALL_DAYS,
                 },
                 Goal {
-                    id: "comer-sano".into(),
-                    title: "Comer sano".into(),
+                    id: "eat-healthy".into(),
+                    title: "Eat healthy".into(),
                     kind: GoalKind::Habit,
                     target_minutes: 0,
                     target_count: 2,
@@ -155,7 +155,7 @@ impl Config {
     }
 }
 
-/// Lo que puede pasar en un día. Cada variante se firma y sincroniza (ver events.rs).
+/// What can happen in a day. Every variant is signed and synced (see events.rs).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EventKind {
@@ -163,8 +163,8 @@ pub enum EventKind {
         config: Config,
         effective_from_ms: i64,
     },
-    /// Metas del día, definidas al primer desbloqueo tras la hora de dormir.
-    /// Solo cuenta la primera del día; las siguientes, si la endurecen.
+    /// Goals of the day, set at the first unlock after bedtime.
+    /// Only the first of the day counts; later ones only if they make it stricter.
     DayPlanned {
         goals: Vec<Goal>,
     },
@@ -188,53 +188,53 @@ pub enum EventKind {
         what: TamperKind,
     },
     Heartbeat,
-    /// Lista completa de dispositivos del buzón. Solo se cifra para esta lista.
+    /// Full list of devices of the mailbox. Events are encrypted only for this list.
     MembersChanged {
         members: Vec<Member>,
     },
-    /// Solo en el buzón del compañero de rendición de cuentas: qué pasó y cuándo, sin más detalle.
+    /// Only in the accountability partner's mailbox: what happened and when, nothing more.
     ForPartner {
         happened_at_ms: i64,
         alert: PartnerAlert,
     },
-    // ── Modo familiar (Fase 3). Quién puede firmar cada uno: ledger.rs ──
-    /// El menor pide algo al tutor.
+    // ── Family mode. Who may sign each one: ledger.rs ──
+    /// The minor asks the guardian for something.
     Request {
         request_id: String,
         what: RequestKind,
     },
-    /// Respuesta del tutor. Si aprueba, el efecto va en un evento aparte (también del tutor).
+    /// The guardian's answer. If approved, the effect goes in a separate event (also from the guardian).
     Decision {
         request_id: String,
         approved: bool,
     },
-    /// Permiso extra solo para el día en que se concede; dura `minutes`.
+    /// Extra pass only for the day it is granted; lasts `minutes`.
     GrantPermit {
         minutes: u16,
     },
-    /// Día de descanso: LIBRE hasta dormir, sin penalización por hábitos.
+    /// Rest day: FREE until bedtime, without habit penalties.
     RestDayGranted,
-    /// Número de intentos bloqueados por el filtro DNS en el día. 🔒 Solo el número; nunca los dominios.
+    /// Number of attempts blocked by the DNS filter that day. SECURITY: Only the number; never the domains.
     BlockedAttempts {
         count: u16,
     },
 }
 
-/// Lo que un menor puede pedir a su tutor.
+/// What a minor can ask their guardian for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(tag = "what", rename_all = "snake_case")]
 pub enum RequestKind {
-    /// Un permiso más hoy, de `minutes` minutos.
+    /// One more pass today, of `minutes` minutes.
     ExtraPermit { minutes: u16 },
-    /// Añadir un dominio a la lista blanca del enfoque (cambio permanente de la configuración).
+    /// Add a domain to the focus allowlist (permanent configuration change).
     AddSite { domain: String },
-    /// Retrasar la hora de dormir (cambio permanente del horario).
+    /// Move bedtime later (permanent schedule change).
     LaterBedtime { minutes: u16 },
-    /// Hoy, día de descanso.
+    /// Today, a rest day.
     RestDay,
 }
 
-/// Lo ÚNICO que ve el compañero de rendición de cuentas: tipos y números, nunca metas ni textos.
+/// The ONLY thing the accountability partner sees: types and numbers, never goals or texts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(tag = "alert", rename_all = "snake_case")]
 pub enum PartnerAlert {
@@ -242,7 +242,7 @@ pub enum PartnerAlert {
         what: TamperKind,
     },
     Emergency,
-    /// Metas cumplidas del día que empezó en `happened_at_ms` (todas, llave y hábitos).
+    /// Goals completed on the day that started at `happened_at_ms` (all of them, key and habits).
     DailySummary {
         completed: u8,
         total: u8,
@@ -263,33 +263,33 @@ pub enum TamperKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
-    /// Dueño del perfil (modo personal).
+    /// Profile owner (personal mode).
     Owner,
-    /// Tutor (modo familiar, Fase 3).
+    /// Guardian (family mode).
     Guardian,
-    /// Menor (modo familiar, Fase 3).
+    /// Minor (family mode).
     Minor,
-    /// Compañero de rendición de cuentas (buzón aparte, Fase 2).
+    /// Accountability partner (separate mailbox).
     Partner,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct Member {
-    /// Clave pública Ed25519 en hex = ID del dispositivo.
+    /// Ed25519 public key in hex = device ID.
     pub device_id: String,
-    /// Destinatario age ("age1…") para cifrarle eventos.
+    /// age recipient ("age1…") to encrypt events for it.
     pub age_recipient: String,
-    /// Nombre visible ("PC del estudio"). 🔒 Dato personal: nunca a logs.
+    /// Display name ("Study PC"). SECURITY: Personal data: never to logs.
     pub label: String,
     pub role: Role,
 }
 
-/// Un evento ya verificado (firma y autor comprobados en ledger.rs), listo para las reglas.
+/// An already verified event (signature and author checked in ledger.rs), ready for the rules.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fact {
     pub at_ms: i64,
     pub kind: EventKind,
-    /// Lo firmó un tutor del perfil (sus cambios de configuración rigen de inmediato).
+    /// Signed by a guardian of the profile (their configuration changes take effect immediately).
     pub by_guardian: bool,
 }
 
@@ -313,7 +313,7 @@ pub enum DayState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
 pub struct GoalProgress {
     pub goal_id: String,
-    /// 🔒 Dato personal: se muestra en la UI, nunca a logs.
+    /// SECURITY: Personal data: shown in the UI, never to logs.
     pub title: String,
     pub kind: GoalKind,
     pub done_count: u8,
@@ -329,11 +329,11 @@ pub struct Status {
     pub permits_left: u8,
     pub day_start_ms: i64,
     pub next_wake_ms: i64,
-    /// Próximo inicio de DORMIR (None si no hay sueño o esta noche es libre).
+    /// Next start of SLEEP (None if there is no sleep or tonight is free).
     pub sleep_at_ms: Option<i64>,
-    /// Hoy es día libre: sin metas ni bloqueo.
+    /// Today is a free day: no goals nor blocking.
     pub free_day: bool,
-    /// Aún no se definieron las metas de hoy (la UI muestra el plan del día).
+    /// Today's goals are not set yet (the UI shows the day plan).
     pub needs_plan: bool,
     pub goals: Vec<GoalProgress>,
 }

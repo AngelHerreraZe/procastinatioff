@@ -1,13 +1,14 @@
-## Qué cambia y por qué
+## What changes and why
 
-## Issue relacionado
-<!-- ej. #42 -->
+## Related issue
+<!-- e.g. #42 -->
 
-## Checklist de seguridad (obligatorio)
-- [ ] No guarda ni envía imágenes, audio, texto OCR ni transcripciones.
-- [ ] No añade datos personales a logs.
-- [ ] No abre conexiones a servidores (solo a dispositivos vinculados).
-- [ ] Si guarda o envía un dato nuevo: lo explico aquí (qué dato, dónde vive, cuánto tiempo).
-- [ ] Si añade una dependencia: justificación aquí + licencia permitida + `cargo vet` / revisión.
-- [ ] Incluye pruebas que fallarían si la lógica se rompe.
-- [ ] `just check` pasa en local.
+## Security checklist (required)
+- [ ] Does not store or send images, audio, OCR text or transcripts.
+- [ ] Adds no personal data to logs.
+- [ ] Opens no connections to servers (only to paired devices).
+- [ ] If it stores or sends new data: explained here (what data, where it lives, for how long).
+- [ ] If it adds a dependency: justification here + allowed license + `cargo vet` / review.
+- [ ] User-facing text uses translation keys (English source + existing translations); no hardcoded strings.
+- [ ] Includes tests that would fail if the logic broke.
+- [ ] `just check` passes locally.

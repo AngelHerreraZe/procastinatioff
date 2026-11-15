@@ -6,21 +6,21 @@ import ManagedSettings
 import ManagedSettingsUI
 import UIKit
 
-/// Texto del escudo. Siempre explica el bloqueo y el siguiente paso; nunca culpa.
+/// Shield text. Always explains the block and the next step; never blames.
 final class ShieldConfig: ShieldConfigurationDataSource {
     private func config() -> ShieldConfiguration {
         let mode = SharedStore.load().mode
         let (title, subtitle): (String, String) = switch mode {
-        case .sleep: ("Hora de dormir", "Las llamadas siguen funcionando.")
-        case .focus: ("Ahora toca tu tarea", "Durante el enfoque solo están disponibles las apps de esa tarea.")
-        default: ("Aún no cumples tus metas", "Abre ProcastinaciOFF para ver qué te falta o usar un permiso.")
+        case .sleep: (String(localized: "Bedtime"), String(localized: "Calls keep working."))
+        case .focus: (String(localized: "Time for your task"), String(localized: "During focus only that task's apps are available."))
+        default: (String(localized: "You haven't met your goals yet"), String(localized: "Open ProcastinaciOFF to see what's left or use a pass."))
         }
         return ShieldConfiguration(
             backgroundBlurStyle: .systemThickMaterial,
             title: .init(text: title, color: .label),
             subtitle: .init(text: subtitle, color: .secondaryLabel),
-            primaryButtonLabel: .init(text: "Entendido", color: .white),
-            secondaryButtonLabel: mode == .sleep ? nil : .init(text: "Abrir ProcastinaciOFF", color: .systemBlue))
+            primaryButtonLabel: .init(text: String(localized: "Got it"), color: .white),
+            secondaryButtonLabel: mode == .sleep ? nil : .init(text: String(localized: "Open ProcastinaciOFF"), color: .systemBlue))
     }
 
     override func configuration(shielding application: Application) -> ShieldConfiguration { config() }

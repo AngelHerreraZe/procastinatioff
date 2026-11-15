@@ -15,8 +15,8 @@ import uniffi.procastinacioff_core.CoreException
 import uniffi.procastinacioff_core.SecretStore
 
 /**
- * 🔒 Llavero de Android. Una clave AES-256-GCM vive en el Keystore (en StrongBox si existe) y nunca
- * sale del hardware. Con ella se cifran los secretos del núcleo, guardados en noBackupFilesDir.
+ * SECURITY: Android keystore. An AES-256-GCM key lives in the Keystore (in StrongBox if available) and never
+ * leaves the hardware. It encrypts the core's secrets, stored in noBackupFilesDir.
  */
 class KeystoreSecretStore(private val context: Context) : SecretStore {
     private val dir = File(context.noBackupFilesDir, "secrets").apply { mkdirs() }
@@ -24,7 +24,7 @@ class KeystoreSecretStore(private val context: Context) : SecretStore {
 
     private fun file(name: String): File {
         if (name.isEmpty() || !name.all { it.isLetterOrDigit() || it == '_' }) {
-            throw CoreException.Secret("nombre de secreto inválido")
+            throw CoreException.Secret("invalid secret name")
         }
         return File(dir, "$name.bin")
     }
@@ -37,7 +37,7 @@ class KeystoreSecretStore(private val context: Context) : SecretStore {
         return try {
             generate(strongBox)
         } catch (e: StrongBoxUnavailableException) {
-            generate(false) // TEE normal si StrongBox no está disponible
+            generate(false) // regular TEE if StrongBox is not available
         }
     }
 
@@ -64,7 +64,7 @@ class KeystoreSecretStore(private val context: Context) : SecretStore {
             cipher.init(Cipher.DECRYPT_MODE, masterKey(), GCMParameterSpec(128, bytes, 0, 12))
             return cipher.doFinal(bytes, 12, bytes.size - 12)
         } catch (e: Exception) {
-            throw CoreException.Secret("no se pudo descifrar el secreto") // sin detalles: podrían filtrar información
+            throw CoreException.Secret("could not decrypt the secret") // no details: they could leak information
         }
     }
 
@@ -74,9 +74,9 @@ class KeystoreSecretStore(private val context: Context) : SecretStore {
             cipher.init(Cipher.ENCRYPT_MODE, masterKey())
             val tmp = File(dir, "$name.tmp")
             tmp.writeBytes(cipher.iv + cipher.doFinal(value))
-            check(tmp.renameTo(file(name))) // escritura atómica
+            check(tmp.renameTo(file(name))) // atomic write
         } catch (e: Exception) {
-            throw CoreException.Secret("no se pudo guardar el secreto")
+            throw CoreException.Secret("could not save the secret")
         }
     }
 }

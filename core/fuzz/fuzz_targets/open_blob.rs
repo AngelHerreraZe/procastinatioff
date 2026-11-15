@@ -1,5 +1,5 @@
 #![no_main]
-// Blobs que llegan del relay (no confiable).
+// Blobs coming from another device (untrusted).
 use std::sync::OnceLock;
 
 use libfuzzer_sys::fuzz_target;

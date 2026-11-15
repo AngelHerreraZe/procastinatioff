@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Eventos firmados y sellados 🔒.
+//! Signed and sealed events (security-critical).
 //!
-//! EventBody ──firma Ed25519──► SignedEvent ──JSON + relleno──► bytes ──age (N dispositivos)──► blob
+//! EventBody ──Ed25519 signature──► SignedEvent ──JSON + padding──► bytes ──age (N devices)──► blob
 
 use std::io::{Read, Write};
 
@@ -17,9 +17,9 @@ use crate::crypto::DeviceKeys;
 use crate::error::CoreError;
 use crate::model::EventKind;
 
-/// Separación de dominio: una firma de evento nunca vale como firma de petición HTTP.
+/// Domain separation: an event signature is never valid as an HTTP request signature.
 const EVENT_DOMAIN: &[u8] = b"procastinacioff/event/v1\0";
-/// Relleno: el tamaño del blob no delata el tipo de evento.
+/// Padding: the blob size does not reveal the event type.
 const BUCKETS: [usize; 4] = [1024, 4096, 16 * 1024, 64 * 1024];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,44 +39,44 @@ pub struct SignedEvent {
 
 fn signing_bytes(body: &EventBody) -> Vec<u8> {
     let mut v = EVENT_DOMAIN.to_vec();
-    // EventBody solo contiene tipos que siempre serializan (sin mapas con claves no textuales).
+    // EventBody only holds types that always serialize (no maps with non-string keys).
     v.extend(serde_json::to_vec(body).unwrap_or_default());
     v
 }
 
 impl SignedEvent {
     pub fn sign(keys: &DeviceKeys, body: EventBody) -> Self {
-        debug_assert_eq!(body.author, keys.device_id(), "el autor debe ser este dispositivo");
+        debug_assert_eq!(body.author, keys.device_id(), "the author must be this device");
         let sig = keys.signing.sign(&signing_bytes(&body));
         Self { body, sig: hex::encode(sig.to_bytes()) }
     }
 
-    /// Huella única del evento (SHA-256 del cuerpo firmado, en hex).
+    /// Unique fingerprint of the event (SHA-256 of the signed body, hex).
     pub fn id(&self) -> String {
         hex::encode(Sha256::digest(signing_bytes(&self.body)))
     }
 
     pub fn verify(&self) -> Result<(), CoreError> {
         let key =
-            procastinacioff_proto::parse_key(&self.body.author).ok_or_else(|| CoreError::protocol("autor inválido"))?;
+            procastinacioff_proto::parse_key(&self.body.author).ok_or_else(|| CoreError::protocol("invalid author"))?;
         let sig: [u8; 64] = hex::decode(&self.sig)
             .ok()
             .and_then(|v| v.try_into().ok())
-            .ok_or_else(|| CoreError::protocol("firma mal formada"))?;
+            .ok_or_else(|| CoreError::protocol("malformed signature"))?;
         key.verify_strict(&signing_bytes(&self.body), &Signature::from_bytes(&sig))
-            .map_err(|_| CoreError::protocol("firma de evento inválida"))
+            .map_err(|_| CoreError::protocol("invalid event signature"))
     }
 }
 
-/// Serializa, rellena y cifra un evento para todos los destinatarios.
+/// Serializes, pads and encrypts an event for all recipients.
 pub fn seal(ev: &SignedEvent, recipients: &[age::x25519::Recipient]) -> Result<Vec<u8>, CoreError> {
     if recipients.is_empty() {
-        return Err(CoreError::crypto("sin destinatarios"));
+        return Err(CoreError::crypto("no recipients"));
     }
     let json = Zeroizing::new(serde_json::to_vec(ev).map_err(CoreError::crypto)?);
     let needed = json.len() + 4;
     let bucket =
-        BUCKETS.iter().copied().find(|b| *b >= needed).ok_or_else(|| CoreError::protocol("evento demasiado grande"))?;
+        BUCKETS.iter().copied().find(|b| *b >= needed).ok_or_else(|| CoreError::protocol("event too large"))?;
 
     let mut plain = Zeroizing::new(Vec::with_capacity(bucket));
     plain.extend_from_slice(&(json.len() as u32).to_le_bytes());
@@ -92,20 +92,20 @@ pub fn seal(ev: &SignedEvent, recipients: &[age::x25519::Recipient]) -> Result<V
     Ok(out)
 }
 
-/// Descifra y deserializa un blob. NO verifica la firma: eso lo hace el Ledger.
+/// Decrypts and deserializes a blob. Does NOT verify the signature: the Ledger does that.
 pub fn open(blob: &[u8], identity: &age::x25519::Identity) -> Result<SignedEvent, CoreError> {
     if blob.len() > procastinacioff_proto::MAX_BLOB {
-        return Err(CoreError::protocol("blob demasiado grande"));
+        return Err(CoreError::protocol("blob too large"));
     }
     let decryptor = age::Decryptor::new(blob).map_err(CoreError::crypto)?;
     let mut reader = decryptor.decrypt(std::iter::once(identity as &dyn age::Identity)).map_err(CoreError::crypto)?;
     let mut plain = Zeroizing::new(Vec::new());
     reader.by_ref().take(64 * 1024 + 1).read_to_end(&mut plain).map_err(CoreError::crypto)?;
     if plain.len() < 4 {
-        return Err(CoreError::protocol("blob vacío"));
+        return Err(CoreError::protocol("empty blob"));
     }
     let len = u32::from_le_bytes([plain[0], plain[1], plain[2], plain[3]]) as usize;
-    let body = plain.get(4..4usize.saturating_add(len)).ok_or_else(|| CoreError::protocol("longitud inválida"))?;
+    let body = plain.get(4..4usize.saturating_add(len)).ok_or_else(|| CoreError::protocol("invalid length"))?;
     serde_json::from_slice(body).map_err(CoreError::protocol)
 }
 
@@ -127,7 +127,7 @@ mod tests {
         let k = keys();
         let mut ev = SignedEvent::sign(&k, body(&k, 1));
         assert!(ev.verify().is_ok());
-        ev.body.at_ms = 2; // alguien cambia la hora
+        ev.body.at_ms = 2; // someone changes the time
         assert!(ev.verify().is_err());
     }
 
@@ -138,11 +138,11 @@ mod tests {
         let recipients = vec![a.age.to_public(), b.age.to_public()];
         let blob = seal(&ev, &recipients).unwrap();
         assert_eq!(open(&blob, &b.age).unwrap(), ev);
-        // Un evento distinto pero pequeño cae en la misma franja de tamaño (cubo de 1 KB + cabecera age).
-        // age añade "grease" aleatorio a la cabecera: el tamaño exacto varía, pero no depende del evento.
+        // A different but small event falls in the same size band (1 KB bucket + age header).
+        // age adds random "grease" to the header: the exact size varies, but not with the event.
         let ev2 = SignedEvent::sign(&a, EventBody { kind: EventKind::EmergencyStarted, ..body(&a, 2) });
         for len in [blob.len(), seal(&ev2, &recipients).unwrap().len()] {
-            assert!((1024..2048).contains(&len), "tamaño fuera de la franja del cubo de 1 KB: {len}");
+            assert!((1024..2048).contains(&len), "size outside the 1 KB bucket band: {len}");
         }
     }
 

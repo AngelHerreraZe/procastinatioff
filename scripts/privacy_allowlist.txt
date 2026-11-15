@@ -1,2 +1,2 @@
-# Excepciones al escáner de privacidad. Cada una requiere aprobación del líder técnico.
-# Formato:  ruta/archivo.kt::PATRON_EXACTO   # motivo y enlace al PR de aprobación
+# Privacy scanner exceptions. Each one needs a maintainer's approval.
+# Format:  path/file.kt::EXACT_PATTERN   # reason and link to the approving PR

@@ -1,5 +1,6 @@
 package dev.procastinacioff.app.family
 
+import dev.procastinacioff.app.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -24,8 +25,8 @@ import kotlinx.coroutines.launch
 import uniffi.procastinacioff_core.DayState
 
 /**
- * 🔒 Con Device Owner no hace falta Accesibilidad: lo no permitido se SUSPENDE a nivel de sistema
- * ("App pausada por el administrador"). Revisa cada 15 s y solo cambia lo que cambió.
+ * SECURITY: With Device Owner, Accessibility is not needed: what is not allowed is SUSPENDED at system level
+ * ("App paused by the administrator"). Checks every 15 s and only changes what changed.
  */
 class EnforcerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -33,9 +34,9 @@ class EnforcerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel("enforcer", "Protección activa", NotificationManager.IMPORTANCE_MIN))
+        nm.createNotificationChannel(NotificationChannel("enforcer", getString(R.string.channel_protection), NotificationManager.IMPORTANCE_MIN))
         val n = Notification.Builder(this, "enforcer")
-            .setContentTitle("ProcastinaciOFF activo")
+            .setContentTitle(getString(R.string.protection_active))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .build()
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
@@ -51,7 +52,7 @@ class EnforcerService : Service() {
         val dpm = getSystemService(DevicePolicyManager::class.java)
         val admin = DeviceOwnerPolicies.admin(this)
         var suspended = emptySet<String>()
-        var chrome: List<String>? = listOf("—") // fuerza la primera escritura
+        var chrome: List<String>? = listOf("—") // forces the first write
         while (scope.isActive) {
             runCatching {
                 val core = CoreHolder.get(this)
@@ -65,7 +66,7 @@ class EnforcerService : Service() {
                     .toSet()
                 if (toSuspend != suspended) {
                     dpm.setPackagesSuspended(admin, (suspended - toSuspend).toTypedArray(), false)
-                    dpm.setPackagesSuspended(admin, toSuspend.toTypedArray(), true) // devuelve los que no se pudieron
+                    dpm.setPackagesSuspended(admin, toSuspend.toTypedArray(), true) // returns those that could not be changed
                     suspended = toSuspend
                 }
                 val want = (status.state as? DayState.Focus)?.let { cfg?.webAllowlist }

@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Verificador de escritorio 🔒. Lo lanza la UI DENTRO de un AppContainer con solo la capacidad
-//! "webcam": Windows le niega la red. Cámara → cuadro en RAM → modelo → números → crate `verify`
-//! → UNA línea JSON por stdout con los 5 campos de `VerificationResult`. Nunca escribe a disco.
+//! Desktop verifier (security-critical). The UI launches it INSIDE an AppContainer with only the "webcam"
+//! capability: Windows denies it the network. Camera → frame in RAM → model → numbers → `verify` crate
+//! → ONE JSON line on stdout with the 5 fields of `VerificationResult`. Never writes to disk.
 //!
-//! Uso: procastinacioff-verifier --method (reading|pose) --goal <id> --target <min|reps>
-//!      procastinacioff-verifier --selftest-net     (auditoría: dentro del AppContainer DEBE fallar)
+//! Usage: procastinacioff-verifier --method (reading|pose) --goal <id> --target <min|reps>
+//!        procastinacioff-verifier --selftest-net     (audit: inside the AppContainer it MUST fail)
 
 mod models;
 
@@ -29,7 +29,7 @@ fn emit(r: &VerificationResult) {
 }
 
 fn fail(message: &str) -> ! {
-    // Mensaje fijo y sin datos: la UI lo muestra tal cual.
+    // Fixed message without data (English, for logs): the UI shows a translated generic error.
     println!("{}", serde_json::json!({ "error": message }));
     std::process::exit(2);
 }
@@ -49,18 +49,18 @@ fn main() {
     let result = match method.as_str() {
         "reading" => session::reading(&dir, &goal, target),
         "pose" => session::pose(&dir, &goal, target),
-        _ => Err("método desconocido".into()),
+        _ => Err("unknown method".into()),
     };
     match result {
         Ok(Some(r)) => emit(&r),
-        Ok(None) => fail("meta inválida"),
+        Ok(None) => fail("invalid goal"),
         Err(e) => fail(&e),
     }
 }
 
 #[cfg(windows)]
 mod session {
-    //! Sesiones con cámara. Los cuadros solo existen en RAM y se sobrescriben tras usarlos.
+    //! Camera sessions. Frames only exist in RAM and are overwritten after use.
     use std::time::{Duration, Instant};
 
     use nokhwa::Camera;
@@ -76,22 +76,22 @@ mod session {
 
     fn camera() -> Result<Camera, String> {
         let fmt = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
-        let mut cam = Camera::new(CameraIndex::Index(0), fmt).map_err(|_| "no hay cámara".to_string())?;
-        cam.open_stream().map_err(|_| "no se pudo abrir la cámara".to_string())?;
+        let mut cam = Camera::new(CameraIndex::Index(0), fmt).map_err(|_| "no camera".to_string())?;
+        cam.open_stream().map_err(|_| "could not open the camera".to_string())?;
         Ok(cam)
     }
 
-    /// Captura un cuadro, lo procesa con `f` y lo borra de la memoria.
+    /// Captures a frame, processes it with `f` and wipes it from memory.
     fn with_frame<T>(cam: &mut Camera, f: impl FnOnce(&Frame) -> T) -> Option<T> {
         let img = cam.frame().ok()?.decode_image::<RgbFormat>().ok()?;
         let (width, height) = (img.width() as usize, img.height() as usize);
         let mut rgb = img.into_raw();
         let out = f(&Frame { width, height, rgb: &rgb });
-        rgb.fill(0); // 🔒 no dejar el cuadro en memoria
+        rgb.fill(0); // SECURITY: do not leave the frame in memory
         Some(out)
     }
 
-    /// Lectura: 1 muestra cada 20 s (persona + libro). Termina al llegar al objetivo o tras +5 min.
+    /// Reading: 1 sample every 20 s (person + book). Ends when the target is reached or after +5 min.
     pub fn reading(dir: &std::path::Path, goal: &str, target: u16) -> Session {
         let models = Models::load(dir, false, true)?;
         let mut cam = camera()?;
@@ -110,7 +110,7 @@ mod session {
         Ok(tracker.finish(goal.to_owned(), target))
     }
 
-    /// Ejercicio: ~10 cuadros por segundo hasta `target` repeticiones o 15 min.
+    /// Exercise: ~10 frames per second until `target` reps or 15 min.
     pub fn pose(dir: &std::path::Path, goal: &str, target: u16) -> Session {
         let models = Models::load(dir, true, false)?;
         let mut cam = camera()?;
@@ -131,13 +131,13 @@ mod session {
 
 #[cfg(not(windows))]
 mod session {
-    //! macOS/Linux: Fase 4 y 5.
+    //! macOS/Linux: later.
     use procastinacioff_verify::result::VerificationResult;
 
     pub fn reading(_: &std::path::Path, _: &str, _: u16) -> Result<Option<VerificationResult>, String> {
-        Err("solo Windows en la Fase 2".into())
+        Err("Windows only for now".into())
     }
     pub fn pose(_: &std::path::Path, _: &str, _: u16) -> Result<Option<VerificationResult>, String> {
-        Err("solo Windows en la Fase 2".into())
+        Err("Windows only for now".into())
     }
 }
