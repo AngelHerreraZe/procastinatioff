@@ -1,0 +1,219 @@
+package dev.procastinacioff.app.ui
+
+import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.qrcode.QRCodeReader
+import com.google.zxing.qrcode.QRCodeWriter
+import dev.procastinacioff.app.core.CoreHolder
+import dev.procastinacioff.app.core.userMessage
+import uniffi.procastinacioff_core.Core
+import uniffi.procastinacioff_core.Role
+import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+fun qrBitmap(text: String, size: Int = 640): Bitmap {
+    val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
+    return Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).apply {
+        for (x in 0 until size) for (y in 0 until size) setPixel(x, y, if (m[x, y]) Color.BLACK else Color.WHITE)
+    }
+}
+
+/** (A) Muestra el QR y el código de 6 dígitos a comparar. */
+@Composable
+fun InviteScreen(box: Core? = null, role: Role? = null, onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val core = remember { box ?: CoreHolder.get(ctx) }
+    val scope = rememberCoroutineScope()
+    var offer by remember { mutableStateOf<String?>(null) }
+    var qr by remember { mutableStateOf<Bitmap?>(null) }
+    var code by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val o = withContext(Dispatchers.IO) { core.pairingOffer() }
+            offer = o
+            qr = withContext(Dispatchers.Default) { qrBitmap(o) }
+            while (code == null) { // espera a que el otro dispositivo escanee
+                delay(2_000)
+                code = withContext(Dispatchers.IO) { core.pairingPoll() }
+            }
+        } catch (e: Exception) {
+            error = e.userMessage()
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (code == null) {
+            Text("Vincular otro dispositivo", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("En el otro dispositivo elige «Unirme a un perfil» y escanea este código.")
+            qr?.let { Image(it.asImageBitmap(), contentDescription = "Código QR de vinculación", modifier = Modifier.size(280.dp)) }
+            offer?.let { o ->
+                TextButton(onClick = {
+                    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Código", o))
+                }) { Text("Copiar código (para un PC sin cámara)") }
+            }
+            Text("El código caduca en 10 minutos. Tus metas viajan cifradas.", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { core.pairingCancel(); onDone() }) { Text("Volver") }
+        } else {
+            Text("¿El otro dispositivo muestra este número?", style = MaterialTheme.typography.titleMedium)
+            Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
+            PrimaryButton("Sí, coinciden") {
+                scope.launch {
+                    // Sobre ESTE núcleo (perfil, buzón del compañero o perfil de un menor)
+                    error = withContext(Dispatchers.IO) {
+                        runCatching { core.pairingConfirm(CoreHolder.clock(), role) }.exceptionOrNull()?.userMessage()
+                    }
+                    if (error == null) onDone()
+                }
+            }
+            SecondaryButton("No coinciden: cancelar") { core.pairingCancel(); onDone() }
+        }
+        ErrorText(error)
+    }
+}
+
+/** (B) Escanea el QR del otro dispositivo (o pega su código) y espera su confirmación. */
+@Composable
+fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val core = remember { box ?: CoreHolder.get(ctx) }
+    // Perfil propio: listo cuando llega la configuración. Buzón de compañero: cuando llegan los miembros.
+    val ready: () -> Boolean = { if (box == null) core.status(CoreHolder.clock()) != null else core.members().isNotEmpty() }
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf<String?>(null) }
+    var pasted by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var cameraOk by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraOk = it }
+
+    fun join(qr: String) = scope.launch {
+        try {
+            code = withContext(Dispatchers.IO) { core.pairingJoin(qr, Build.MODEL.take(64)) }
+            // Esperar a que el otro dispositivo confirme y nos envíe el historial
+            while (!withContext(Dispatchers.IO) { ready() }) {
+                delay(3_000)
+                runCatching { withContext(Dispatchers.IO) { core.sync(CoreHolder.clock()) } }
+            }
+            onDone()
+        } catch (e: Exception) {
+            error = e.userMessage()
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (code == null) {
+            Text("Escanea el código que muestra tu otro dispositivo", style = MaterialTheme.typography.titleMedium)
+            if (cameraOk) {
+                QrScanner(Modifier.fillMaxWidth().height(320.dp)) { join(it) }
+            } else {
+                Text("La cámara solo se usa para leer el código. Nunca graba ni guarda imágenes.")
+                SecondaryButton("Usar la cámara") { askCamera.launch(Manifest.permission.CAMERA) }
+            }
+            OutlinedTextField(pasted, { pasted = it }, label = { Text("O pega el código") }, modifier = Modifier.fillMaxWidth())
+            SecondaryButton("Unirme con el código", enabled = pasted.isNotBlank()) { join(pasted.trim()) }
+        } else {
+            Text("Comprueba que el otro dispositivo muestra:")
+            Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
+            Text("Confirma allí. Esta pantalla avanzará sola.")
+        }
+        ErrorText(error)
+    }
+}
+
+/** 🔒 Solo ImageAnalysis: cada cuadro se analiza en memoria y se descarta (el búfer se sobrescribe con ceros). */
+private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
+    private val reader = QRCodeReader()
+    @Volatile private var done = false
+
+    override fun analyze(image: ImageProxy) {
+        if (done) { image.close(); return }
+        val plane = image.planes[0]
+        val data = ByteArray(plane.buffer.remaining()).also { plane.buffer.get(it) }
+        try {
+            val source = PlanarYUVLuminanceSource(data, plane.rowStride, image.height, 0, 0, image.width, image.height, false)
+            val text = reader.decode(BinaryBitmap(HybridBinarizer(source))).text
+            done = true
+            onResult(text)
+        } catch (_: Exception) {
+            // No hay QR en este cuadro: seguir
+        } finally {
+            data.fill(0)
+            image.close()
+        }
+    }
+}
+
+@Composable
+fun QrScanner(modifier: Modifier = Modifier, onResult: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    DisposableEffect(Unit) { onDispose { executor.shutdown() } }
+    AndroidView(modifier = modifier, factory = { c ->
+        val view = PreviewView(c)
+        val providerFuture = ProcessCameraProvider.getInstance(c)
+        providerFuture.addListener({
+            val provider = providerFuture.get()
+            val preview = Preview.Builder().build().also { it.surfaceProvider = view.surfaceProvider }
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also { it.setAnalyzer(executor, QrAnalyzer { text -> ContextCompat.getMainExecutor(ctx).execute { onResult(text) } }) }
+            provider.unbindAll()
+            provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+        }, ContextCompat.getMainExecutor(c))
+        view
+    })
+}

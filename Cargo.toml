@@ -1,0 +1,65 @@
+# Cargo.toml (raíz) — las versiones se fijan una sola vez aquí; cada crate las hereda.
+[workspace]
+resolver = "3"
+members = [
+  "proto",                    # 02b
+  "core",                     # 02
+  "uniffi-bindgen",           # 02c
+  "relay",                    # 03
+  "push-gateway",             # 03b
+  "desktop/ipc",              # 04
+  "desktop/agent",            # 04
+  "desktop/app/src-tauri",    # 04b (necesita desktop/app/ui/dist: se compila aparte, ver justfile)
+  "verify",                   # 06 (Fase 2)
+  "desktop/sandbox",          # 06b (Fase 2)
+  "desktop/verifier",         # 06b (Fase 2)
+  "netfilter",                # 07b (Fase 3)
+  "apple/ffi",                # 08 (Fase 4): librería única para iOS y macOS
+]
+
+[workspace.package]
+edition = "2024"
+license = "MPL-2.0"
+rust-version = "1.100"  # = rust-toolchain.toml; así el resolutor no se queda en versiones viejas (ADR 0003)
+publish = false
+
+[workspace.dependencies]
+# --- Serialización y utilidades
+serde        = { version = "1.0.215", features = ["derive"] }
+serde_json   = "1.0.133"
+thiserror    = "2.0.3"
+chrono       = { version = "0.4.38", default-features = false, features = ["std", "clock", "serde"] }
+hex          = "0.4.3"
+base64       = "0.22.1"
+# --- Criptografía (🔒 no añadir otras sin ADR)
+age           = "0.11.1"
+secrecy       = "0.10.3"
+ed25519-dalek = { version = "2.1.1", features = ["rand_core", "zeroize"] }
+sha2          = "0.10.8"
+rand          = "0.8.5"
+zeroize       = { version = "1.8.1", features = ["derive"] }
+# --- Almacenamiento cifrado
+# 0.42: incluye el SQLite corregido de RUSTSEC-2026-0459 (0.32 del plan era vulnerable; ADR 0006)
+rusqlite = { version = "0.42.0", features = ["bundled-sqlcipher-vendored-openssl"] }
+# --- Bindings
+uniffi = "0.28.3"
+# --- Filtro DNS del modo familiar (07b · Fase 3)
+hickory-proto   = { version = "0.26.3", default-features = false }  # parsear y construir mensajes DNS
+minisign-verify = "0.3.0"                                           # verificar listas de categorías firmadas
+# --- Red (NO usar en verify/)
+ureq        = { version = "2.12.1", default-features = false, features = ["tls", "json"] }
+tokio       = { version = "1.42.0", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+axum        = "0.8.1"
+tower-http  = { version = "0.6.2", features = ["limit"] }
+reqwest     = { version = "0.12.9", default-features = false, features = ["rustls-tls", "json", "http2"] }
+# --- Observabilidad (sin datos personales)
+tracing            = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter", "json"] }
+# --- Pruebas
+proptest = "1.5.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true          # menos superficie de ingeniería inversa y binarios más pequeños
+panic = "abort"       # sin desenrollado: comportamiento más predecible en el servicio

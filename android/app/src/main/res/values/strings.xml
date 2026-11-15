@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Texto que ve el usuario en Ajustes → Accesibilidad: claro y honesto (política de Google Play). -->
+    <string name="blocker_description">ProcastinaciOFF usa la Accesibilidad SOLO para saber qué app está abierta (su nombre de paquete) y mostrar una pantalla de bloqueo si no está permitida según tus metas. No lee el contenido de la pantalla, no registra lo que escribes y no envía esta información a ningún lugar.</string>
+    <string name="blocker_summary">Bloquea apps hasta que cumplas tus metas.</string>
+</resources>

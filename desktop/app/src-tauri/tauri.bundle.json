@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/procastinacioff-agent"],
+    "windows": {
+      "nsis": { "installerHooks": "./hooks.nsh" }
+    }
+  }
+}

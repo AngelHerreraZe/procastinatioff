@@ -1,0 +1,8 @@
+# .gitattributes — finales de línea consistentes entre Windows y Unix
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.jar binary

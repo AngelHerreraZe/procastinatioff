@@ -1,0 +1,2 @@
+# Excepciones al escáner de privacidad. Cada una requiere aprobación del líder técnico.
+# Formato:  ruta/archivo.kt::PATRON_EXACTO   # motivo y enlace al PR de aprobación

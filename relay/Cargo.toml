@@ -1,0 +1,27 @@
+[package]
+name = "procastinacioff-relay"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+procastinacioff-proto = { path = "../proto" }
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+rusqlite.workspace = true        # SQLite (los datos ya van cifrados por los clientes)
+serde.workspace = true
+serde_json.workspace = true
+ed25519-dalek.workspace = true
+rand.workspace = true
+hex.workspace = true
+base64.workspace = true
+reqwest.workspace = true         # solo para llamar al push gateway
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5.1", features = ["util"] }
+http-body-util = "0.1.2"

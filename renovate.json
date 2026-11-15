@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    { "matchManagers": ["cargo"], "rangeStrategy": "pin" },
+    { "matchPackageNames": ["age", "ed25519-dalek", "rusqlite", "uniffi"], "labels": ["security-review"], "automerge": false }
+  ]
+}

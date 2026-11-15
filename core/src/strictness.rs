@@ -1,0 +1,136 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+//! Regla anti-impulso 🔒: endurecer rige desde ya; relajar, desde el próximo despertar.
+//! Ante cualquier duda, un cambio se considera "relaja".
+
+use crate::clock::{Clock, DAY_MS, day_start_ms, in_sleep};
+use crate::model::{Config, Goal, TimeOfDay};
+
+/// true si `new` es igual o más estricta que `old` en TODOS los aspectos.
+pub fn is_stricter_or_equal(new: &Config, old: &Config) -> bool {
+    new.permits_per_day <= old.permits_per_day
+        && new.permit_minutes <= old.permit_minutes
+        && new.permit_cooldown_minutes >= old.permit_cooldown_minutes
+        && new.emergency_minutes <= old.emergency_minutes
+        && new.emergency_penalty >= old.emergency_penalty
+        && (new.habit_penalty || !old.habit_penalty)
+        && new.free_days & !old.free_days == 0 // un día libre nuevo relaja
+        && sleep_contains(new, old)
+        && old.goals.iter().all(|g| goal_kept_or_harder(g, &new.goals))
+        && new.essential_apps.iter().all(|a| old.essential_apps.contains(a))
+        && new.focus_apps.iter().all(|a| old.focus_apps.contains(a))
+        && new.web_allowlist.iter().all(|d| old.web_allowlist.contains(d))
+        && new.weekly_bonus_permits <= old.weekly_bonus_permits
+}
+
+/// El periodo de sueño nuevo cubre todos los minutos del viejo.
+/// ponytail: recorre los 1440 minutos; es O(1) en la práctica y no tiene casos borde.
+fn sleep_contains(new: &Config, old: &Config) -> bool {
+    (0..1440u16).all(|m| {
+        let t = TimeOfDay { minutes: m };
+        !in_sleep(&old.schedule, t) || in_sleep(&new.schedule, t)
+    })
+}
+
+/// `old` sigue en `new_goals` con la misma identidad y objetivos iguales o mayores.
+pub fn goal_kept_or_harder(old: &Goal, new_goals: &[Goal]) -> bool {
+    new_goals.iter().any(|n| {
+        n.id == old.id
+            && n.kind == old.kind
+            && n.target_minutes >= old.target_minutes
+            && n.target_count >= old.target_count
+            && n.weekdays & old.weekdays == old.weekdays
+            && n.methods.iter().all(|m| old.methods.contains(m))
+    })
+}
+
+/// Instante desde el que rige un cambio propuesto ahora.
+pub fn effective_from(new: &Config, current: Option<&Config>, clock: Clock) -> i64 {
+    match current {
+        None => clock.now_ms, // primera configuración: inmediata
+        Some(old) if is_stricter_or_equal(new, old) => clock.now_ms,
+        Some(old) => day_start_ms(&old.schedule, clock) + DAY_MS, // próximo despertar
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Config, SATURDAY};
+    use proptest::prelude::*;
+
+    #[test]
+    fn more_permits_is_laxer() {
+        let old = Config::example();
+        let mut new = old.clone();
+        new.permits_per_day += 1;
+        assert!(!is_stricter_or_equal(&new, &old));
+    }
+
+    #[test]
+    fn removing_a_goal_is_laxer_adding_one_is_stricter() {
+        let old = Config::example();
+        let mut removed = old.clone();
+        removed.goals.pop();
+        assert!(!is_stricter_or_equal(&removed, &old));
+        let mut added = old.clone();
+        let mut g = added.goals[0].clone();
+        g.id = "ejercicio".into();
+        added.goals.push(g);
+        assert!(is_stricter_or_equal(&added, &old));
+    }
+
+    #[test]
+    fn later_bedtime_is_laxer() {
+        let old = Config::example();
+        let mut new = old.clone();
+        new.schedule.bedtime = TimeOfDay::hm(23, 30);
+        assert!(!is_stricter_or_equal(&new, &old));
+        new.schedule.bedtime = TimeOfDay::hm(21, 30);
+        assert!(is_stricter_or_equal(&new, &old));
+    }
+
+    #[test]
+    fn adding_a_free_day_is_laxer_removing_one_is_stricter() {
+        let old = Config::example(); // sábado y domingo
+        let mut more = old.clone();
+        more.free_days |= 1; // + lunes
+        assert!(!is_stricter_or_equal(&more, &old));
+        let mut fewer = old.clone();
+        fewer.free_days &= !SATURDAY;
+        assert!(is_stricter_or_equal(&fewer, &old));
+    }
+
+    proptest! {
+        /// Propiedad: una configuración siempre es "igual o más estricta" que sí misma.
+        #[test]
+        fn reflexive(p in 0u8..10, m in 1u16..60, c in 0u16..240, free in 0u8..128) {
+            let mut cfg = Config::example();
+            cfg.permits_per_day = p; cfg.permit_minutes = m; cfg.permit_cooldown_minutes = c; cfg.free_days = free;
+            prop_assert!(is_stricter_or_equal(&cfg, &cfg));
+        }
+
+        /// Propiedad: si el cambio da más permisos, NUNCA puede regir de inmediato.
+        #[test]
+        fn more_permits_never_immediate(extra in 1u8..10, now in 0i64..4_000_000_000_000) {
+            let old = Config::example();
+            let mut new = old.clone();
+            new.permits_per_day = old.permits_per_day.saturating_add(extra);
+            let clock = Clock { now_ms: now, utc_offset_min: 0 };
+            prop_assert!(effective_from(&new, Some(&old), clock) > now);
+        }
+
+        /// Propiedad: añadir cualquier día libre NUNCA rige de inmediato.
+        #[test]
+        fn new_free_day_never_immediate(day in 0u8..7, now in 0i64..4_000_000_000_000) {
+            let mut old = Config::example();
+            old.free_days = 0;
+            let mut new = old.clone();
+            new.free_days = 1 << day;
+            let clock = Clock { now_ms: now, utc_offset_min: 0 };
+            prop_assert!(effective_from(&new, Some(&old), clock) > now);
+        }
+    }
+}

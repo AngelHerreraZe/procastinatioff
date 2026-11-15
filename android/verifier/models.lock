@@ -1,0 +1,11 @@
+# Modelos del verificador Android: "<sha256>  <archivo>  <url>" (una línea por modelo).
+# Los fija el spike E tras validar precisión y LICENCIA (ninguna AGPL/GPL ni "solo investigación").
+# scripts/fetch_models.py los descarga a src/main/assets/models/ y comprueba cada hash.
+# Mientras falte una línea, ese método responde "faltan los modelos" y no se aprueba nada.
+#
+# Candidatos (MediaPipe, Apache-2.0) — URL versionada, hash por fijar:
+#   pose_landmarker_lite.task      https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+#   hand_landmarker.task           https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+#   blaze_face_short_range.tflite  https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite
+#   efficientdet_lite0.tflite      https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite
+#   food_classifier.tflite         (elegir en el spike E)

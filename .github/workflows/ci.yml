@@ -1,0 +1,140 @@
+# .github/workflows/ci.yml
+# 🔒 Cada action debe fijarse por SHA completo (Renovate los mantiene). El PR que active el CI
+#    sustituye las etiquetas marcadas con "# fijar SHA".
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"        # cada noche: auditoría + fuzzing largo
+
+permissions:
+  contents: read               # mínimo privilegio por defecto
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_TOOLCHAIN: "1.100.0"
+
+jobs:
+  rust:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: dtolnay/rust-toolchain@master       # fijar SHA
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2              # fijar SHA
+      - run: cargo fmt --all -- --check
+      # La app Tauri se compila en `desktop-windows` (necesita la UI construida).
+      - run: cargo clippy --workspace --exclude procastinacioff-app --all-targets -- -D warnings
+      - run: cargo test --workspace --exclude procastinacioff-app
+
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: dtolnay/rust-toolchain@master       # fijar SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      - uses: Swatinem/rust-cache@v2              # fijar SHA
+      - run: cargo build -p procastinacioff-relay -p procastinacioff-core --tests
+      - name: Dos dispositivos contra el relay local
+        run: |
+          PCO_DB=/tmp/relay.db PCO_TIME_KEY=/tmp/time.key cargo run -p procastinacioff-relay > /tmp/relay.log 2>&1 &
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 1; done
+          cargo test -p procastinacioff-core --test two_devices -- --ignored
+          # 🔒 El log del relay no puede contener IDs, claves ni IPs
+          ! grep -E "[0-9a-f]{32}|\b[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\b" /tmp/relay.log | grep -v '"bind"' | grep -v time_pubkey
+
+  supply-chain:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: EmbarkStudios/cargo-deny-action@v2  # fijar SHA
+      - run: cargo install --locked cargo-audit && cargo audit
+      - run: cargo install --locked cargo-cyclonedx && cargo cyclonedx --format json --all
+      - uses: actions/upload-artifact@v4          # fijar SHA
+        with:
+          name: sbom
+          path: "**/*.cdx.json"
+
+  privacy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: dtolnay/rust-toolchain@master       # fijar SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      - run: python3 scripts/privacy_scan.py
+      - run: python3 scripts/check_verify_no_net.py
+      - run: python3 scripts/build_category_list.py --test
+
+  secrets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+        with: { fetch-depth: 0 }
+      - name: gitleaks
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --redact --exit-code 1
+
+  sast:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - name: semgrep
+        run: docker run --rm -v "$PWD:/src" semgrep/semgrep:1.97.0 semgrep scan --config p/rust --config p/secrets --config p/kotlin --error /src
+
+  desktop-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: dtolnay/rust-toolchain@master       # fijar SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}", components: clippy }
+      - uses: actions/setup-node@v4               # fijar SHA
+        with: { node-version: "22" }
+      - run: npm ci --prefix desktop/app/ui
+      - run: npm run --prefix desktop/app/ui check
+      - run: npm run --prefix desktop/app/ui build
+      - run: cargo clippy -p procastinacioff-app -p procastinacioff-agent -p procastinacioff-verifier -- -D warnings
+      - run: cargo build -p procastinacioff-agent -p procastinacioff-verifier --release
+      # 🔒 Auditoría Fase 2 · prueba 4: el verificador dentro del AppContainer NO tiene red
+      - run: cargo test -p procastinacioff-verifier --test sandbox_no_network
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: actions/setup-java@v4               # fijar SHA
+        with: { distribution: temurin, java-version: "17" }
+      - uses: dtolnay/rust-toolchain@master       # fijar SHA
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: android-actions/setup-android@v3    # fijar SHA
+      - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35"
+      - run: cargo install --locked cargo-ndk
+      - run: cargo build -p procastinacioff-core -p procastinacioff-verify --release   # para generar bindings
+      - run: cargo run -p uniffi-bindgen -- generate --library target/release/libprocastinacioff_core.so --language kotlin --out-dir android/app/src/main/java
+      - run: cargo run -p uniffi-bindgen -- generate --library target/release/libprocastinacioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
+      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :verifier:assembleRelease
+        working-directory: android
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+      - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/app/build/outputs/apk/release/app-release-unsigned.apk
+      # 🔒 El verificador NUNCA puede tener permisos de red (auditoría Fase 2 · prueba 1)
+      - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/verifier/build/outputs/apk/release/verifier-release-unsigned.apk --verifier
+
+  fuzz-nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # fijar SHA
+      - uses: dtolnay/rust-toolchain@nightly      # fijar SHA
+      - run: cargo install --locked cargo-fuzz
+      - run: cd core && for t in $(cargo +nightly fuzz list); do cargo +nightly fuzz run "$t" -- -max_total_time=600; done

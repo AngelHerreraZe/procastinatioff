@@ -1,0 +1,50 @@
+# deny.toml — lo ejecuta `cargo deny check` en local y en CI
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"             # versiones retiradas por su autor: prohibidas
+# "Sin mantenimiento" bloquea solo en dependencias directas; las transitivas se revisan en la
+# actualización trimestral (ADR 0006). Las VULNERABILIDADES bloquean siempre.
+unmaintained = "workspace"
+ignore = []                 # cada excepción necesita un ADR en docs/decisions/
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Licencias compatibles con MPL-2.0 y con la App Store
+allow = [
+  "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
+  "ISC", "Zlib", "MPL-2.0", "Unicode-3.0", "Unicode-DFS-2016", "CC0-1.0", "BSL-1.0",
+  "OpenSSL",
+  # Datos de certificados raíz de Mozilla (webpki-roots, que usa rustls). Licencia permisiva de datos.
+  "CDLA-Permissive-2.0",
+]
+# GPL/AGPL/LGPL quedan prohibidas por omisión (conflicto con App Store)
+exceptions = [
+  # Código fuente de SQLCipher/SQLite ("blessing" = dominio público) y libtomcrypt (WTFPL), solo en este crate.
+  { allow = ["blessing", "WTFPL"], crate = "sqlcipher-src" },
+  # Decodificador MJPEG de la webcam (verificador de escritorio, vía nokhwa). IJG: permisiva con atribución
+  # obligatoria en la documentación del producto (pendiente para el lanzamiento, ADR 0009).
+  { allow = ["IJG"], crate = "mozjpeg" },
+  { allow = ["IJG"], crate = "mozjpeg-sys" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true # dependencias internas por ruta (publish = false)
+deny = [
+  # Telemetría / reportes de errores a terceros
+  { name = "sentry" },
+  { name = "sentry-core" },
+  { name = "opentelemetry-otlp" },
+  # TLS nativo: usamos solo rustls (comportamiento idéntico en todas las plataformas)
+  { name = "native-tls" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

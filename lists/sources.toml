@@ -1,0 +1,17 @@
+# Fuentes de las listas de categorías del modo familiar (07b · 4.1).
+# 🔒 Solo licencias compatibles con la App Store y con uso comercial: MIT, CC0, CC-BY o equivalentes.
+#    Nunca GPL ni "no comercial". Cada fuente nueva necesita revisión (CODEOWNERS) y su licencia aquí.
+# Construir:  python scripts/build_category_list.py categories.txt <archivos de las fuentes>
+# Firmar:     en el equipo aislado, `minisign -S -s listas.key -m categories.txt` (solo el líder técnico)
+# Publicar:   categories.txt y categories.txt.minisig en LISTS_URL (core/src/api.rs)
+#
+# Categorías iniciales: adultos y apuestas (≤ 200 000 dominios). Ampliar con revisión del responsable de producto.
+#
+# [[source]]
+# name     = "…"
+# category = "adultos" | "apuestas"
+# url      = "https://…"
+# license  = "MIT"            # SPDX
+# revisado = "AAAA-MM-DD"     # quién y cuándo comprobó la licencia, en el PR
+
+# ⏳ Pendiente: elegir fuentes concretas tras comprobar sus licencias (trámite 11 de docs/tramites.md).

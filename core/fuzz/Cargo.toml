@@ -1,0 +1,40 @@
+# Fuzzing de los parsers del núcleo 🔒 (requiere nightly + cargo-fuzz): `just fuzz open_blob 600`
+[package]
+name = "procastinacioff-core-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+procastinacioff-core = { path = ".." }
+age = "0.11.1"
+serde_json = "1.0.133"
+
+# Workspace propio: no entra en `cargo test --workspace` del repositorio.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "open_blob"
+path = "fuzz_targets/open_blob.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_qr"
+path = "fuzz_targets/parse_qr.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "signed_event"
+path = "fuzz_targets/signed_event.rs"
+test = false
+doc = false
+bench = false

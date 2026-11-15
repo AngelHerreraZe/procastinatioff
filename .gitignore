@@ -1,0 +1,42 @@
+# .gitignore
+# Documentación interna y planes: viven solo en local, no en el repositorio público
+/PLAN_MAESTRO.md
+/PLAN_DESARROLLO.md
+/plan-desarrollo/
+/docs/
+/diseno/
+__pycache__/
+
+/target/
+**/node_modules/
+**/build/
+**/dist/
+**/.gradle/
+**/.kotlin/
+**/local.properties
+*.keystore
+*.jks
+*.p8
+*.p12
+*.pem
+.env
+.env.*
+**/DerivedData/
+.DS_Store
+# Modelos ML: se descargan con script y se verifican por hash (ver Fase 2)
+/models/*.task
+/models/*.onnx
+/models/*.gguf
+# Generados en cada build (núcleo Rust para Android y sus bindings)
+/android/app/src/main/jniLibs/
+/android/app/src/main/java/uniffi/
+# Tauri
+/desktop/app/src-tauri/gen/
+/desktop/app/src-tauri/binaries/
+# Fuzzing
+/core/fuzz/artifacts/
+/core/fuzz/corpus/
+/core/fuzz/target/
+/android/verifier/src/main/jniLibs/
+/android/verifier/src/main/java/uniffi/
+/android/verifier/src/main/assets/models/

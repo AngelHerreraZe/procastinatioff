@@ -1,0 +1,22 @@
+[package]
+name = "procastinacioff-app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2.0.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.1.1", features = [] }
+procastinacioff-ipc = { path = "../../ipc" }
+serde.workspace = true
+serde_json.workspace = true
+# QR de vinculación generado en local como SVG (sin dependencias JavaScript)
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58.0", features = ["Win32_System_Shutdown"] }
+procastinacioff-sandbox = { path = "../../sandbox" }   # verificador en AppContainer sin red
