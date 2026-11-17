@@ -72,20 +72,42 @@ export interface Config {
 }
 
 // ── Family mode (this PC belongs to a minor; the guardian uses the phone) ──
-export type Role = 'owner' | 'guardian' | 'minor' | 'partner';
+export type Role = 'owner' | 'guardian' | 'minor' | 'trusted_contact';
 export type RequestKind =
   | { what: 'extra_permit'; minutes: number }
   | { what: 'add_site'; domain: string }
   | { what: 'later_bedtime'; minutes: number }
-  | { what: 'rest_day' };
+  | { what: 'rest_day' }
+  | { what: 'config_change'; changes: unknown[]; config_hash: string }; // only in a trusted contact's channel
 export interface PendingRequest { request_id: string; what: RequestKind; at_ms: number }
 export type TamperKind =
   | 'permission_revoked' | 'service_stopped' | 'clock_changed' | 'uninstall_attempt' | 'safe_mode' | 'device_silent';
 export type FamilyAlert =
   | { alert: 'tamper'; what: TamperKind }
   | { alert: 'emergency' }
-  | { alert: 'blocked_sites'; count: number };
+  | { alert: 'blocked_sites'; count: number }
+  | { alert: 'granted'; what: OfflineAsk };
+/** A small concession granted with an offline code or the guardian's PIN in person. */
+export type OfflineAsk =
+  | { ask: 'extra_permit'; minutes: number }
+  | { ask: 'rest_day' }
+  | { ask: 'later_bedtime'; minutes: number };
 export interface FamilyAlertView { at_ms: number; alert: FamilyAlert; device_label: string }
+
+// ── Authorizing changes (ADR 0013): the local gate on this computer ──
+export type LocalFactor = 'pin' | 'password' | 'pattern' | 'biometric';
+export interface AuthState {
+  methods: LocalFactor[];
+  /** Those usable now (biometrics: only on the phone for now). */
+  usable: LocalFactor[];
+  guardian_methods: LocalFactor[];
+  locked_until_ms: number;
+  reset_at_ms: number | null;
+  has_recovery_code: boolean;
+  contact_required: boolean;
+  contacts: number;
+  unlocked: boolean;
+}
 
 type Response =
   | { type: 'status'; agent: AgentStatus }
@@ -100,6 +122,7 @@ type Response =
   | { type: 'role'; role: Role | null }
   | { type: 'requests'; requests: PendingRequest[] }
   | { type: 'alerts'; alerts: FamilyAlertView[] }
+  | { type: 'auth'; state: AuthState }
   | { type: 'error'; code: string; message: string; cooldown_minutes: number };
 
 /** Error from the service. `code` is a translation key (`denied.*`, `error.*`): see `errorText` in i18n.ts. */
@@ -133,6 +156,11 @@ export async function myRole(): Promise<Role | null> {
 export async function familyView(): Promise<{ requests: PendingRequest[]; alerts: FamilyAlertView[] }> {
   const [r, a] = await Promise.all([call({ cmd: 'pending_requests' }), call({ cmd: 'family_alerts' })]);
   return { requests: r.type === 'requests' ? r.requests : [], alerts: a.type === 'alerts' ? a.alerts : [] };
+}
+
+export async function authState(): Promise<AuthState | null> {
+  const r = await call({ cmd: 'auth_state' });
+  return r.type === 'auth' ? r.state : null;
 }
 
 export async function todayGoals(): Promise<Goal[]> {

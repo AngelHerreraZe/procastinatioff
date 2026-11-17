@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "linux": {
+      "deb": {
+        "depends": ["procastinacioff-agent"],
+        "files": { "/etc/xdg/autostart/procastinacioff-ui.desktop": "../../../packaging/linux/procastinacioff-ui.desktop" }
+      }
+    }
+  }
+}

@@ -1,13 +1,13 @@
-/* Visual system: 01 Calm by default · 03 Night 1 h before bedtime · 08 Focus on the current goal.
-      All color pairs are measured against WCAG 2.2 AA or better.
-      ponytail: system fonts; Inter/Manrope/Lexend will be bundled as local files (the CSP does not
-      allow remote fonts) once each one's license is cleared. */
+/* Visual system (desktop/DESIGN.md): 01 Calma by day · 03 Nocturno from 1 h before bedtime until
+      waking. All color pairs are measured against WCAG 2.2 AA or better.
+      ponytail: system fonts; Inter/Manrope will be bundled as local files (the CSP does not allow
+      remote fonts) once each one's license is cleared. */
 
 :root,
 [data-theme='calma'] {
   --bg: #f6f7f5;
   --surface: #ffffff;
-  --surface-2: #f6f7f5;
+  --chrome: #eef1ef;
   --text: #1c2421;
   --muted: #4d5a55;
   --accent: #0f6e64;
@@ -26,7 +26,7 @@
 [data-theme='nocturno'] {
   --bg: #0e1320;
   --surface: #161d2e;
-  --surface-2: #0b0f1a;
+  --chrome: #0b0f1a;
   --text: #eceff7;
   --muted: #a9b3c7;
   --accent: #f5b544;
@@ -40,25 +40,6 @@
   --title-weight: 800;
   --font: 'Manrope', system-ui, 'Segoe UI', sans-serif;
   color-scheme: dark;
-}
-
-[data-theme='foco'] {
-  --bg: #f3f2f8;
-  --surface: #ffffff;
-  --surface-2: #f3f2f8;
-  --text: #16161d;
-  --muted: #4a4860;
-  --accent: #5b3cc4;
-  --on-accent: #ffffff;
-  --accent-soft: #ede9fb;
-  --track: #ede9fb;
-  --border: #d9d6e8;
-  --danger: #9a3412;
-  --radius: 32px;
-  --body-weight: 400;
-  --title-weight: 700;
-  --font: 'Lexend', system-ui, 'Segoe UI', sans-serif;
-  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -80,6 +61,7 @@ p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[data-theme='nocturno'] :focus-visible { outline-offset: 3px; }
 
 /* Buttons: one main action per screen, targets ≥ 32 px on desktop */
 button { font: inherit; cursor: pointer; border-radius: 999px; min-height: 40px; padding: 0 20px; border: 0; }
@@ -106,7 +88,7 @@ label > span { font-weight: 600; }
   background: var(--accent-soft); color: var(--accent); font-size: 12px; line-height: 20px; font-weight: 600;
 }
 [data-theme='nocturno'] .chip { color: var(--text); }
-.chip.neutral { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.chip.neutral { background: var(--chrome); color: var(--muted); border: 1px solid var(--border); }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .stack { display: grid; gap: 16px; }
 .error { color: var(--danger); font-weight: 600; }

@@ -27,7 +27,10 @@ rand.workspace = true
 zeroize.workspace = true
 rusqlite.workspace = true
 uniffi.workspace = true
-ureq.workspace = true
+iroh.workspace = true
+tokio.workspace = true
+hmac.workspace = true
+argon2.workspace = true
 hickory-proto.workspace = true
 minisign-verify.workspace = true
 

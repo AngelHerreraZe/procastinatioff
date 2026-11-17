@@ -37,6 +37,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -46,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -101,7 +105,12 @@ class VerifyActivity : ComponentActivity() {
             intent.getIntExtra("target_reps", 20).coerceIn(1, 500),
             intent.getIntExtra("min_pages", 10).coerceIn(1, 300),
         )
-        setContent { MaterialTheme { VerifyScreen(args, detectors, ::deliver) } }
+        val night = intent.getBooleanExtra("night", false)
+        setContent {
+            MaterialTheme(colorScheme = if (night) Nocturno else Calma) {
+                Surface(color = MaterialTheme.colorScheme.background) { VerifyScreen(args, detectors, ::deliver) }
+            }
+        }
     }
 
     /** Returns ONLY VerificationResult's 5 fields to the main app. Only once. */
@@ -123,6 +132,37 @@ class VerifyActivity : ComponentActivity() {
         super.onDestroy()
     }
 }
+
+// The app's two looks (DESIGN.md), chosen by the app and passed as the "night" extra.
+// ponytail: copied from the app's ui/Common.kt (a separate APK without a shared module); keep both equal.
+private val Calma = lightColorScheme(
+    primary = Color(0xFF087C70), onPrimary = Color.White,
+    primaryContainer = Color(0xFFDDF3ED), onPrimaryContainer = Color(0xFF0E625B),
+    secondary = Color(0xFF087C70), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFDDF3ED), onSecondaryContainer = Color(0xFF0E625B),
+    tertiary = Color(0xFF087C70), onTertiary = Color.White,
+    background = Color(0xFFF5F7F5), onBackground = Color(0xFF172321),
+    surface = Color.White, onSurface = Color(0xFF172321),
+    surfaceVariant = Color(0xFFE6EBE8), onSurfaceVariant = Color(0xFF64736F),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF5F7F5), surfaceContainer = Color(0xFFF5F7F5),
+    surfaceContainerHigh = Color(0xFFEEF1EF), surfaceContainerHighest = Color(0xFFE6EBE8),
+    outline = Color(0xFF64736F), outlineVariant = Color(0xFFE6EBE8),
+    error = Color(0xFFB3403C), onError = Color.White,
+)
+private val Nocturno = darkColorScheme(
+    primary = Color(0xFFF5B544), onPrimary = Color(0xFF1A1300),
+    primaryContainer = Color(0xFF2A3348), onPrimaryContainer = Color(0xFFECEFF7),
+    secondary = Color(0xFFF5B544), onSecondary = Color(0xFF1A1300),
+    secondaryContainer = Color(0xFF2A3348), onSecondaryContainer = Color(0xFFECEFF7),
+    tertiary = Color(0xFFF5B544), onTertiary = Color(0xFF1A1300),
+    background = Color(0xFF0E1320), onBackground = Color(0xFFECEFF7),
+    surface = Color(0xFF161D2E), onSurface = Color(0xFFECEFF7),
+    surfaceVariant = Color(0xFF2A3348), onSurfaceVariant = Color(0xFFA9B3C7),
+    surfaceContainerLowest = Color(0xFF0B0F1A), surfaceContainerLow = Color(0xFF0E1320), surfaceContainer = Color(0xFF161D2E),
+    surfaceContainerHigh = Color(0xFF2A3348), surfaceContainerHighest = Color(0xFF2A3348),
+    outline = Color(0xFFA9B3C7), outlineVariant = Color(0xFF2A3348),
+    error = Color(0xFFFCA5A5), onError = Color(0xFF1A1300),
+)
 
 /** Reduces to 9×8 gray, in memory (for the perceptual hash). */
 private fun gray9x8(src: Bitmap): ByteArray {

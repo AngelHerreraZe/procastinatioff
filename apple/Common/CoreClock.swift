@@ -4,8 +4,8 @@
 
 import Foundation
 
-/// Time for the rules: relay signed time + monotonic clock. Changing the system time
-/// does not move it. Without an anchor yet, the system clock.
+/// Time for the rules: the paired devices' time (anchored on each sync) + monotonic clock.
+/// Changing the system time does not move it. Without an anchor yet, the system clock.
 enum CoreClock {
     /// On Darwin, CLOCK_MONOTONIC keeps counting while the device sleeps (systemUptime does not).
     static func monoMs() -> Int64 { Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1_000_000) }
@@ -18,9 +18,11 @@ enum CoreClock {
         return Clock(nowMs: now, utcOffsetMin: Int32(offset))
     }
 
-    /// Anchors the time with the relay (call before every sync). Without network, nothing happens.
-    static func anchor(_ core: Core) {
-        try? core.anchorTime(deviceNowMs: deviceNowMs(), monoMs: monoMs())
+    /// Syncs with the profile's devices whose LAN address is known (Bonjour) and re-anchors the time
+    /// with their clocks. Blocking: call from a background task. Devices that are not around are skipped.
+    @discardableResult
+    static func sync(_ core: Core) throws -> SyncReport {
+        try core.syncNow(deviceNowMs: deviceNowMs(), monoMs: monoMs())
     }
 }
 

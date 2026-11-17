@@ -44,18 +44,21 @@ sbom:
 fuzz target secs="60":
     cd core; cargo +nightly fuzz run {{target}} -- -max_total_time={{secs}}
 
-relay-dev:
-    cargo run -p procastinacioff-relay
-
-# End-to-end test: two devices against the local relay (start `just relay-dev` first)
+# End-to-end test: devices pairing and syncing directly (real QUIC on this machine)
 it:
-    cargo test -p procastinacioff-core --test two_devices -- --ignored
+    cargo test -p procastinacioff-core --test two_devices
 
 # Desktop UI (Svelte) + Tauri app
 app:
     npm --prefix desktop/app/ui ci
     npm --prefix desktop/app/ui run build
     cargo clippy -p {{app_crate}} -- -D warnings
+
+# Linux packages (run on Linux): the agent (.deb with the systemd unit) and the UI (.deb that depends on it).
+# Needs cargo-deb 2 and tauri-cli 2. Plan 09 · A.7.
+linux-packages: app
+    cargo deb -p procastinacioff-agent
+    cd desktop/app/src-tauri; cargo tauri build --bundles deb --config tauri.linux.bundle.json
 
 # Signed Windows NSIS installer (service + UI). Needs tauri-cli 2 and the signing certificate.
 installer: app
@@ -64,7 +67,8 @@ installer: app
     Copy-Item target/release/procastinacioff-agent.exe desktop/app/src-tauri/binaries/procastinacioff-agent-x86_64-pc-windows-msvc.exe
     cd desktop/app/src-tauri; cargo tauri build --config tauri.bundle.json
 
-# Kotlin bindings from the host library (library mode)
+# Kotlin bindings from the host library (library mode). Debug on purpose: the release library is
+# stripped and uniffi-bindgen then generates nothing without failing (stale bindings, crash on start).
 bindings:
-    cargo build -p procastinacioff-core --release
-    cargo run -p uniffi-bindgen -- generate --library target/release/{{ if os() == "windows" { "procastinacioff_core.dll" } else if os() == "macos" { "libprocastinacioff_core.dylib" } else { "libprocastinacioff_core.so" } }} --language kotlin --out-dir android/app/src/main/java
+    cargo build -p procastinacioff-core
+    cargo run -p uniffi-bindgen -- generate --library target/debug/{{ if os() == "windows" { "procastinacioff_core.dll" } else if os() == "macos" { "libprocastinacioff_core.dylib" } else { "libprocastinacioff_core.so" } }} --language kotlin --out-dir android/app/src/main/java

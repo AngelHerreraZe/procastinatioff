@@ -12,6 +12,7 @@ use crate::rules::Denied;
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum CoreError {
     /// `reason` is a stable code (`Denied::code`); UIs show the `denied.<reason>` translation.
+    /// `cooldown_minutes`: the wait for `cooldown` and `locked`.
     #[error("denied: {reason}")]
     Denied { reason: String, cooldown_minutes: u16 },
     #[error("storage: {msg}")]
@@ -55,7 +56,10 @@ impl CoreError {
 
 impl From<Denied> for CoreError {
     fn from(d: Denied) -> Self {
-        let cooldown_minutes = if let Denied::Cooldown { minutes } = d { minutes } else { 0 };
+        let cooldown_minutes = match d {
+            Denied::Cooldown { minutes } | Denied::Locked { minutes } => minutes,
+            _ => 0,
+        };
         // The UI receives the code, never a sentence: every language translates it locally.
         Self::Denied { reason: d.code().into(), cooldown_minutes }
     }

@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -18,14 +19,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,10 +36,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -69,16 +70,29 @@ fun qrBitmap(text: String, size: Int = 640): Bitmap {
     }
 }
 
+/** The code both devices must show, large and spaced (tabular figures: digits do not shift). */
+@Composable
+private fun CodeToCompare(code: String) {
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.primaryContainer) {
+        Text(
+            code, Modifier.padding(vertical = 24.dp),
+            style = MaterialTheme.typography.displayMedium.copy(fontFeatureSettings = "tnum", letterSpacing = 6.sp),
+            color = MaterialTheme.colorScheme.onPrimaryContainer, textAlign = TextAlign.Center,
+        )
+    }
+}
+
 /** (A) Shows the QR and the 6-digit code to compare. */
 @Composable
 fun InviteScreen(box: Core? = null, role: Role? = null, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val core = remember { box ?: CoreHolder.get(ctx) }
-    val scope = rememberCoroutineScope()
     var offer by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<Bitmap?>(null) }
     var code by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val cancel = { core.pairingCancel(); onDone() }
+    BackHandler(onBack = cancel) // leaving by system back also cancels the pairing
 
     LaunchedEffect(Unit) {
         try {
@@ -94,42 +108,51 @@ fun InviteScreen(box: Core? = null, role: Role? = null, onDone: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (code == null) {
-            Text(stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.pair_instructions))
-            qr?.let { Image(it.asImageBitmap(), contentDescription = stringResource(R.string.pair_qr_label), modifier = Modifier.size(280.dp)) }
-            offer?.let { o ->
-                TextButton(onClick = {
-                    ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(ctx.getString(R.string.pair_code), o))
-                }) { Text(stringResource(R.string.pair_copy_for_pc)) }
+    val shown = code
+    if (shown == null) {
+        Screen(title = stringResource(R.string.pair_title), lead = stringResource(R.string.pair_instructions), onBack = cancel) {
+            AppCard {
+                val bitmap = qr
+                if (bitmap == null) LoadingState()
+                else Image(
+                    bitmap.asImageBitmap(), contentDescription = stringResource(R.string.pair_qr_label),
+                    modifier = Modifier.align(Alignment.CenterHorizontally).size(240.dp),
+                )
+                offer?.let { o ->
+                    TextButton(
+                        onClick = { ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(ctx.getString(R.string.pair_code), o)) },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    ) { Text(stringResource(R.string.pair_copy_for_pc)) }
+                }
             }
-            Text(stringResource(R.string.pair_expires), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { core.pairingCancel(); onDone() }) { Text(stringResource(R.string.back)) }
-        } else {
-            Text(stringResource(R.string.pair_match_question), style = MaterialTheme.typography.titleMedium)
-            Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
-            PrimaryButton(stringResource(R.string.pair_match_yes)) {
-                scope.launch {
-                    // On THIS core (profile, partner mailbox or a minor's profile)
+            Footnote(stringResource(R.string.pair_expires), PcoIcons.ShieldLock)
+            ErrorText(error)
+        }
+    } else {
+        Screen(
+            title = stringResource(R.string.pair_match_question),
+            onBack = cancel,
+            bottom = {
+                ErrorText(error)
+                PrimaryButton(stringResource(R.string.pair_match_yes)) {
+                    // On THIS core (profile, contact channel or a minor's profile)
                     error = withContext(Dispatchers.IO) {
                         runCatching { core.pairingConfirm(CoreHolder.clock(), role) }.exceptionOrNull()?.userMessage(ctx)
                     }
                     if (error == null) onDone()
                 }
-            }
-            SecondaryButton(stringResource(R.string.pair_match_no)) { core.pairingCancel(); onDone() }
-        }
-        ErrorText(error)
+                SecondaryButton(stringResource(R.string.pair_match_no)) { cancel() }
+            },
+        ) { CodeToCompare(shown) }
     }
 }
 
 /** (B) Scans the other device's QR (or pastes its code) and waits for its confirmation. */
 @Composable
-fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
+fun JoinScreen(box: Core? = null, onBack: () -> Unit, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val core = remember { box ?: CoreHolder.get(ctx) }
-    // Own profile: ready when the configuration arrives. Partner mailbox: when the members arrive.
+    // Own profile: ready when the configuration arrives. Contact channel: when the members arrive.
     val ready: () -> Boolean = { if (box == null) core.status(CoreHolder.clock()) != null else core.members().isNotEmpty() }
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf<String?>(null) }
@@ -146,7 +169,7 @@ fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
             // Wait for the other device to confirm and send us the history
             while (!withContext(Dispatchers.IO) { ready() }) {
                 delay(3_000)
-                runCatching { withContext(Dispatchers.IO) { core.sync(CoreHolder.clock()) } }
+                runCatching { withContext(Dispatchers.IO) { CoreHolder.syncNow(core) } }
             }
             onDone()
         } catch (e: Exception) {
@@ -154,23 +177,26 @@ fun JoinScreen(box: Core? = null, onDone: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (code == null) {
-            Text(stringResource(R.string.join_scan), style = MaterialTheme.typography.titleMedium)
+    val shown = code
+    if (shown == null) {
+        Screen(title = stringResource(R.string.join_scan), onBack = onBack) {
             if (cameraOk) {
-                QrScanner(Modifier.fillMaxWidth().height(320.dp)) { join(it) }
+                QrScanner(Modifier.fillMaxWidth().height(320.dp).clip(MaterialTheme.shapes.medium)) { join(it) }
             } else {
-                Text(stringResource(R.string.join_camera_note))
                 SecondaryButton(stringResource(R.string.join_use_camera)) { askCamera.launch(Manifest.permission.CAMERA) }
             }
+            Footnote(stringResource(R.string.join_camera_note), PcoIcons.Camera)
             OutlinedTextField(pasted, { pasted = it }, label = { Text(stringResource(R.string.join_paste)) }, modifier = Modifier.fillMaxWidth())
             SecondaryButton(stringResource(R.string.join_with_code), enabled = pasted.isNotBlank()) { join(pasted.trim()) }
-        } else {
-            Text(stringResource(R.string.join_check_code))
-            Text(code!!, fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
-            Text(stringResource(R.string.join_confirm_there))
+            ErrorText(error)
         }
-        ErrorText(error)
+    } else {
+        Screen(title = stringResource(R.string.join_check_code), onBack = onBack) {
+            CodeToCompare(shown)
+            Footnote(stringResource(R.string.join_confirm_there), PcoIcons.Smartphone)
+            LoadingState()
+            ErrorText(error)
+        }
     }
 }
 

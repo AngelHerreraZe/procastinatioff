@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Only this target's keys: GENERATE_INFOPLIST_FILE = YES adds the standard ones.
+     User-visible texts: English here, translations in InfoPlist.xcstrings. -->
+<dict>
+	<key>AppIdentifierPrefix</key>
+	<string>$(AppIdentifierPrefix)</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIImageName</key>
+		<string>Logo</string>
+	</dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dev.procastinacioff.app.sync</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pco._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>To sync with your other devices on your Wi-Fi, without servers.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>To check your goals (for example, counting squats) on this iPhone. No image is ever recorded or sent.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>To dictate the summary of what you read. The audio is processed on this iPhone and not saved.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>To turn your voice into text on this iPhone, without sending it to any server.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>To confirm changes to your rules with Face ID.</string>
+</dict>
+</plist>

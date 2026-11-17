@@ -35,23 +35,8 @@ jobs:
       - run: cargo fmt --all -- --check
       # The Tauri app is built in `desktop-windows` (it needs the built UI).
       - run: cargo clippy --workspace --exclude procastinacioff-app --all-targets -- -D warnings
+      # Includes core/tests/two_devices.rs: devices pairing and syncing over real QUIC on the runner.
       - run: cargo test --workspace --exclude procastinacioff-app
-
-  integration:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4                 # pin SHA
-      - uses: dtolnay/rust-toolchain@master       # pin SHA
-        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
-      - uses: Swatinem/rust-cache@v2              # pin SHA
-      - run: cargo build -p procastinacioff-relay -p procastinacioff-core --tests
-      - name: Two devices against the local relay
-        run: |
-          PCO_DB=/tmp/relay.db PCO_TIME_KEY=/tmp/time.key cargo run -p procastinacioff-relay > /tmp/relay.log 2>&1 &
-          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 1; done
-          cargo test -p procastinacioff-core --test two_devices -- --ignored
-          # SECURITY: The relay log must not contain IDs, keys or IPs
-          ! grep -E "[0-9a-f]{32}|\b[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\b" /tmp/relay.log | grep -v '"bind"' | grep -v time_pubkey
 
   supply-chain:
     runs-on: ubuntu-24.04
@@ -120,9 +105,11 @@ jobs:
       - uses: android-actions/setup-android@v3    # pin SHA
       - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35"
       - run: cargo install --locked cargo-ndk
-      - run: cargo build -p procastinacioff-core -p procastinacioff-verify --release   # to generate bindings
-      - run: cargo run -p uniffi-bindgen -- generate --library target/release/libprocastinacioff_core.so --language kotlin --out-dir android/app/src/main/java
-      - run: cargo run -p uniffi-bindgen -- generate --library target/release/libprocastinacioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
+      # Bindings from the DEBUG libraries: the release ones are stripped and uniffi-bindgen then
+      # generates nothing without failing (stale bindings → "checksum mismatch" crash on start).
+      - run: cargo build -p procastinacioff-core -p procastinacioff-verify
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_core.so --language kotlin --out-dir android/app/src/main/java
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
       - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :verifier:assembleRelease
         working-directory: android
         env:
@@ -130,6 +117,20 @@ jobs:
       - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/app/build/outputs/apk/release/app-release-unsigned.apk
       # SECURITY: The verifier can NEVER have network permissions (privacy audit, test 1)
       - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/verifier/build/outputs/apk/release/verifier-release-unsigned.apk --verifier
+
+  # Rust core for every Apple target (XCFramework) and the Swift bindings, then every Swift source
+  # (app, extensions, VerifierKit) type-checked against the iOS SDK. There is no Xcode project in
+  # the repository yet (plan 08 · step 2): this is what keeps the Swift compiling until then.
+  apple:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4                 # pin SHA
+      - uses: dtolnay/rust-toolchain@master       # pin SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      - run: bash scripts/build_apple.sh
+      - run: >
+          xcrun --sdk iphoneos swiftc -typecheck -parse-as-library -target arm64-apple-ios16.0
+          -I target/apple/headers target/apple/swift/*.swift $(find apple -name '*.swift')
 
   fuzz-nightly:
     if: github.event_name == 'schedule'

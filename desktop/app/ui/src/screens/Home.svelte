@@ -9,7 +9,7 @@
   import Emergency from '../components/Emergency.svelte';
 
   let {
-    agent, status, goals, now, focusActive, onstart, onact, onerror, onpair, onplan, onback, onfamily,
+    agent, status, goals, now, focusActive, onstart, onact, onerror, onpair, onplan, onback, onfamily, onsettings,
   }: {
     agent: AgentStatus;
     status: Status;
@@ -24,6 +24,7 @@
     onback: () => void;
     /** Only on a minor's PC: ask the guardian and "What your guardian sees". */
     onfamily: (() => void) | null;
+    onsettings: () => void;
   } = $props();
 
   let cfg = $state<Config | null>(null);
@@ -111,7 +112,7 @@
 
 <div class="layout">
   <nav class="side" aria-label={t('home.nav_label')}>
-    <p class="brand">ProcastinaciOFF</p>
+    <p class="brand"><img src="/logo.png" alt="" width="28" height="28" /> ProcastinaciOFF</p>
     <button class="nav-item active" aria-current="page"><Icon name="home" /> {t('home.today')}</button>
     {#if !status.free_day && !status.needs_plan}
       <button class="nav-item" onclick={onplan}><Icon name="plus" /> {t('home.add_goal')}</button>
@@ -121,6 +122,7 @@
     {:else}
       <button class="nav-item" onclick={onpair}><Icon name="link" /> {t('home.pair')}</button>
     {/if}
+    <button class="nav-item" onclick={onsettings}><Icon name="lock" /> {t('settings.title')}</button>
     <p class="side-note muted">{t('home.close_note')}</p>
   </nav>
 
@@ -223,8 +225,8 @@
 
 <style>
   .layout { display: grid; grid-template-columns: 248px minmax(0, 1fr) 280px; min-height: 100vh; }
-  .side { background: var(--surface-2); border-right: 1px solid var(--border); padding: 20px 12px; display: grid; align-content: start; gap: 4px; }
-  .brand { font-weight: 700; padding: 0 12px 16px; }
+  .side { background: var(--chrome); border-right: 1px solid var(--border); padding: 20px 12px; display: grid; align-content: start; gap: 4px; }
+  .brand { font-weight: 700; padding: 0 12px 16px; display: flex; align-items: center; gap: 10px; }
   .nav-item {
     display: flex; align-items: center; gap: 10px; width: 100%; background: none; color: var(--text);
     border-radius: 10px; padding: 0 12px; text-align: left; border-left: 3px solid transparent;
@@ -239,7 +241,7 @@
   .badge { width: 44px; height: 44px; border-radius: 50%; background: var(--surface); color: var(--accent); display: grid; place-items: center; }
   .goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .goal { display: grid; grid-template-columns: 40px 1fr auto; gap: 14px; align-items: center; padding: 14px 16px; }
-  .goal-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; color: var(--accent); }
+  .goal-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--chrome); display: grid; place-items: center; color: var(--accent); }
   .goal-body { display: grid; gap: 6px; }
   .goal-name { font-weight: 600; }
   .small { font-size: 14px; line-height: 20px; }

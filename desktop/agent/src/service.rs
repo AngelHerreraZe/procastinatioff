@@ -7,19 +7,18 @@
 
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use procastinacioff_core::api::Core;
-use procastinacioff_ipc::AgentStatus;
 use windows_service::service::{
     ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
 };
 use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
 use windows_service::{define_windows_service, service_dispatcher};
 
-use crate::{enforce, family, ipc_server, secrets::DpapiStore};
+use crate::{common, enforce, family, ipc_server, lan, secrets::DpapiStore};
 
 pub const SERVICE_NAME: &str = "ProcastinaciOFF";
 pub const DATA_DIR: &str = r"C:\ProgramData\ProcastinaciOFF";
@@ -66,23 +65,27 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let install_dir = std::env::current_exe()?.parent().ok_or("no install folder")?.to_path_buf();
     let secrets = Arc::new(DpapiStore::new(data_dir.join("secrets"))?);
     let core = Core::open(data_dir.join("core.db").to_string_lossy().into(), secrets)?;
-    enforce::check_downtime(&core, &data_dir);
+    // A standard user cannot change the clock of a SYSTEM service's machine: its time wins over the phones'.
+    core.set_time_source(true)?;
+    if let Err(e) = core.clone().start_listening(lan::PORT) {
+        tracing::error!(error = %e, "cannot listen for the profile's devices (port in use?)");
+    }
+    common::check_downtime(&core, &data_dir);
 
-    let shared = Arc::new(Mutex::new(AgentStatus {
-        core: None,
-        blocked_app: None,
-        blocked_at_ms: None,
-        grace_until_ms: None,
-        synced_at_ms: None,
-    }));
+    let shared = common::new_shared();
+    let (wake, woken) = std::sync::mpsc::channel();
     {
         let (core, shared, stop) = (core.clone(), shared.clone(), stop.clone());
-        std::thread::spawn(move || enforce::sync_loop(core, shared, stop));
+        std::thread::spawn(move || common::sync_loop(core, shared, stop, woken));
+    }
+    {
+        let (core, stop) = (core.clone(), stop.clone());
+        std::thread::spawn(move || lan::run(core, stop, wake));
     }
     {
         // Family mode: web filter if this PC belongs to a minor (checks the role every minute)
-        let (core, data_dir, stop) = (core.clone(), data_dir.clone(), stop.clone());
-        std::thread::spawn(move || family::run(core, data_dir, stop));
+        let (core, data_dir, install_dir, stop) = (core.clone(), data_dir.clone(), install_dir.clone(), stop.clone());
+        std::thread::spawn(move || family::run(core, data_dir, install_dir, stop));
     }
     {
         let (core, shared, install_dir) = (core.clone(), shared.clone(), install_dir.clone());

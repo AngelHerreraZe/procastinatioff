@@ -4,14 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// FCM only if google-services.json exists (Firebase project with ONLY Cloud Messaging enabled).
-// Without it the app works the same; sync runs every 15 min and when the app opens.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "dev.procastinacioff.app"
+    // Reproducible builds (plan 09 · B.1): the dependency metadata block Google adds is not reproducible.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     compileSdk = 35
     ndkVersion = "27.2.12479018"
 
@@ -39,6 +38,7 @@ android {
     buildFeatures { compose = true }
     // Per-app language picker (Android 13+): built from the values-<lang>/ folders. Source language: res/resources.properties
     androidResources { generateLocaleConfig = true }
+    sourceSets["main"].res.srcDir("../branding/res") // launcher icon, shared with the verifier
     packaging { jniLibs { useLegacyPackaging = false } }
     testOptions { unitTests.isReturnDefaultValues = true }
     // The generated UniFFI bindings use java.lang.ref.Cleaner with a runtime check
@@ -65,8 +65,6 @@ dependencies {
     implementation(libs.zxing.core)                   // decodes/generates QR codes on the device
     implementation(libs.biometric)                    // family mode: the guardian confirms with fingerprint or PIN
     implementation(libs.fragment)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)           // messaging ONLY; no Analytics
     testImplementation(libs.junit)
     testImplementation(libs.jna)                      // the UniFFI types load JNA in the test JVM
     androidTestImplementation(libs.androidx.test.runner)

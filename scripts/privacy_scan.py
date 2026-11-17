@@ -12,8 +12,8 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCE_EXT = {".rs", ".kt", ".kts", ".java", ".swift", ".ts", ".tsx", ".svelte", ".xml", ".plist", ".m"}
-SKIP_DIRS = {"target", "node_modules", ".git", "build", ".gradle", "DerivedData", "spikes"}
+SOURCE_EXT = {".rs", ".kt", ".kts", ".java", ".swift", ".ts", ".tsx", ".svelte", ".xml", ".plist", ".m", ".toml"}
+SKIP_DIRS = {"target", "node_modules", ".git", "build", ".gradle", "DerivedData", "spikes", "uniffi"}  # uniffi: generated
 
 # Pattern -> reason. Extend only with a security review.
 FORBIDDEN: dict[str, str] = {
@@ -48,6 +48,16 @@ VERIFY_FORBIDDEN: dict[str, str] = {
     r"\bstd::fs\b": "verify/ cannot use the file system",
     r"\bFile::(create|open)\b": "verify/ cannot use the file system",
     r"\bstd::net\b": "verify/ cannot use the network",
+}
+
+
+# No servers: the core, the protocol, the desktop service and the Android and Apple apps only talk to
+# paired devices. An HTTP client/server or a URL there means someone is adding a server back.
+NO_SERVER_PATHS = ("core/", "proto/", "desktop/agent/", "android/app/", "apple/")
+NO_SERVER_FORBIDDEN: dict[str, str] = {
+    r"\b(ureq|reqwest|axum|hyper|okhttp3?|retrofit2?)\b": "HTTP client/server: devices only talk to their peers",
+    r"\bHttpsURLConnection\b|\bHttpURLConnection\b|\bURLSession\b": "HTTP client: devices only talk to their peers",
+    r"https://(?!mozilla\.org/MPL/)": "URL in code that must not contact servers",
 }
 
 
@@ -91,11 +101,22 @@ def main() -> int:
         if any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
+        if path.suffix == ".toml":
+            # Manifests: only the dependency rule ("no servers").
+            if rel.startswith(NO_SERVER_PATHS):
+                rules = dict(NO_SERVER_FORBIDDEN)
+                for pattern, reason in rules.items():
+                    for match in re.finditer(pattern, text):
+                        line_no = text.count("\n", 0, match.start()) + 1
+                        failures.append(f"{rel}:{line_no}: '{match.group(0)}' — {reason}")
+            continue
         rules = dict(FORBIDDEN)
         if rel.startswith("verify/"):
             rules.update(VERIFY_FORBIDDEN)
         if rel.startswith(IOS_VERIFIER):
             rules.update(IOS_VERIFIER_FORBIDDEN)
+        if rel.startswith(NO_SERVER_PATHS):
+            rules.update(NO_SERVER_FORBIDDEN)
         for pattern, reason in rules.items():
             if (rel, pattern) in allowed:
                 continue

@@ -14,6 +14,18 @@ the event format and cryptography, the methods that authorize changes (password,
 biometrics, guardian and trusted-contact signatures, offline codes) and the DNS filter.
 
 **Out of scope:** attacks that require physically unlocking the device with the user's own code;
-the code in `relay/` and `push-gateway/`, which is being removed and is not part of any release.
+social engineering; attacks on devices or accounts that are not yours.
+
+## Severity
+
+| Severity | Examples |
+|---|---|
+| Critical | Reading another user's events; getting camera images; running code on another device through peer sync; relaxing the rules without a guardian's or trusted contact's signature |
+| High | Forging a guardian approval; disabling blocking without leaving a trace; freezing a computer through the desktop service |
+| Medium | Getting around the web filter with an undocumented technique |
+| Low | Undocumented metadata leaks |
+
+Rewards: a paid bounty program is planned. Until it opens, every valid report is credited in the
+release notes (if you want).
 
 ProcastinaciOFF has no servers: the project holds no user data.

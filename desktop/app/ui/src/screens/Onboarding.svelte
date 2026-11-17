@@ -25,7 +25,6 @@
   let essentials = $state('windows:pfn:5319275A.WhatsAppDesktop_cv1g1gvanyjgm');
   let focusApps = $state('windows:exe:Microsoft Corporation|winword.exe\nwindows:exe:Google LLC|chrome.exe');
   let web = $state('udemy.com\ncoursera.org');
-  let relay = $state('');
   let qr = $state('');
   let code = $state<string | null>(null);
   let busy = $state(false);
@@ -61,7 +60,6 @@
         web_allowlist: lines(web).map((d) => d.toLowerCase()),
       };
       await call({ cmd: 'create_profile', label: label.trim() || 'PC', config });
-      if (relay.trim()) await call({ cmd: 'connect_relay', url: relay.trim() });
       ondone();
     } catch (e) {
       onerror(e);
@@ -74,10 +72,9 @@
     busy = true;
     try {
       code = await text({ cmd: 'pairing_join', qr: qr.trim(), label: label.trim() || 'PC' });
-      // The other device confirms and sends us the history; the screen moves on by itself.
+      // The other device confirms; the service fetches the history and the screen moves on by itself.
       for (let i = 0; i < 100; i++) {
         await new Promise((r) => setTimeout(r, 3000));
-        await call({ cmd: 'sync' }).catch(() => {});
         const r = await call({ cmd: 'status' });
         if (r.type === 'status' && r.agent.core) return ondone();
       }
@@ -91,6 +88,7 @@
 
 <main class="onb stack">
   <header class="stack" style="gap:6px">
+    <img src="/logo.png" alt="" width="64" height="64" />
     <h1>{t('onb.title')}</h1>
     <p class="muted">{t('onb.subtitle')}</p>
   </header>
@@ -151,7 +149,6 @@
         <label><span>{t('onb.essential_apps')}</span><textarea rows="2" bind:value={essentials}></textarea></label>
         <label><span>{t('onb.focus_apps')}</span><textarea rows="2" bind:value={focusApps}></textarea></label>
         <label><span>{t('onb.focus_sites')}</span><textarea rows="2" bind:value={web}></textarea></label>
-        <label><span>{t('onb.sync_server')}</span><input bind:value={relay} placeholder="https://…" /></label>
       </div>
     </details>
 

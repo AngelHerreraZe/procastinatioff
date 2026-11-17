@@ -2,12 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Privileged desktop service. Windows first; macOS/Linux later.
+//! Privileged desktop service: Windows (service) and Linux (systemd). macOS arrives in phase 4.
 
 #[cfg(windows)]
 mod browser_policy;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod clock;
+#[cfg(any(windows, target_os = "linux"))]
+mod common;
 #[cfg(windows)]
 mod enforce;
 #[cfg(windows)]
@@ -16,7 +18,11 @@ mod family;
 mod install;
 #[cfg(windows)]
 mod ipc_server;
-#[allow(dead_code)] // on macOS/Linux only the tests use it for now
+#[cfg(any(windows, target_os = "linux"))]
+mod lan;
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg_attr(not(windows), allow(dead_code))] // Windows identities; elsewhere only its tests use it
 mod policy;
 #[cfg(windows)]
 mod procs;
@@ -57,7 +63,12 @@ fn main() {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 fn main() {
-    eprintln!("The macOS/Linux agent arrives in phases 4 and 5.");
+    linux::main();
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn main() {
+    eprintln!("The macOS agent arrives in phase 4.");
 }

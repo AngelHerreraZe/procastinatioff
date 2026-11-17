@@ -10,22 +10,20 @@
   import Shield from './screens/Shield.svelte';
   import Pairing from './screens/Pairing.svelte';
   import Family from './screens/Family.svelte';
+  import Settings from './screens/Settings.svelte';
 
-  const dark = window.matchMedia('(prefers-color-scheme: dark)');
 
   let agent = $state<AgentStatus | null>(null);
   let goals = $state<Goal[]>([]);
   let message = $state('');
   let now = $state(Date.now());
-  let view = $state<'home' | 'pair' | 'plan' | 'overview' | 'family'>('home');
+  let view = $state<'home' | 'pair' | 'plan' | 'overview' | 'family' | 'settings'>('home');
   let role = $state<Role | null>(null);
   let declaring = $state<string | null>(null); // untimed goal in progress (declaration with friction)
   let dismissedAt = $state<number | null>(null);
-  let prefersDark = $state(dark.matches);
   let planShownFor = 0;
   let shieldOn = false;
 
-  dark.addEventListener('change', (e) => (prefersDark = e.matches));
 
   const core = $derived(agent?.core ?? null);
   const st = $derived(core?.state.state);
@@ -43,10 +41,8 @@
   );
   const inFocus = $derived(st === 'focus' || declaring !== null);
   const needsPlan = $derived(!!core?.needs_plan && st === 'locked');
-  // Night theme: sleep, the last hour before bedtime or a dark system theme. Focus: goal in progress.
-  const theme = $derived(
-    st === 'sleep' || nearSleep || prefersDark ? 'nocturno' : inFocus && !shield && view !== 'overview' ? 'foco' : 'calma',
-  );
+  // DESIGN.md: Nocturno while sleeping and in the last hour before bedtime; Calma the rest of the day.
+  const theme = $derived(st === 'sleep' || nearSleep ? 'nocturno' : 'calma');
 
   $effect(() => {
     document.documentElement.dataset.theme = theme;
@@ -113,6 +109,7 @@
 
 {#if !agent}
   <main class="center stack">
+    <img src="/logo.png" alt="" width="72" height="72" />
     <h1>ProcastinaciOFF</h1>
     <p class="muted" aria-live="polite">{message ? t('app.no_service') : t('app.connecting')}</p>
   </main>
@@ -138,6 +135,8 @@
   <Family status={core} onclose={() => (view = 'home')} onerror={fail} />
 {:else if view === 'pair'}
   <Pairing onclose={() => (view = 'home')} onerror={fail} />
+{:else if view === 'settings'}
+  <Settings onclose={() => (view = 'home')} onerror={fail} />
 {:else if needsPlan || view === 'plan'}
   <PlanDay
     {goals}
@@ -178,6 +177,7 @@
     onpair={() => (view = 'pair')}
     onfamily={role === 'minor' ? () => (view = 'family') : null}
     onplan={() => (view = 'plan')}
+    onsettings={() => (view = 'settings')}
     onback={() => (view = 'home')}
   />
 {/if}
@@ -187,7 +187,7 @@
 {/if}
 
 <style>
-  .center { min-height: 100vh; display: grid; place-content: center; text-align: center; padding: 24px; }
+  .center { min-height: 100vh; display: grid; place-content: center; justify-items: center; text-align: center; padding: 24px; }
   .toast {
     position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 32px));
     background: var(--surface); border: 1px solid var(--danger); border-radius: 12px; padding: 10px 16px;

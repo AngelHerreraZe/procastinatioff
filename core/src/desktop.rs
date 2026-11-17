@@ -6,12 +6,14 @@
 //! response. Used by the Windows agent (named pipe) and the macOS agent (XPC): both pass the
 //! lines to `handle_json`, so the rules on what the UI may ask are the same in both.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
-use crate::api::{Core, DeviceSeen, FamilyAlertView, PendingRequest};
+use crate::api::{AuthState, Core, DeviceSeen, FamilyAlertView, PendingRequest};
 use crate::clock::Clock;
 use crate::error::CoreError;
-use crate::model::{Config, Goal, Member, Method, RequestKind, Role, Status};
+use crate::model::{Config, Goal, LocalFactor, Member, Method, RequestKind, Role, Status};
 
 pub const MAX_LINE: usize = 64 * 1024;
 
@@ -31,8 +33,6 @@ pub enum Request {
     EndFocus,
     CompleteGoal { goal_id: String, method: Method, score: u8, minutes: u16 },
     Emergency,
-    ConnectRelay { url: String },
-    Sync,
     PairingOffer,
     PairingPoll,
     PairingConfirm,
@@ -43,6 +43,14 @@ pub enum Request {
     FamilyRequest { what: RequestKind },
     PendingRequests,
     FamilyAlerts,
+    // Settings: the local gate (PIN, password or pattern typed on this PC), the technical report and
+    // "delete all my data". The core checks the gate and counts failed attempts.
+    AuthState,
+    AuthorizeLocal { factor: LocalFactor, secret: String },
+    LockSettings,
+    // `platform`: lines from the app (versions, states). SECURITY: no personal data, as in the core.
+    DiagnosticReport { platform: Vec<String> },
+    EraseAll,
 }
 
 /// Service status as the UI sees it: the core's plus what the platform agent knows.
@@ -86,6 +94,9 @@ pub enum Response {
     Alerts {
         alerts: Vec<FamilyAlertView>,
     },
+    Auth {
+        state: AuthState,
+    },
     Effective {
         from_ms: i64,
     },
@@ -115,7 +126,8 @@ fn ok_or<T>(r: Result<T, CoreError>, f: impl FnOnce(T) -> Response) -> Response 
 
 /// Translates a UI request into a core call. The core applies the rules.
 /// `agent`: what the platform agent knows (closed app, countdown, last sync).
-pub fn handle(core: &Core, clock: Clock, mut agent: AgentStatus, req: Request) -> Response {
+/// Sync is the agent's job (it has the monotonic clock): the UI cannot trigger it.
+pub fn handle(core: &Arc<Core>, clock: Clock, mut agent: AgentStatus, req: Request) -> Response {
     match req {
         Request::Status => {
             agent.core = core.status(clock);
@@ -124,7 +136,7 @@ pub fn handle(core: &Core, clock: Clock, mut agent: AgentStatus, req: Request) -
         Request::ActiveConfig => Response::Config { config: core.active_config(clock) },
         Request::TodayGoals => Response::Goals { goals: core.today_goals(clock) },
         Request::Members => Response::Members { members: core.members() },
-        Request::DevicesSeen => Response::Devices { devices: core.devices_seen() },
+        Request::DevicesSeen => Response::Devices { devices: core.devices_seen(clock.now_ms) },
         Request::CreateProfile { label, config } => ok_or(core.create_profile(clock, label, config), |_| Response::Ok),
         Request::SetConfig { config } => {
             ok_or(core.set_config(clock, config), |from_ms| Response::Effective { from_ms })
@@ -137,9 +149,7 @@ pub fn handle(core: &Core, clock: Clock, mut agent: AgentStatus, req: Request) -
             ok_or(core.complete_goal(clock, goal_id, method, score, minutes), |_| Response::Ok)
         }
         Request::Emergency => ok_or(core.emergency(clock), |_| Response::Ok),
-        Request::ConnectRelay { url } => ok_or(core.connect_relay(url), |_| Response::Ok),
-        Request::Sync => ok_or(core.sync(clock), |_| Response::Ok),
-        Request::PairingOffer => ok_or(core.pairing_offer(), |value| Response::Text { value }),
+        Request::PairingOffer => ok_or(core.clone().pairing_offer(), |value| Response::Text { value }),
         Request::PairingPoll => ok_or(core.pairing_poll(), |value| Response::MaybeText { value }),
         // The desktop only invites other own devices (personal profile); the guardian pairs from the phone.
         Request::PairingConfirm => ok_or(core.pairing_confirm(clock, None), |_| Response::Ok),
@@ -152,11 +162,23 @@ pub fn handle(core: &Core, clock: Clock, mut agent: AgentStatus, req: Request) -
         Request::FamilyRequest { what } => ok_or(core.request(clock, what), |value| Response::Text { value }),
         Request::PendingRequests => Response::Requests { requests: core.pending_requests() },
         Request::FamilyAlerts => Response::Alerts { alerts: core.family_alerts(clock) },
+        Request::AuthState => Response::Auth { state: core.auth_state(clock) },
+        Request::AuthorizeLocal { factor, secret } => {
+            ok_or(core.authorize_local(clock, factor, secret), |_| Response::Ok)
+        }
+        Request::LockSettings => {
+            core.lock_settings();
+            Response::Ok
+        }
+        Request::DiagnosticReport { platform } => {
+            Response::Text { value: core.diagnostic_report(clock, platform.into_iter().take(8).collect()) }
+        }
+        Request::EraseAll => ok_or(core.clone().erase_all(clock), |_| Response::Ok),
     }
 }
 
 /// One JSON line from the UI → one JSON response line. Never fails: errors go in the response.
-pub fn handle_json(core: &Core, clock: Clock, agent: AgentStatus, line: &str) -> String {
+pub fn handle_json(core: &Arc<Core>, clock: Clock, agent: AgentStatus, line: &str) -> String {
     let resp = if line.len() > MAX_LINE {
         Response::Error { code: "error.too_large".into(), message: "message too large".into(), cooldown_minutes: 0 }
     } else {
@@ -177,8 +199,8 @@ pub fn handle_json(core: &Core, clock: Clock, agent: AgentStatus, line: &str) ->
 #[uniffi::export]
 impl Core {
     /// (macOS agent, over XPC) Handles a JSON line from the desktop UI.
-    pub fn desktop_call(&self, clock: Clock, agent: AgentStatus, request_json: String) -> String {
-        handle_json(self, clock, agent, &request_json)
+    pub fn desktop_call(self: Arc<Self>, clock: Clock, agent: AgentStatus, request_json: String) -> String {
+        handle_json(&self, clock, agent, &request_json)
     }
 }
 
@@ -200,6 +222,9 @@ mod tests {
         assert!(matches!(r, Request::FamilyRequest { what: RequestKind::ExtraPermit { minutes: 15 } }));
         let role = serde_json::to_string(&Response::Role { role: Some(Role::Minor) }).unwrap();
         assert_eq!(role, r#"{"type":"role","role":"minor"}"#);
+        let r: Request = serde_json::from_str(r#"{"cmd":"authorize_local","factor":"pin","secret":"482916"}"#).unwrap();
+        assert!(matches!(r, Request::AuthorizeLocal { factor: LocalFactor::Pin, .. }));
+        assert!(matches!(serde_json::from_str(r#"{"cmd":"erase_all"}"#).unwrap(), Request::EraseAll));
         // Any unknown command is rejected at deserialization (the UI cannot invent orders)
         assert!(serde_json::from_str::<Request>(r#"{"cmd":"run","exe":"cmd.exe"}"#).is_err());
     }
@@ -211,14 +236,33 @@ mod tests {
         let core = Core::open(dir.join("db").to_string_lossy().into(), Arc::new(MemStore::default())).unwrap();
         let clock = Clock { now_ms: 1_773_046_800_000, utc_offset_min: 0 };
         let agent = AgentStatus { blocked_app: Some("juego.exe".into()), ..Default::default() };
-        let out = core.desktop_call(clock, agent.clone(), r#"{"cmd":"status"}"#.into());
+        let out = core.clone().desktop_call(clock, agent.clone(), r#"{"cmd":"status"}"#.into());
         assert!(out.starts_with(r#"{"type":"status","agent":{"core":null,"blocked_app":"juego.exe""#), "{out}");
-        let out = core.desktop_call(clock, agent.clone(), r#"{"cmd":"start_pass"}"#.into());
+        let out = core.clone().desktop_call(clock, agent.clone(), r#"{"cmd":"start_pass"}"#.into());
         assert_eq!(
             out,
             r#"{"type":"error","code":"denied.not_configured","message":"denied: not_configured","cooldown_minutes":0}"#
         );
-        assert!(core.desktop_call(clock, agent.clone(), "not json".into()).contains(r#""code":"error.bad_request""#));
-        assert!(core.desktop_call(clock, agent, "x".repeat(MAX_LINE + 1)).contains(r#""code":"error.too_large""#));
+        assert!(
+            core.clone()
+                .desktop_call(clock, agent.clone(), "not json".into())
+                .contains(r#""code":"error.bad_request""#)
+        );
+        assert!(
+            core.clone()
+                .desktop_call(clock, agent.clone(), "x".repeat(MAX_LINE + 1))
+                .contains(r#""code":"error.too_large""#)
+        );
+        // Settings: the gate, then "delete all my data" leaves the PC without a profile
+        core.create_profile(clock, "PC".into(), Config::example()).unwrap();
+        core.set_secret(clock, LocalFactor::Pin, "482916".into(), crate::model::SecretHolder::Owner).unwrap();
+        core.lock_settings();
+        let call = |line: &str| core.clone().desktop_call(clock, agent.clone(), line.into());
+        assert!(call(r#"{"cmd":"auth_state"}"#).contains(r#""unlocked":false"#));
+        assert!(call(r#"{"cmd":"erase_all"}"#).contains(r#""code":"denied.auth_required""#));
+        assert!(call(r#"{"cmd":"authorize_local","factor":"pin","secret":"000000"}"#).contains("denied.wrong_secret"));
+        assert_eq!(call(r#"{"cmd":"authorize_local","factor":"pin","secret":"482916"}"#), r#"{"type":"ok"}"#);
+        assert_eq!(call(r#"{"cmd":"erase_all"}"#), r#"{"type":"ok"}"#);
+        assert!(call(r#"{"cmd":"status"}"#).contains(r#""core":null"#));
     }
 }

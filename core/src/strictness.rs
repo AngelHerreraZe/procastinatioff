@@ -23,6 +23,16 @@ pub fn is_stricter_or_equal(new: &Config, old: &Config) -> bool {
         && new.focus_apps.iter().all(|a| old.focus_apps.contains(a))
         && new.web_allowlist.iter().all(|d| old.web_allowlist.contains(d))
         && new.weekly_bonus_permits <= old.weekly_bonus_permits
+        // Removing a local method or the contact's approval relaxes (ADR 0013)
+        && old.auth.local.iter().all(|f| new.auth.local.contains(f))
+        && (new.auth.contact_required || !old.auth.contact_required)
+}
+
+/// The only thing that relaxes is turning off "changes need my contact" (the 7-day exit).
+pub fn only_leaves_contact(new: &Config, old: &Config) -> bool {
+    let mut probe = new.clone();
+    probe.auth.contact_required = true;
+    !new.auth.contact_required && old.auth.contact_required && is_stricter_or_equal(&probe, old)
 }
 
 /// The new sleep period covers every minute of the old one.
@@ -101,6 +111,26 @@ mod tests {
         let mut fewer = old.clone();
         fewer.free_days &= !SATURDAY;
         assert!(is_stricter_or_equal(&fewer, &old));
+    }
+
+    #[test]
+    fn dropping_a_method_or_the_contact_is_laxer() {
+        use crate::model::LocalFactor;
+        let mut old = Config::example();
+        old.auth.local = vec![LocalFactor::Pin, LocalFactor::Biometric];
+        old.auth.contact_required = true;
+        let mut fewer = old.clone();
+        fewer.auth.local.pop();
+        assert!(!is_stricter_or_equal(&fewer, &old));
+        let mut more = old.clone();
+        more.auth.local.push(LocalFactor::Pattern);
+        assert!(is_stricter_or_equal(&more, &old));
+        let mut exit = old.clone();
+        exit.auth.contact_required = false;
+        assert!(!is_stricter_or_equal(&exit, &old));
+        assert!(only_leaves_contact(&exit, &old));
+        exit.permits_per_day += 1;
+        assert!(!only_leaves_contact(&exit, &old), "the exit cannot carry anything else");
     }
 
     proptest! {

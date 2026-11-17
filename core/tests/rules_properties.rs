@@ -79,3 +79,31 @@ proptest! {
         prop_assert!(st.permits_left <= cfg.permits_per_day);
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(2_000))]
+
+    /// With "changes need my contact" on and no approval, no sequence of changes relaxes anything
+    /// during the 7 days that leaving the contact takes (ADR 0013).
+    #[test]
+    fn contact_requirement_without_approval_never_relaxes(
+        changes in prop::collection::vec((0i64..7 * 1440, 0u8..10, any::<bool>()), 0..30),
+        query in 0i64..7 * 1440,
+    ) {
+        let mut base = Config::example();
+        base.auth.contact_required = true;
+        let mut facts = vec![Fact::new(MONDAY, EventKind::ConfigChanged { config: base.clone(), effective_from_ms: MONDAY })];
+        for (m, permits, keep) in changes {
+            let mut c = base.clone();
+            c.permits_per_day = permits;
+            c.auth.contact_required = keep;
+            // A modified client declares "effective now" for everything.
+            facts.push(Fact::new(MONDAY + 1 + m * MINUTE_MS, EventKind::ConfigChanged { config: c, effective_from_ms: 0 }));
+        }
+        facts.sort_by_key(|f| f.at_ms);
+        let h = ConfigHistory::from_facts_checked(&facts, false, 0);
+        let cfg = h.active_at(MONDAY + query * MINUTE_MS).unwrap();
+        prop_assert!(cfg.permits_per_day <= base.permits_per_day, "relaxed: {}", cfg.permits_per_day);
+        prop_assert!(cfg.auth.contact_required);
+    }
+}

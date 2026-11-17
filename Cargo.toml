@@ -3,10 +3,8 @@
 resolver = "3"
 members = [
   "proto",                    # event and message formats
-  "core",                     # rules, events, crypto, storage, sync
+  "core",                     # rules, events, crypto, storage, peer sync
   "uniffi-bindgen",           # Kotlin/Swift bindings generator
-  "relay",                    # to be removed (no servers)
-  "push-gateway",             # to be removed (no servers)
   "desktop/ipc",              # UI ↔ service protocol
   "desktop/agent",            # privileged desktop service
   "desktop/app/src-tauri",    # needs desktop/app/ui/dist: built separately, see justfile
@@ -36,6 +34,8 @@ age           = "0.11.1"
 secrecy       = "0.10.3"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core", "zeroize"] }
 sha2          = "0.10.8"
+hmac          = "0.12.1"   # rotating LAN discovery names, offline approval codes
+argon2        = "0.6.0"    # PIN, password and pattern hashes (ADR 0013)
 rand          = "0.8.5"
 zeroize       = { version = "1.8.1", features = ["derive"] }
 # --- Encrypted storage
@@ -46,17 +46,21 @@ uniffi = "0.28.3"
 # --- Family-mode DNS filter
 hickory-proto   = { version = "0.26.3", default-features = false }  # parse and build DNS messages
 minisign-verify = "0.3.0"                                           # verify signed category lists
-# --- Network (NEVER in verify/)
-ureq        = { version = "2.12.1", default-features = false, features = ["tls", "json"] }
+# --- Network (NEVER in verify/). No servers: peers only (spike R1, plan 11).
 tokio       = { version = "1.42.0", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
-axum        = "0.8.1"
-tower-http  = { version = "0.6.2", features = ["limit"] }
-reqwest     = { version = "0.12.9", default-features = false, features = ["rustls-tls", "json", "http2"] }
+# QUIC between devices, dialed by key. No relay, no DNS/pkarr lookups, no port mapping (UPnP/NAT-PMP).
+iroh        = { version = "=1.4.1", default-features = false, features = ["tls-ring"] }
 # --- Observability (no personal data)
 tracing            = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter", "json"] }
 # --- Tests
 proptest = "1.5.0"
+
+# Argon2id with the real parameters (64 MiB) takes seconds unoptimized: keep tests fast.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
 lto = true

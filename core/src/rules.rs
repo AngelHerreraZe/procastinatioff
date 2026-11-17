@@ -5,14 +5,50 @@
 //! Day rules. `state = f(configuration, events, now)`: a pure function, without clock,
 //! disk or network. Priority: EMERGENCY > SLEEP > PASS > FREE > FOCUS > LOCKED.
 
+use std::collections::BTreeMap;
+
 use crate::clock::{Clock, DAY_MS, MINUTE_MS, day_start_ms, in_sleep, weekday_index};
-use crate::model::{ALL_DAYS, Config, DayState, EventKind, Fact, Goal, GoalKind, GoalProgress, Method, Status};
-use crate::strictness::{effective_from, goal_kept_or_harder, is_stricter_or_equal};
+use crate::events::SignedEvent;
+use crate::model::{
+    ALL_DAYS, Config, DayState, Effective, EventKind, Fact, Goal, GoalKind, GoalProgress, Method, OfflineAsk, Role,
+    Schedule, Status,
+};
+use crate::offline_code::MAX_PER_DAY;
+use crate::strictness::{effective_from, goal_kept_or_harder, is_stricter_or_equal, only_leaves_contact};
 
 /// Limits of the day plan (each plan travels in an event of at most 64 KB).
 pub const MAX_PLAN_GOALS: usize = 20;
 pub const MAX_TITLE_CHARS: usize = 80;
 pub const MAX_ID_CHARS: usize = 32;
+/// Leaving the trusted contact without their approval takes effect this long after asking. A
+/// contact added while their approval was already required waits as long before it can approve
+/// (otherwise the user could approve themselves with a second device posing as a contact).
+pub const CONTACT_WAIT_MS: i64 = 7 * DAY_MS;
+/// An approval older than this no longer counts.
+const APPROVAL_TTL_MS: i64 = 7 * DAY_MS;
+/// The contact's clock may be a little ahead of the device that applies its approval.
+const APPROVAL_SKEW_MS: i64 = 60 * MINUTE_MS;
+/// "Later bedtime" without network, in total for one night.
+const MAX_LATER_BEDTIME: u16 = 120;
+
+/// A trusted contact's approval, from the `Decision` embedded in a `ContactApproval`.
+/// Its signature and author were checked by the ledger when the event was accepted.
+struct Approval {
+    approver: String,
+    at_ms: i64,
+    config_hash: String,
+    effective: Effective,
+}
+
+fn parse_approval(json: &str) -> Option<Approval> {
+    let d: SignedEvent = serde_json::from_str(json).ok()?;
+    let EventKind::Decision { approved: true, config_hash: Some(config_hash), effective: Some(effective), .. } =
+        d.body.kind
+    else {
+        return None;
+    };
+    Some(Approval { approver: d.body.author, at_ms: d.body.at_ms, config_hash, effective })
+}
 
 /// Configuration history: each one with the instant it takes effect.
 #[derive(Debug, Clone, Default)]
@@ -21,9 +57,12 @@ pub struct ConfigHistory {
 }
 
 impl ConfigHistory {
+    /// The latest signed decision wins from when it applies: changes still scheduled after that
+    /// instant are dropped (a later tightening cancels a pending relaxation, never the reverse:
+    /// a relaxation always applies later than anything in force).
     pub fn push(&mut self, effective_from_ms: i64, config: Config) {
+        self.entries.retain(|(t, _)| *t <= effective_from_ms);
         self.entries.push((effective_from_ms, config));
-        self.entries.sort_by_key(|(t, _)| *t);
     }
 
     /// Configuration in force at `ms` (the last one starting <= ms).
@@ -43,12 +82,38 @@ impl ConfigHistory {
     /// - Guardian (family profile): effective when they declare (relaxing is immediate), never before signing.
     /// - Minor (family profile): only counts if it tightens EVERYTHING in force or scheduled; otherwise ignored.
     /// - Personal profile: relaxing takes effect at the next wake-up at the earliest (anti-impulse).
+    /// - Personal profile with "changes need my contact" (ADR 0013): relaxing only counts with an
+    ///   unused approval of THIS exact configuration (hash) from a current trusted contact, signed
+    ///   in the last 7 days; it applies when the contact chose. Without one, only turning the
+    ///   requirement off counts, 7 days after asking.
     pub fn from_facts_checked(facts: &[Fact], family: bool, utc_offset_min: i32) -> Self {
         let mut h = Self::default();
+        // Trusted contact → (since when, may approve at once)
+        let mut contacts: BTreeMap<String, (i64, bool)> = BTreeMap::new();
+        let mut approvals: Vec<Approval> = Vec::new();
         for f in facts {
-            let EventKind::ConfigChanged { config, effective_from_ms } = &f.kind else { continue };
+            let (config, declared) = match &f.kind {
+                EventKind::MembersChanged { members } => {
+                    let required = h.active_at(f.at_ms).is_some_and(|c| c.auth.contact_required);
+                    contacts = members
+                        .iter()
+                        .filter(|m| m.role == Role::TrustedContact)
+                        .map(|m| {
+                            let since = contacts.get(&m.device_id).copied().unwrap_or((f.at_ms, !required));
+                            (m.device_id.clone(), since)
+                        })
+                        .collect();
+                    continue;
+                }
+                EventKind::ContactApproval { decision } => {
+                    approvals.extend(parse_approval(decision));
+                    continue;
+                }
+                EventKind::ConfigChanged { config, effective_from_ms } => (config, *effective_from_ms),
+                _ => continue,
+            };
             let from = if f.by_guardian {
-                (*effective_from_ms).max(f.at_ms)
+                declared.max(f.at_ms)
             } else if family {
                 if !h.in_force_from(f.at_ms).all(|c| is_stricter_or_equal(config, c)) {
                     continue;
@@ -56,7 +121,30 @@ impl ConfigHistory {
                 f.at_ms
             } else {
                 let at = Clock { now_ms: f.at_ms, utc_offset_min };
-                (*effective_from_ms).max(effective_from(config, h.active_at(f.at_ms), at))
+                match h.active_at(f.at_ms) {
+                    Some(old) if old.auth.contact_required && !is_stricter_or_equal(config, old) => {
+                        let hash = config.hash();
+                        let valid = |a: &Approval| {
+                            a.config_hash == hash
+                                && (f.at_ms - APPROVAL_TTL_MS..=f.at_ms + APPROVAL_SKEW_MS).contains(&a.at_ms)
+                                && contacts
+                                    .get(&a.approver)
+                                    .is_some_and(|&(since, at_once)| at_once || a.at_ms - since >= CONTACT_WAIT_MS)
+                        };
+                        let from = if let Some(i) = approvals.iter().position(valid) {
+                            match approvals.remove(i).effective {
+                                Effective::Now => f.at_ms,
+                                Effective::NextWake => day_start_ms(&old.schedule, at) + DAY_MS,
+                            }
+                        } else if only_leaves_contact(config, old) {
+                            f.at_ms + CONTACT_WAIT_MS
+                        } else {
+                            continue; // relaxing without approval: ignored on every device
+                        };
+                        declared.max(from)
+                    }
+                    cur => declared.max(effective_from(config, cur, at)),
+                }
             };
             h.push(from, config.clone());
         }
@@ -97,6 +185,30 @@ pub enum Denied {
     InvalidDomain,
     #[error("too many requests awaiting an answer")]
     TooManyRequests,
+    #[error("unlock with your PIN, password, pattern or biometrics first")]
+    AuthRequired,
+    #[error("wrong PIN, password or pattern")]
+    WrongSecret,
+    #[error("too many attempts: wait {minutes} min")]
+    Locked { minutes: u16 },
+    #[error("that method is not set up")]
+    MethodNotSet,
+    #[error("the PIN needs at least 6 digits")]
+    WeakPin,
+    #[error("that PIN is too easy to guess")]
+    EasyPin,
+    #[error("the password needs at least 8 characters")]
+    WeakPassword,
+    #[error("the pattern needs at least 4 different dots")]
+    WeakPattern,
+    #[error("this change needs your trusted contact's approval")]
+    NeedsContact,
+    #[error("add a trusted contact first")]
+    NoContact,
+    #[error("wrong or expired code")]
+    InvalidCode,
+    #[error("no more concessions without network today")]
+    TooManyGrants,
 }
 
 impl Denied {
@@ -117,6 +229,18 @@ impl Denied {
             Self::GuardianOnly => "guardian_only",
             Self::InvalidDomain => "invalid_domain",
             Self::TooManyRequests => "too_many_requests",
+            Self::AuthRequired => "auth_required",
+            Self::WrongSecret => "wrong_secret",
+            Self::Locked { .. } => "locked",
+            Self::MethodNotSet => "method_not_set",
+            Self::WeakPin => "weak_pin",
+            Self::EasyPin => "easy_pin",
+            Self::WeakPassword => "weak_password",
+            Self::WeakPattern => "weak_pattern",
+            Self::NeedsContact => "needs_contact",
+            Self::NoContact => "no_contact",
+            Self::InvalidCode => "invalid_code",
+            Self::TooManyGrants => "too_many_grants",
         }
     }
 }
@@ -234,23 +358,66 @@ fn penalty(cfg: &Config, facts: &[Fact], day_start: i64, offset: i32) -> u8 {
     total.min(u8::MAX as u32) as u8
 }
 
-/// The guardian granted a rest day today.
-fn rest_day(facts: &[Fact], day_start: i64, now: i64) -> bool {
-    window(facts, day_start, now + 1).any(|f| matches!(f.kind, EventKind::RestDayGranted))
+/// Concessions without network in a day window (`from` = start of the day): the first
+/// `MAX_PER_DAY`, each request code once. Who may sign them is checked by the ledger.
+fn offline_grants(facts: &[Fact], from: i64, to: i64) -> Vec<&OfflineAsk> {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut out = Vec::new();
+    for f in window(facts, from, to) {
+        if let EventKind::LocalGrant { what, request_code, .. } = &f.kind
+            && out.len() < MAX_PER_DAY
+            && !seen.contains(&request_code.as_str())
+        {
+            seen.push(request_code);
+            out.push(what);
+        }
+    }
+    out
 }
 
-/// Extra passes granted by a guardian in [from, to), with their duration.
-fn grants(facts: &[Fact], from: i64, to: i64) -> impl Iterator<Item = u16> + '_ {
-    window(facts, from, to).filter_map(|f| match f.kind {
-        EventKind::GrantPermit { minutes } => Some(minutes),
+/// A rest day was granted today (by a guardian, or without network).
+fn rest_day(facts: &[Fact], day_start: i64, now: i64) -> bool {
+    window(facts, day_start, now + 1).any(|f| matches!(f.kind, EventKind::RestDayGranted))
+        || offline_grants(facts, day_start, now + 1).contains(&&OfflineAsk::RestDay)
+}
+
+/// Extra passes granted in [from, to) (`from` = start of the day), with their duration:
+/// the guardian's first, then those without network.
+fn grants(facts: &[Fact], from: i64, to: i64) -> Vec<u16> {
+    let mut out: Vec<u16> = window(facts, from, to)
+        .filter_map(|f| match f.kind {
+            EventKind::GrantPermit { minutes } => Some(minutes),
+            _ => None,
+        })
+        .collect();
+    out.extend(offline_grants(facts, from, to).into_iter().filter_map(|a| match a {
+        OfflineAsk::ExtraPermit { minutes } => Some(*minutes),
         _ => None,
-    })
+    }));
+    out
+}
+
+/// Tonight's schedule: bedtime moved by today's "later bedtime" without network, never up to wake-up.
+fn tonight(cfg: &Config, facts: &[Fact], day_start: i64, now: i64) -> Schedule {
+    let mut s = cfg.schedule;
+    let extra: u16 = offline_grants(facts, day_start, now + 1)
+        .into_iter()
+        .filter_map(|a| match a {
+            OfflineAsk::LaterBedtime { minutes } => Some(*minutes),
+            _ => None,
+        })
+        .sum();
+    let night = (s.wake.minutes + 1440 - s.bedtime.minutes) % 1440;
+    if extra > 0 && night > 1 {
+        s.bedtime.minutes = (s.bedtime.minutes + extra.min(MAX_LATER_BEDTIME).min(night - 1)) % 1440;
+    }
+    s
 }
 
 /// Passes of the day starting at `start` (without the weekly pool): daily − penalty + granted.
 fn allowance(cfg: &Config, facts: &[Fact], start: i64, end: i64, offset: i32) -> u32 {
     cfg.permits_per_day.saturating_sub(penalty(cfg, facts, start, offset)) as u32
-        + grants(facts, start, end).count() as u32
+        + grants(facts, start, end).len() as u32
 }
 
 /// Passes left in the weekly pool: spent by whatever was used above each day's allowance
@@ -278,8 +445,8 @@ fn passes_today(facts: &[Fact], day_start: i64, now: i64) -> impl Iterator<Item 
 }
 
 /// Next start of SLEEP that will apply.
-fn sleep_at(cfg: &Config, day_start: i64, offset: i32) -> Option<i64> {
-    let (b, w) = (cfg.schedule.bedtime.minutes as i64, cfg.schedule.wake.minutes as i64);
+fn sleep_at(cfg: &Config, tonight: &Schedule, day_start: i64, offset: i32) -> Option<i64> {
+    let (b, w) = (tonight.bedtime.minutes as i64, tonight.wake.minutes as i64);
     if b == w || night_is_free(cfg, day_start, offset) {
         return None;
     }
@@ -310,21 +477,24 @@ pub fn status(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Option<S
     let left = today.saturating_sub(used) + bonus_left(cfg, facts, day_start, now, offset);
     let permits_left = left.min(u8::MAX as u32) as u8;
 
-    let state = compute_state(cfg, facts, clock, day_start, &goals, free_day, needs_plan);
+    let sched = tonight(cfg, facts, day_start, now);
+    let state = compute_state(cfg, &sched, facts, clock, day_start, &goals, free_day, needs_plan);
     Some(Status {
         state,
         permits_left,
         day_start_ms: day_start,
         next_wake_ms: day_start + DAY_MS,
-        sleep_at_ms: sleep_at(cfg, day_start, offset),
+        sleep_at_ms: sleep_at(cfg, &sched, day_start, offset),
         free_day,
         needs_plan,
         goals,
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compute_state(
     cfg: &Config,
+    tonight: &Schedule,
     facts: &[Fact],
     clock: Clock,
     day_start: i64,
@@ -344,7 +514,7 @@ fn compute_state(
     }
 
     // 2. SLEEP, except the night before a free day
-    if in_sleep(&cfg.schedule, clock.minute_of_day()) && !night_is_free(cfg, day_start, clock.utc_offset_min) {
+    if in_sleep(tonight, clock.minute_of_day()) && !night_is_free(cfg, day_start, clock.utc_offset_min) {
         return DayState::Sleep;
     }
 
@@ -398,7 +568,7 @@ pub fn cmd_start_pass(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> 
     let daily = cfg.permits_per_day.saturating_sub(penalty(cfg, facts, st.day_start_ms, clock.utc_offset_min)) as usize;
     let minutes = used
         .checked_sub(daily)
-        .and_then(|k| grants(facts, st.day_start_ms, clock.now_ms + 1).nth(k))
+        .and_then(|k| grants(facts, st.day_start_ms, clock.now_ms + 1).get(k).copied())
         .unwrap_or(cfg.permit_minutes);
     Ok(EventKind::PassStarted { minutes })
 }

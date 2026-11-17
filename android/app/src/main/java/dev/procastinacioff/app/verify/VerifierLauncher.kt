@@ -37,13 +37,15 @@ private fun Method.verifierName(): String? = when (this) {
 const val POSE_REPS = 20
 const val MIN_PAGES = 10
 
-fun verifierIntent(goalId: String, method: Method, targetMinutes: Int): Intent? {
+/** `night`: the verifier cannot see the core, so the app tells it which look to use (DESIGN.md). */
+fun verifierIntent(goalId: String, method: Method, targetMinutes: Int, night: Boolean): Intent? {
     val name = method.verifierName() ?: return null
     return Intent().setClassName(VERIFIER_PKG, "$VERIFIER_PKG.VerifyActivity")
         .putExtra("goal_id", goalId).putExtra("method", name)
         .putExtra("target_minutes", targetMinutes.coerceIn(1, 600))
         .putExtra("target_reps", POSE_REPS)
         .putExtra("min_pages", MIN_PAGES)
+        .putExtra("night", night)
 }
 
 /**

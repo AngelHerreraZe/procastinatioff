@@ -37,7 +37,7 @@ class EnforcerService : Service() {
         nm.createNotificationChannel(NotificationChannel("enforcer", getString(R.string.channel_protection), NotificationManager.IMPORTANCE_MIN))
         val n = Notification.Builder(this, "enforcer")
             .setContentTitle(getString(R.string.protection_active))
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setSmallIcon(R.drawable.ic_stat_logo)
             .build()
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         else startForeground(1, n)

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,17 +19,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.procastinacioff.app.core.CoreHolder
+import dev.procastinacioff.app.ui.AuthSettingsScreen
 import dev.procastinacioff.app.ui.ChildScreen
 import dev.procastinacioff.app.ui.ChildSettingsScreen
 import dev.procastinacioff.app.ui.ChooseScreen
 import dev.procastinacioff.app.ui.ConfigScreen
+import dev.procastinacioff.app.ui.ContactScreen
 import dev.procastinacioff.app.ui.FamilyConsentScreen
 import dev.procastinacioff.app.ui.FamilyListScreen
 import dev.procastinacioff.app.ui.FocusScreen
 import dev.procastinacioff.app.ui.HomeScreen
 import dev.procastinacioff.app.ui.InviteScreen
 import dev.procastinacioff.app.ui.JoinScreen
-import dev.procastinacioff.app.ui.PartnerScreen
 import dev.procastinacioff.app.ui.PcoTheme
 import dev.procastinacioff.app.ui.PermissionsScreen
 import dev.procastinacioff.app.ui.PlanScreen
@@ -65,6 +66,7 @@ class MainActivity : FragmentActivity() {
     private var request by mutableStateOf<Pair<String, String?>?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge() // same on every version (targetSdk 35 forces it on Android 15); screens pad the safe areas
         super.onCreate(savedInstanceState)
         request = intent.getStringExtra(EXTRA_ROUTE)?.let { it to intent.getStringExtra(EXTRA_GOAL) }
         val hasProfile = runCatching { CoreHolder.get(this).members().isNotEmpty() }.getOrDefault(false)
@@ -93,7 +95,7 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
     val scope = rememberCoroutineScope()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val look = lookFor(snap.status, focus = route?.startsWith("focus") == true, isSystemInDarkTheme(), snap.nowMs)
+    val look = lookFor(snap.status, snap.nowMs)
     val minor = remember(snap.status != null) { runCatching { CoreHolder.get(ctx).myRole() == Role.MINOR }.getOrDefault(false) }
 
     // Open a goal: timed → FOCUS session in the core; untimed → declaration (Focus screen).
@@ -125,18 +127,27 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
     PcoTheme(look) {
         NavHost(nav, startDestination = start) {
             composable("welcome") { WelcomeScreen { nav.navigate("permissions") } }
-            composable("permissions") { PermissionsScreen { nav.navigate("choose") } }
+            composable("permissions") {
+                // Onboarding goes on to "choose"; from Home (blocking paused) it is a checklist that returns.
+                val onboarding = nav.previousBackStackEntry?.destination?.route != "home"
+                PermissionsScreen(
+                    onboarding,
+                    onNext = { if (onboarding) nav.navigate("choose") else nav.popBackStack() },
+                    onBack = { nav.popBackStack() },
+                )
+            }
             composable("choose") {
                 ChooseScreen(
                     onNew = { nav.navigate("config") },
                     onJoin = { nav.navigate("join") },
                     onWatch = { nav.navigate("watch-join") },
                     onFamily = { nav.navigate("family-consent") },
+                    onBack = { nav.popBackStack() },
                 )
             }
             // Family mode: guardian
             composable("family-consent") { FamilyConsentScreen(onAccept = { nav.navigate("family-new") }, onBack = { nav.popBackStack() }) }
-            composable("family-new") { ConfigScreen(family = true) { nav.navigate("family") { popUpTo(0) } } }
+            composable("family-new") { ConfigScreen(family = true, onBack = { nav.popBackStack() }) { nav.navigate("family") { popUpTo(0) } } }
             composable("family") { FamilyListScreen(onOpen = { nav.navigate("child/$it") }, onNew = { nav.navigate("family-consent") }) }
             composable("child/{id}") { e ->
                 val id = e.arguments?.getString("id").orEmpty()
@@ -155,13 +166,20 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
             }
             // Family mode: minor
             composable("tutor") { TutorScreen { nav.popBackStack() } }
-            // Accountability partner
-            composable("partner") { PartnerScreen(onInvite = { nav.navigate("partner-invite") }, onBack = { nav.popBackStack() }) }
-            composable("partner-invite") { InviteScreen(CoreHolder.partnerBox(ctx)) { nav.popBackStack() } }
-            composable("watch-join") { JoinScreen(CoreHolder.watchingBox(ctx)) { nav.navigate("watch") { popUpTo(0) } } }
+            // Change authorization and trusted contact
+            composable("auth") {
+                AuthSettingsScreen(
+                    onContact = { nav.navigate("contact") },
+                    onErased = { nav.navigate("welcome") { popUpTo(0) } },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable("contact") { ContactScreen(onInvite = { nav.navigate("contact-invite") }, onBack = { nav.popBackStack() }) }
+            composable("contact-invite") { InviteScreen(CoreHolder.contactChannel(ctx)) { nav.popBackStack() } }
+            composable("watch-join") { JoinScreen(CoreHolder.watchingBox(ctx), onBack = { nav.popBackStack() }) { nav.navigate("watch") { popUpTo(0) } } }
             composable("watch") { WatchScreen() }
-            composable("config") { ConfigScreen { nav.navigate("home") { popUpTo(0) } } }
-            composable("join") { JoinScreen { nav.navigate("home") { popUpTo(0) } } }
+            composable("config") { ConfigScreen(onBack = { nav.popBackStack() }) { nav.navigate("home") { popUpTo(0) } } }
+            composable("join") { JoinScreen(onBack = { nav.popBackStack() }) { nav.navigate("home") { popUpTo(0) } } }
             composable("home") {
                 HomeScreen(
                     snap,
@@ -169,7 +187,8 @@ private fun Root(start: String, request: Pair<String, String?>?, consumed: () ->
                     onFocus = { nav.navigate("focus/$it") },
                     onPlan = { nav.navigate("plan") },
                     onPair = { nav.navigate("invite") },
-                    onPartner = { nav.navigate("partner") },
+                    onSettings = { nav.navigate("auth") },
+                    onPermissions = { nav.navigate("permissions") },
                     minor = minor,
                     onTutor = { nav.navigate("tutor") },
                     onFamily = if (CoreHolder.familyProfiles(ctx).isNotEmpty()) ({ nav.navigate("family") }) else null,

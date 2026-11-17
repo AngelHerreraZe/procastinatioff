@@ -28,6 +28,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:label="@string/verifier_label"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".VerifyActivity"

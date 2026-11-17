@@ -21,7 +21,6 @@ APP = {
     "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED",  # family mode: app suspension (Device Owner)
     "android.permission.USE_BIOMETRIC",                 # family mode: the guardian confirms with fingerprint or PIN
     "android.permission.USE_FINGERPRINT",               # (androidx.biometric on older Android)
-    "com.google.android.c2dm.permission.RECEIVE",       # FCM
     "dev.procastinacioff.permission.VERIFY",            # open the verifier (signature permission)
     "dev.procastinacioff.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
 }

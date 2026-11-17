@@ -13,10 +13,11 @@ OUT=target/apple
 rm -rf "$OUT"
 mkdir -p "$OUT/headers" "$OUT/swift" "$OUT/macos"
 
-# 1) Swift bindings from the Mac libraries (only the UniFFI metadata is read)
-cargo build -p procastinacioff-core -p procastinacioff-verify --release
+# 1) Swift bindings from the Mac libraries (only the UniFFI metadata is read). Debug on purpose: the
+#    release library is stripped and uniffi-bindgen then generates nothing without failing.
+cargo build -p procastinacioff-core -p procastinacioff-verify
 for c in core verify; do
-  cargo run -q -p uniffi-bindgen -- generate --library "target/release/libprocastinacioff_$c.dylib" \
+  cargo run -q -p uniffi-bindgen -- generate --library "target/debug/libprocastinacioff_$c.dylib" \
     --language swift --out-dir "$OUT/swift"
   mv "$OUT/swift/procastinacioff_${c}FFI.h" "$OUT/headers/"
   # A single module.modulemap with both FFI modules (two files with the same name would clash)

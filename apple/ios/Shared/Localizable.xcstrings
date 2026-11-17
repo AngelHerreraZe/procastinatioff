@@ -1,22 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "%@ asks: %@": {
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ pide: %@"
-          }
-        }
-      }
-    },
     "%lld more min today": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld min más hoy"
+          }
+        }
+      }
+    },
+    "A change of settings": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un cambio de ajustes"
           }
         }
       }
@@ -87,6 +87,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sin conexión con tus otros dispositivos. Se reintentará."
+          }
+        }
+      }
+    },
+    "One of your devices has not been seen for a while": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uno de tus dispositivos lleva un tiempo sin aparecer"
           }
         }
       }
@@ -171,22 +181,42 @@
         }
       }
     },
+    "The person you support no longer wants to need your approval": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La persona a la que acompañas ya no quiere necesitar tu aprobación"
+          }
+        }
+      }
+    },
+    "The person you support used their recovery code": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La persona a la que acompañas usó su código de recuperación"
+          }
+        }
+      }
+    },
+    "There are alerts from devices in your family": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay avisos de los dispositivos de tu familia"
+          }
+        }
+      }
+    },
     "There are alerts from the person you support": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Hay avisos de la persona a la que acompañas"
-          }
-        }
-      }
-    },
-    "There is news from your other device": {
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hay novedades de tu otro dispositivo"
           }
         }
       }
@@ -201,12 +231,32 @@
         }
       }
     },
+    "You have requests from your family": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tienes solicitudes de tu familia"
+          }
+        }
+      }
+    },
     "You haven't met your goals yet": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Aún no cumples tus metas"
+          }
+        }
+      }
+    },
+    "Your request has an answer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu solicitud tiene respuesta"
           }
         }
       }
@@ -223,6 +273,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "That goal is already done."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.auth_required": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero desbloquea con tu PIN, contraseña, patrón o huella."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with your PIN, password, pattern or fingerprint first."
           }
         }
       },
@@ -245,6 +312,23 @@
       },
       "extractionState": "manual"
     },
+    "denied.easy_pin": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese PIN es demasiado fácil de adivinar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That PIN is too easy to guess."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "denied.guardian_only": {
       "localizations": {
         "es": {
@@ -257,6 +341,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Only your guardian can relax the rules; you can ask them."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.invalid_code": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código incorrecto o caducado."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrong or expired code."
           }
         }
       },
@@ -296,6 +397,23 @@
       },
       "extractionState": "manual"
     },
+    "denied.locked": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demasiados intentos. Espera %lld min."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many attempts. Wait %lld min."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "denied.method_not_allowed": {
       "localizations": {
         "es": {
@@ -308,6 +426,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "That method is not accepted for this goal."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.method_not_set": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese método no está configurado."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That method is not set up."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.needs_contact": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este cambio necesita la aprobación de tu contacto de confianza."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This change needs your trusted contact\\'s approval."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.no_contact": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero invita a un contacto de confianza."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite a trusted contact first."
           }
         }
       },
@@ -381,6 +550,23 @@
       },
       "extractionState": "manual"
     },
+    "denied.too_many_grants": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoy ya no hay más concesiones sin red."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No more concessions without network today."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "denied.too_many_requests": {
       "localizations": {
         "es": {
@@ -410,6 +596,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unknown goal, or not active today."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.weak_password": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La contraseña necesita al menos 8 caracteres."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password needs at least 8 characters."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.weak_pattern": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El patrón necesita al menos 4 puntos distintos."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pattern needs at least 4 different dots."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.weak_pin": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El PIN necesita al menos 6 dígitos."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PIN needs at least 6 digits."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.wrong_secret": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No es correcto."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That is not right."
           }
         }
       },

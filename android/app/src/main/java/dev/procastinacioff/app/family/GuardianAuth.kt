@@ -13,11 +13,15 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
- * The guardian confirms with fingerprint or PIN before approving requests or changing settings: a minor
- * holding the guardian's phone cannot approve anything for themselves.
- * If the phone has no screen lock there is nothing to ask for (the guardian decided that).
+ * The guardian (or a trusted contact) confirms with fingerprint or the phone's PIN before approving
+ * requests or changing settings: someone else holding the phone cannot approve anything.
+ * If the phone has no screen lock there is nothing to ask for (its owner decided that).
  */
-suspend fun confirmAsGuardian(activity: FragmentActivity, what: String): Boolean {
+suspend fun confirmAsGuardian(
+    activity: FragmentActivity,
+    what: String,
+    title: String = activity.getString(R.string.confirm_as_guardian),
+): Boolean {
     // On Android 10, BIOMETRIC_STRONG + DEVICE_CREDENTIAL is not supported
     val allowed = if (Build.VERSION.SDK_INT >= 30) BIOMETRIC_STRONG or DEVICE_CREDENTIAL else BIOMETRIC_WEAK or DEVICE_CREDENTIAL
     if (BiometricManager.from(activity).canAuthenticate(allowed) != BiometricManager.BIOMETRIC_SUCCESS) return true
@@ -32,7 +36,7 @@ suspend fun confirmAsGuardian(activity: FragmentActivity, what: String): Boolean
         })
         prompt.authenticate(
             BiometricPrompt.PromptInfo.Builder()
-                .setTitle(activity.getString(R.string.confirm_as_guardian))
+                .setTitle(title)
                 .setSubtitle(what)
                 .setAllowedAuthenticators(allowed)
                 .build(),

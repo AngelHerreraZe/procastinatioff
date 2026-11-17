@@ -13,6 +13,11 @@ val modelHashes = file("models.lock").readLines()
 
 android {
     namespace = "dev.procastinacioff.verifier"
+    // Reproducible builds (plan 09 · B.1): the dependency metadata block Google adds is not reproducible.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     compileSdk = 35
     ndkVersion = "27.2.12479018"
 
@@ -27,6 +32,7 @@ android {
     }
     // Per-app language picker (Android 13+), like the app
     androidResources { generateLocaleConfig = true }
+    sourceSets["main"].res.srcDir("../branding/res") // launcher icon, shared with the app
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -54,7 +60,9 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.mediapipe.tasks.vision)   // pose, hands, face, objects, classifier
+    // pose, hands, face, objects, classifier. It declares the AutoValue *processor* (compile-time
+    // only, with javapoet) as a runtime dependency: R8 fails on it and it does not belong in the APK.
+    implementation(libs.mediapipe.tasks.vision) { exclude(group = "com.google.auto.value", module = "auto-value") }
     implementation(libs.mlkit.text.recognition)   // OCR with a bundled model (no download)
     implementation("${libs.jna.get()}@aar")       // procastinacioff-verify bindings
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background of the official logo (scripts/make_icons.py prints it) -->
+    <color name="ic_launcher_background">#181B18</color>
+</resources>

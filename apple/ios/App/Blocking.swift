@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import DeviceActivity
 import FamilyControls
 import Foundation
+import ManagedSettings
 
 enum Authorization {
     /// Personal mode: the user authorizes themselves.
@@ -79,5 +81,25 @@ enum StateBridge {
         (s.pendingEssentials, s.pendingFocus, s.pendingFrom) = (essentials, focus, wake)
         SharedStore.save(s)
         return String(localized: "Adding apps relaxes your rules: it takes effect tomorrow when you wake up.")
+    }
+}
+
+/// "Delete all my data" on this iPhone (privacy contract, point 9), like `CoreHolder.eraseAll` on
+/// Android. This iPhone's profile goes first: it needs what relaxing needs, and if the core refuses,
+/// nothing else is touched. Then the contact channels, the minors' profiles and what lives outside
+/// the core (shared state, profile names, shields, schedules, the biometric item). Blocking.
+enum Erase {
+    static func all() throws {
+        let clock = CoreHolder.clock()
+        try CoreHolder.shared().eraseAll(clock: clock)
+        for c in [CoreHolder.existing("contact.db"), CoreHolder.existing("watching.db")].compactMap({ $0 }) {
+            try c.eraseAll(clock: clock)
+        }
+        for id in FamilyProfiles.all().keys { try CoreHolder.family(id).eraseAll(clock: clock) }
+        UserDefaults(suiteName: AppGroup.id)?.removePersistentDomain(forName: AppGroup.id)
+        Schedules.center.stopMonitoring()
+        ManagedSettingsStore(named: .day).clearAllSettings()
+        ManagedSettingsStore(named: .protection).clearAllSettings()
+        LocalAuth.disable()
     }
 }

@@ -1,2 +1,4 @@
 # Privacy scanner exceptions. Each one needs a maintainer's approval.
 # Format:  path/file.kt::EXACT_PATTERN   # reason and link to the approving PR
+desktop/agent/src/browser_policy.rs::https://(?!mozilla\.org/MPL/)   # Chrome/Edge URL allowlist patterns (policy values), never fetched
+desktop/agent/src/linux/browser_policy.rs::https://(?!mozilla\.org/MPL/)   # Firefox WebsiteFilter patterns (policy values), never fetched

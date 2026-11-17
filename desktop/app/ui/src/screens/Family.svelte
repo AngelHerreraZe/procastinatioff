@@ -45,6 +45,7 @@
   const alertText = (a: FamilyAlertView): string =>
     a.alert.alert === 'tamper' ? t(`tamper.${a.alert.what}`)
     : a.alert.alert === 'emergency' ? t('family.emergency_used')
+    : a.alert.alert === 'granted' ? t('family.granted')
     : tn('family.blocked_sites', a.alert.count);
   const when = (ms: number) =>
     `${new Date(ms).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })}, ${hhmm(ms)}`;

@@ -1,0 +1,50 @@
+# deny.toml — run by `cargo deny check` locally and in CI
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"             # versions yanked by their author: forbidden
+# "Unmaintained" only blocks direct dependencies; transitive ones are reviewed in the
+# quarterly update. VULNERABILITIES always block.
+unmaintained = "workspace"
+ignore = []                 # every exception needs a written justification and 2 reviews
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Licenses compatible with MPL-2.0 and with the App Store
+allow = [
+  "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
+  "ISC", "Zlib", "MPL-2.0", "Unicode-3.0", "Unicode-DFS-2016", "CC0-1.0", "BSL-1.0",
+  "OpenSSL",
+  # Mozilla root certificate data (webpki-roots, used by rustls). Permissive data license.
+  "CDLA-Permissive-2.0",
+]
+# GPL/AGPL/LGPL are forbidden by omission (conflict with the App Store)
+exceptions = [
+  # SQLCipher/SQLite source ("blessing" = public domain) and libtomcrypt (WTFPL), only in this crate.
+  { allow = ["blessing", "WTFPL"], crate = "sqlcipher-src" },
+  # Webcam MJPEG decoder (desktop verifier, via nokhwa). IJG: permissive with attribution
+  # required in the product documentation (pending for the launch).
+  { allow = ["IJG"], crate = "mozjpeg" },
+  { allow = ["IJG"], crate = "mozjpeg-sys" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true # internal path dependencies (publish = false)
+deny = [
+  # Third-party telemetry / crash reporting
+  { name = "sentry" },
+  { name = "sentry-core" },
+  { name = "opentelemetry-otlp" },
+  # Native TLS: we only use rustls (identical behavior on every platform)
+  { name = "native-tls" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

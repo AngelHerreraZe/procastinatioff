@@ -1,0 +1,104 @@
+# .github/workflows/release.yml — plan 10 · 1.2.
+# Builds the release artifacts UNSIGNED and creates a DRAFT release with checksums and the SBOM.
+# SECURITY: no signing key ever lives in CI. Signing is the 2-person ceremony (RELEASING.md): one
+# signs with the hardware key, the other checks hashes and signatures, then the draft is published.
+# Every action must be pinned by full SHA (same rule as ci.yml).
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.100.0"
+
+jobs:
+  linux-agent:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # pin SHA
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@master       # pin SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      # The bytes must not depend on the folder or the time of the build (plan 09 · B).
+      - run: scripts/repro_check.sh "$GITHUB_REF_NAME"
+      - run: cargo install --locked cargo-deb@2.10.0
+      - run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          export RUSTFLAGS="--remap-path-prefix=$PWD=/build --remap-path-prefix=$HOME/.cargo=/cargo"
+          cargo build --release --locked -p procastinacioff-agent
+          cargo deb --no-build -p procastinacioff-agent -o dist/
+          cp target/release/procastinacioff-agent dist/procastinacioff-agent-linux-x86_64
+      - uses: actions/upload-artifact@v4          # pin SHA
+        with: { name: linux, path: dist/ }
+
+  windows-agent:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4                 # pin SHA
+      - uses: dtolnay/rust-toolchain@master       # pin SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      - run: cargo build --release --locked -p procastinacioff-agent
+      # The NSIS installer is built and signed in the ceremony (it needs the code-signing token).
+      - run: |
+          mkdir dist
+          copy target\release\procastinacioff-agent.exe dist\procastinacioff-agent-windows-x86_64.exe
+        shell: cmd
+      - uses: actions/upload-artifact@v4          # pin SHA
+        with: { name: windows, path: dist/ }
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4                 # pin SHA
+      - uses: actions/setup-java@v4               # pin SHA
+        with: { distribution: temurin, java-version: "17" }
+      - uses: dtolnay/rust-toolchain@master       # pin SHA
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: android-actions/setup-android@v3    # pin SHA
+      - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35"
+      - run: cargo install --locked cargo-ndk
+      # Bindings from the DEBUG libraries: the release ones are stripped and uniffi-bindgen then
+      # generates nothing without failing.
+      - run: cargo build -p procastinacioff-core -p procastinacioff-verify
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_core.so --language kotlin --out-dir android/app/src/main/java
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
+      - run: ./gradlew :app:assembleRelease :verifier:assembleRelease
+        working-directory: android
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+      # SECURITY: the same permission checks as CI, on the exact files that will be signed
+      - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/app/build/outputs/apk/release/app-release-unsigned.apk
+      - run: python3 scripts/check_android_permissions.py "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2" android/verifier/build/outputs/apk/release/verifier-release-unsigned.apk --verifier
+      - run: |
+          mkdir dist
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/procastinacioff-unsigned.apk
+          cp android/verifier/build/outputs/apk/release/verifier-release-unsigned.apk dist/procastinacioff-verifier-unsigned.apk
+      - uses: actions/upload-artifact@v4          # pin SHA
+        with: { name: android, path: dist/ }
+
+  draft:
+    needs: [linux-agent, windows-agent, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write                             # only this job, only to create the draft
+    steps:
+      - uses: actions/checkout@v4                 # pin SHA
+      - uses: dtolnay/rust-toolchain@master       # pin SHA
+        with: { toolchain: "${{ env.RUST_TOOLCHAIN }}" }
+      - uses: actions/download-artifact@v4        # pin SHA
+        with: { path: dist, merge-multiple: true }
+      - run: cargo install --locked cargo-cyclonedx@0.5.7
+      - run: cargo cyclonedx --format json --all && find . -name "*.cdx.json" -not -path "./dist/*" -exec cp {} dist/ \;
+      - run: cd dist && sha256sum * > SHA256SUMS
+      # Release notes = this version's CHANGELOG section (it always has "Privacy and security").
+      - run: |
+          awk -v h="## [${GITHUB_REF_NAME#v}]" 'index($0, h) == 1 {p=1; next} /^## /{p=0} p' CHANGELOG.md > notes.md
+          grep -q "### Privacy and security" notes.md
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --notes-file notes.md dist/*
+        env:
+          GH_TOKEN: ${{ github.token }}

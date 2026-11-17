@@ -1,3 +1,5 @@
+<img src="branding/logo.png" width="112" alt="ProcastinaciOFF logo" />
+
 # ProcastinaciOFF
 
 **Blocks the mindless use of your devices until you complete the goals you set for yourself each morning.** No accounts, no servers, and nothing is ever recorded: everything happens on your devices.
@@ -35,6 +37,8 @@
 - **No surveillance:** no keylogger, screenshots, message reading, location or browsing history. Not even a guardian can see them, because they do not exist.
 - **Open source** (MPL-2.0) with reproducible builds.
 - **Full erasure with one button** (the keys are destroyed and everything encrypted becomes unreadable).
+
+Every piece of data the apps keep, where and for how long: [PRIVACY.md](PRIVACY.md).
 
 ## Sync without servers
 
@@ -78,7 +82,7 @@ Every goal has at least one **camera-free** option: a focus session on the PC, Q
 | Windows | `LocalSystem` service + session agent + browser policies + local DNS | In development |
 | iOS | Screen Time API (FamilyControls, ManagedSettings, DeviceActivity) | Started (needs an Apple entitlement) |
 | macOS | Endpoint Security + NetworkExtension | Planned |
-| Linux | systemd + fanotify + nftables | Planned |
+| Linux | systemd + fanotify + nftables | In development |
 
 **Honest limit:** on a device you fully administer, no software is unbeatable. The goal is to make skipping the block **slow, costly and visible**, not impossible.
 
@@ -126,7 +130,8 @@ Contributions are welcome. For anything big, open an issue first so we can discu
 7. **Keep it simple.** The smallest change that works; no speculative abstractions, no configuration for values that never change. Prefer the standard library and native platform features over new dependencies. Every new dependency needs a justification and a compatible license (MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0; no GPL/AGPL/LGPL).
 8. **Every non-trivial logic leaves a test** that would fail if it broke. `just check` must pass before you open a PR.
 9. **Accessibility is part of "done"**: labels for screen readers, numbers not conveyed by color alone, touch targets ≥ 48 dp / 32 px.
-10. **Commits and PRs**: small and focused, in English, imperative mood with a scope (`core: add pass cooldown`, `android: translate shield screen`). Explain *why* in the PR description and fill in the security checklist.
+10. **Every screen follows [DESIGN.md](DESIGN.md)**: two looks chosen by the clock (Calma by day, Nocturno from 1 h before bedtime until waking), color tokens only, one primary action. Platform details: [Android](android/DESIGN.md), [iOS](apple/ios/DESIGN.md), [desktop](desktop/DESIGN.md).
+11. **Commits and PRs**: small and focused, in English, imperative mood with a scope (`core: add pass cooldown`, `android: translate shield screen`). Explain *why* in the PR description and fill in the security checklist.
 
 ### Code comments
 

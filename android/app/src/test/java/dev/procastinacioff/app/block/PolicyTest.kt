@@ -2,6 +2,7 @@ package dev.procastinacioff.app.block
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import uniffi.procastinacioff_core.AuthPolicy
 import uniffi.procastinacioff_core.Config
 import uniffi.procastinacioff_core.DayState
 import uniffi.procastinacioff_core.Schedule
@@ -15,7 +16,7 @@ class PolicyTest {
         permitsPerDay = 3u, permitMinutes = 5u, permitCooldownMinutes = 60u,
         emergencyMinutes = 15u, emergencyPenalty = 1u, habitPenalty = true,
         goals = emptyList(), freeDays = 0u, essentialApps = listOf(wa), focusApps = listOf(udemy), webAllowlist = emptyList(),
-        weeklyBonusPermits = 0u,
+        weeklyBonusPermits = 0u, auth = AuthPolicy(emptyList(), false),
     )
     private val system = setOf("com.android.systemui", "com.google.android.dialer")
 

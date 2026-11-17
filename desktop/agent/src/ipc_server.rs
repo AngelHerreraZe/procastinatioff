@@ -10,9 +10,10 @@
 use std::os::windows::io::AsRawHandle;
 use std::sync::{Arc, Mutex};
 
+use crate::common::{Shared, serve_lines};
+
 use procastinacioff_core::api::Core;
-use procastinacioff_ipc::{AgentStatus, MAX_LINE, PIPE_NAME};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use procastinacioff_ipc::PIPE_NAME;
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows::Win32::Foundation::{HANDLE, HLOCAL, LocalFree};
 use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1};
@@ -20,14 +21,11 @@ use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
 use windows::core::w;
 
-use crate::clock::now_clock;
 use crate::signer::SignerCache;
 
 /// Signer of our binaries (CN of the organization's code-signing certificate).
 pub const OUR_SIGNER: &str = "ProcastinaciOFF SAS"; // ← replace with the real certificate CN
 pub const UI_EXE: &str = "procastinacioff-app.exe";
-
-pub type Shared = Arc<Mutex<AgentStatus>>;
 
 fn create_pipe(first: bool) -> std::io::Result<NamedPipeServer> {
     unsafe {
@@ -79,27 +77,9 @@ pub async fn serve(core: Arc<Core>, shared: Shared, install_dir: std::path::Path
         let connected = server;
         server = create_pipe(false)?; // next instance for the next client
         if !client_is_trusted(&connected, &cache, &install_dir) {
-            tracing::warn!("cliente IPC no confiable rechazado");
+            tracing::warn!("untrusted IPC client rejected");
             continue; // dropping `connected` closes the connection
         }
-        let (core, shared) = (core.clone(), shared.clone());
-        tokio::spawn(async move {
-            let (reader, mut writer) = tokio::io::split(connected);
-            // Line limit: a client cannot exhaust the service's memory.
-            let mut lines = BufReader::new(reader.take(MAX_LINE as u64 * 64)).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let (core, shared) = (core.clone(), shared.clone());
-                let reply = tokio::task::spawn_blocking(move || {
-                    let agent = shared.lock().unwrap_or_else(|p| p.into_inner()).clone();
-                    procastinacioff_core::desktop::handle_json(&core, now_clock(&core), agent, &line)
-                })
-                .await;
-                let Ok(mut out) = reply else { break };
-                out.push('\n');
-                if writer.write_all(out.as_bytes()).await.is_err() {
-                    break;
-                }
-            }
-        });
+        tokio::spawn(serve_lines(connected, core.clone(), shared.clone()));
     }
 }

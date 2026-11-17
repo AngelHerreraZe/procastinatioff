@@ -9,6 +9,7 @@ use zeroize::Zeroizing;
 
 use crate::error::CoreError;
 use crate::events::SignedEvent;
+use crate::model::Notice;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS events (
@@ -21,6 +22,12 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_at ON events(at_ms);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS notices (
+    id        TEXT PRIMARY KEY,
+    json      TEXT NOT NULL,
+    at_ms     INTEGER NOT NULL,
+    delivered INTEGER NOT NULL DEFAULT 0
+);
 ";
 
 pub struct Db {
@@ -42,11 +49,38 @@ impl Db {
         Ok(Self { conn })
     }
 
-    pub fn insert(&self, ev: &SignedEvent, uploaded: bool) -> Result<(), CoreError> {
+    pub fn path(&self) -> Option<String> {
+        self.conn.path().map(str::to_owned)
+    }
+
+    /// "Delete all my data": empties every table and re-encrypts the file with `new_key`. Once the
+    /// old key is overwritten in the keystore, nothing written with it (freed pages, the WAL,
+    /// copies the flash memory keeps) can be read again.
+    pub fn wipe_and_rekey(&self, new_key: &[u8]) -> Result<(), CoreError> {
+        self.conn.execute_batch("DELETE FROM events; DELETE FROM meta; DELETE FROM notices;")?;
+        // Out of WAL mode the WAL is checkpointed and removed; VACUUM drops the freed pages; then
+        // SQLCipher re-encrypts every remaining page.
+        self.conn.pragma_update_and_check(None, "journal_mode", "DELETE", |r| r.get::<_, String>(0))?;
+        self.conn.execute_batch("VACUUM;")?;
+        let pragma =
+            Zeroizing::new(format!("PRAGMA rekey = \"x'{}'\";", Zeroizing::new(hex::encode(new_key)).as_str()));
+        self.conn.execute_batch(&pragma)?;
+        self.conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get::<_, String>(0))?;
+        Ok(())
+    }
+
+    /// Whether this build encrypts (SQLCipher). Tests of the encryption itself skip without it.
+    #[cfg(test)]
+    pub fn encrypted(&self) -> bool {
+        self.conn.query_row("PRAGMA cipher_version", [], |r| r.get::<_, String>(0)).is_ok()
+    }
+
+    pub fn insert(&self, ev: &SignedEvent) -> Result<(), CoreError> {
         let json = serde_json::to_vec(ev).map_err(CoreError::storage)?;
+        // `uploaded` is a leftover of the relay: always 0, kept so older databases still open.
         self.conn.execute(
-            "INSERT OR IGNORE INTO events (id, author, seq, at_ms, json, uploaded) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![ev.id(), ev.body.author, ev.body.seq as i64, ev.body.at_ms, json, uploaded as i64],
+            "INSERT OR IGNORE INTO events (id, author, seq, at_ms, json) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![ev.id(), ev.body.author, ev.body.seq as i64, ev.body.at_ms, json],
         )?;
         Ok(())
     }
@@ -55,34 +89,14 @@ impl Db {
         self.query("SELECT json FROM events ORDER BY rowid", [])
     }
 
-    pub fn pending_uploads(&self, author: &str) -> Result<Vec<SignedEvent>, CoreError> {
-        self.query("SELECT json FROM events WHERE author = ?1 AND uploaded = 0 ORDER BY seq", [author])
-    }
-
     pub fn all_by(&self, author: &str) -> Result<Vec<SignedEvent>, CoreError> {
         self.query("SELECT json FROM events WHERE author = ?1 ORDER BY seq", [author])
-    }
-
-    /// Everything pending upload, in the order it was accepted.
-    pub fn pending_all(&self) -> Result<Vec<SignedEvent>, CoreError> {
-        self.query("SELECT json FROM events WHERE uploaded = 0 ORDER BY rowid", [])
-    }
-
-    /// Marks every event for re-upload (encrypted for the new member list).
-    pub fn mark_all_for_reupload(&self) -> Result<(), CoreError> {
-        self.conn.execute("UPDATE events SET uploaded = 0", [])?;
-        Ok(())
     }
 
     fn query<P: rusqlite::Params>(&self, sql: &str, p: P) -> Result<Vec<SignedEvent>, CoreError> {
         let mut stmt = self.conn.prepare(sql)?;
         let rows = stmt.query_map(p, |r| r.get::<_, Vec<u8>>(0))?;
         rows.map(|b| serde_json::from_slice(&b?).map_err(CoreError::storage)).collect()
-    }
-
-    pub fn mark_uploaded(&self, id: &str) -> Result<(), CoreError> {
-        self.conn.execute("UPDATE events SET uploaded = 1 WHERE id = ?1", [id])?;
-        Ok(())
     }
 
     pub fn meta(&self, k: &str) -> Result<Option<String>, CoreError> {
@@ -95,9 +109,41 @@ impl Db {
         Ok(())
     }
 
-    /// Local retention (90 days by default).
-    pub fn prune_before(&self, before_ms: i64) -> Result<usize, CoreError> {
-        Ok(self.conn.execute("DELETE FROM events WHERE at_ms < ?1 AND uploaded = 1", [before_ms])?)
+    /// Local retention: deletes events older than `before_ms`, except those `keep` says the
+    /// profile needs forever (members, configuration). Also forgets delivered notices.
+    pub fn prune_before(&self, before_ms: i64, keep: impl Fn(&SignedEvent) -> bool) -> Result<usize, CoreError> {
+        let old = self.query("SELECT json FROM events WHERE at_ms < ?1", [before_ms])?;
+        let tx = self.conn.unchecked_transaction()?;
+        let mut n = 0;
+        for ev in old.iter().filter(|e| !keep(e)) {
+            n += tx.execute("DELETE FROM events WHERE id = ?1", [ev.id()])?;
+        }
+        tx.execute("DELETE FROM notices WHERE delivered = 1 AND at_ms < ?1", [before_ms])?;
+        tx.commit()?;
+        Ok(n)
+    }
+
+    /// Saves a notice once (same id = same notice, even after it was delivered).
+    pub fn add_notice(&self, n: &Notice) -> Result<(), CoreError> {
+        let json = serde_json::to_string(n).map_err(CoreError::storage)?;
+        self.conn.execute(
+            "INSERT OR IGNORE INTO notices (id, json, at_ms) VALUES (?1, ?2, ?3)",
+            params![n.id, json, n.at_ms],
+        )?;
+        Ok(())
+    }
+
+    /// Notices not yet delivered, oldest first; marks them delivered.
+    pub fn take_notices(&self) -> Result<Vec<Notice>, CoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let out = {
+            let mut stmt = tx.prepare("SELECT json FROM notices WHERE delivered = 0 ORDER BY at_ms, id")?;
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+            rows.map(|j| serde_json::from_str(&j?).map_err(CoreError::storage)).collect::<Result<Vec<Notice>, _>>()?
+        };
+        tx.execute("UPDATE notices SET delivered = 1 WHERE delivered = 0", [])?;
+        tx.commit()?;
+        Ok(out)
     }
 }
 
@@ -118,6 +164,30 @@ mod tests {
         let raw = std::fs::read(&path).unwrap();
         assert!(!raw.starts_with(b"SQLite format 3"));
         assert!(!raw.windows(15).any(|w| w == b"readable-secret"));
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn wipe_and_rekey_leaves_an_empty_database_only_the_new_key_opens() {
+        let dir = std::env::temp_dir().join(format!("pco-wipe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("t.db");
+        let path_str = path.to_str().unwrap();
+        let db = Db::open(path_str, &[1u8; 32]).unwrap();
+        db.set_meta("a", "erased-secret").unwrap();
+        db.wipe_and_rekey(&[3u8; 32]).unwrap();
+        db.set_meta("b", "after").unwrap(); // still usable, back in WAL mode
+        let encrypted = db.encrypted();
+        drop(db);
+        let db = Db::open(path_str, &[3u8; 32]).unwrap();
+        assert_eq!(db.meta("a").unwrap(), None);
+        assert_eq!(db.meta("b").unwrap().as_deref(), Some("after"));
+        if encrypted {
+            assert!(Db::open(path_str, &[1u8; 32]).is_err(), "the old key opens nothing");
+        }
+        drop(db);
+        let raw = std::fs::read(&path).unwrap();
+        assert!(!raw.windows(13).any(|w| w == b"erased-secret"));
         std::fs::remove_dir_all(dir).ok();
     }
 }

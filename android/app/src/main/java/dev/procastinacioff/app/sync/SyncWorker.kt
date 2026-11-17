@@ -17,34 +17,32 @@ import dev.procastinacioff.app.core.CoreHolder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import uniffi.procastinacioff_core.CoreException
 import uniffi.procastinacioff_core.TamperKind
 
 class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val ctx = applicationContext
         val core = CoreHolder.get(ctx)
-        CoreHolder.anchor(core) // relay signed time before anything else
         checkAccessibility(ctx)
         val clock = CoreHolder.clock()
-        val result = try {
-            core.sync(clock)
-            Result.success()
-        } catch (e: CoreException.Network) {
-            Result.retry() // offline: WorkManager retries with exponential backoff
-        } catch (e: CoreException) {
-            Result.success() // no relay configured: nothing to sync
+        // My trusted contact: approved changes come back; only alerts and numbers go out
+        val contact = CoreHolder.contactChannelOrNull(ctx)?.also { box -> runCatching { core.forwardToContact(box, clock) } }
+        val watching = CoreHolder.watchingBoxOrNull(ctx)
+        val families = CoreHolder.familyProfiles(ctx).keys.map { CoreHolder.family(ctx, it) }
+        val cores = listOfNotNull(core, contact, watching) + families
+        // Who of the profiles' devices is on this network now; then sync directly with them.
+        // Devices that are not here are normal (outside home): every device blocks with its own copy.
+        LanDiscovery.browse(ctx, cores, clock.nowMs)
+        for (c in cores) {
+            runCatching { CoreHolder.syncNow(c) }
+            runCatching { c.takeNotices() }.getOrNull()?.let { LocalNotifications.showNotices(ctx, it, fromWatching = c === watching) }
         }
-        // My partner: only tampering, emergencies and each day's summary (numbers)
-        CoreHolder.partnerBoxOrNull(ctx)?.let { box ->
-            runCatching { core.forwardToPartner(box, clock); box.sync(clock) }
-        }
-        // A minor's phone: category list (daily) and active protection
+        // What the contact answered during this sync is applied now, not in 15 minutes.
+        contact?.let { box -> runCatching { core.forwardToContact(box, clock) } }
+        // A minor's phone: category list (bundled in the app) and active protection
         if (runCatching { core.myRole() }.getOrNull() == uniffi.procastinacioff_core.Role.MINOR) {
             val prefs = ctx.getSharedPreferences("family", Context.MODE_PRIVATE)
-            if (System.currentTimeMillis() - prefs.getLong("lists_at", 0) > 24 * 3_600_000L) {
-                if (runCatching { core.refreshCategoryList() }.isSuccess) prefs.edit().putLong("lists_at", System.currentTimeMillis()).apply()
-            }
+            CoreHolder.loadBundledList(ctx, core)
             runCatching { dev.procastinacioff.app.family.DeviceOwnerPolicies.startMinorProtection(ctx) }
             // Web filter not enabled (or removed in favor of another VPN): recorded ONCE; the guardian sees it
             val vpnOff = android.net.VpnService.prepare(ctx) != null
@@ -55,18 +53,7 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
                 prefs.edit().putBoolean("vpn_reported", false).apply()
             }
         }
-        // Guardian: the minors' profiles; notify if something new arrived and requests are waiting
-        CoreHolder.familyProfiles(ctx).keys.forEach { id ->
-            val box = CoreHolder.family(ctx, id)
-            val report = runCatching { box.sync(clock) }.getOrNull()
-            if (report != null && report.received > 0u && box.pendingRequests().isNotEmpty()) LocalNotifications.showFamilyRequest(ctx)
-        }
-        // The person I support: fetch their alerts and notify if there are new ones
-        CoreHolder.watchingBoxOrNull(ctx)?.let { box ->
-            val report = runCatching { box.sync(clock) }.getOrNull()
-            if (report != null && report.received > 0u) LocalNotifications.showPartnerAlert(ctx)
-        }
-        result
+        Result.success()
     }
 
     /** If Accessibility is off with an active profile, it is recorded ONCE. */

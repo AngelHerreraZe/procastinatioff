@@ -5,12 +5,12 @@
 import Foundation
 import Security
 
-/// Single access point to the Rust cores (app and notification extension). They all share the iPhone's keys:
+/// Single access point to the Rust cores (app and extensions). They all share the iPhone's keys:
 /// - core.db: this iPhone's profile (its own, or the minor's if it is their iPhone).
-/// - partner.db / watching.db: partner mailboxes.
+/// - contact.db / watching.db: trusted contact channels (mine, and of the person I support).
 /// - family-<id>.db: (guardian) one profile per minor I manage. They never block THIS iPhone.
 /// The databases live in the App Group with the default protection (`completeUntilFirstUserAuthentication`):
-/// the notification extension opens them at night with the iPhone locked.
+/// background refresh opens them at night with the iPhone locked.
 enum CoreHolder {
     private static let lock = NSLock()
     private static var cores: [String: Core] = [:]
@@ -32,7 +32,7 @@ enum CoreHolder {
     }
 
     static func shared() throws -> Core { try open("core.db") }
-    static func partnerBox() throws -> Core { try open("partner.db") }
+    static func contactChannel() throws -> Core { try open("contact.db") }
     static func watchingBox() throws -> Core { try open("watching.db") }
 
     /// The mailbox only counts if it was created or joined (an empty database is never opened out of curiosity).
@@ -81,6 +81,7 @@ enum Texts {
         case .addSite(let domain): return String(localized: "Allow \(domain) during focus")
         case .laterBedtime(let minutes): return String(localized: "Sleep \(Int(minutes)) min later (changes the schedule)")
         case .restDay: return String(localized: "Rest day today")
+        case .configChange: return String(localized: "A change of settings")
         }
     }
 }

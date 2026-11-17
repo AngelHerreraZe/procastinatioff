@@ -10,6 +10,8 @@
 //! 4. Family profile (has a guardian): some events can only be signed by a guardian (see `guardian_only`).
 //!    That a minor can only make the configuration STRICTER is checked when rebuilding the history
 //!    (`ConfigHistory::from_facts_checked`): there the result does not depend on arrival order.
+//! 5. Any profile: nobody grants themselves anything, a trusted contact only answers, and an
+//!    embedded contact approval must carry the contact's valid signature (see `signer_check`).
 //!
 //! Ordering assumption: each author's events arrive in the order they were created.
 
@@ -17,7 +19,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::CoreError;
 use crate::events::SignedEvent;
-use crate::model::{EventKind, Fact, Member, Method, Role};
+use crate::model::{EventKind, Fact, GrantProof, LocalFactor, Member, Method, Role, SecretHolder};
+use crate::offline_code::ask_in_range;
+
+/// Trusted contacts per adult (one is enough to approve).
+pub const MAX_CONTACTS: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Gap {
@@ -52,6 +58,7 @@ fn guardian_only(kind: &EventKind) -> bool {
             | EventKind::Decision { .. }
             | EventKind::RestDayGranted
             | EventKind::GoalCompleted { method: Method::Witness, .. }
+            | EventKind::DiscoveryKey { .. }
     )
 }
 
@@ -75,6 +82,72 @@ impl Ledger {
 
     pub fn head(&self, author: &str) -> Option<&(u64, String)> {
         self.heads.get(author)
+    }
+
+    /// Author -> last `seq` held (the version vector sent in `Hello`).
+    pub fn heads(&self) -> BTreeMap<String, u64> {
+        self.heads.iter().map(|(a, (seq, _))| (a.clone(), *seq)).collect()
+    }
+
+    fn role_of(&self, device: &str) -> Option<Role> {
+        self.members.iter().find(|m| m.device_id == device).map(|m| m.role)
+    }
+
+    /// Who may sign what, in any profile (security-critical).
+    fn signer_check(&self, author: &str, kind: &EventKind) -> Result<(), &'static str> {
+        let role = self.role_of(author);
+        match kind {
+            _ if role == Some(Role::TrustedContact)
+                && !matches!(kind, EventKind::Decision { .. } | EventKind::Heartbeat) =>
+            {
+                Err("a trusted contact only answers requests")
+            }
+            // Nobody grants themselves passes or rest days, not even in a personal profile.
+            EventKind::GrantPermit { .. } | EventKind::RestDayGranted if role != Some(Role::Guardian) => {
+                Err("reserved for a guardian")
+            }
+            EventKind::Decision { .. } if !matches!(role, Some(Role::Guardian | Role::TrustedContact)) => {
+                Err("only a guardian or a trusted contact answers")
+            }
+            EventKind::SecretSet { factor: LocalFactor::Biometric, .. } => Err("biometrics has no secret"),
+            EventKind::SecretSet { holder: SecretHolder::Guardian, .. } if role != Some(Role::Guardian) => {
+                Err("reserved for a guardian")
+            }
+            EventKind::RecoveryCodeSet { .. } | EventKind::LocalResetStarted if role != Some(Role::Owner) => {
+                Err("only an adult's own device")
+            }
+            EventKind::ContactApproval { decision } if role != Some(Role::Owner) || !self.valid_approval(decision) => {
+                Err("invalid contact approval")
+            }
+            EventKind::LocalGrant { what, request_code, proof } => {
+                let approver_is = |id: &str, r: Role| self.role_of(id) == Some(r);
+                let ok = ask_in_range(what)
+                    && request_code.len() <= 16
+                    && match (self.is_family(), role, proof) {
+                        (true, Some(Role::Minor), GrantProof::GuardianSecret) => true,
+                        (true, Some(Role::Minor), GrantProof::OfflineCode { approver }) => {
+                            approver_is(approver, Role::Guardian)
+                        }
+                        (false, Some(Role::Owner), GrantProof::OfflineCode { approver }) => {
+                            approver_is(approver, Role::TrustedContact)
+                        }
+                        _ => false,
+                    };
+                if ok { Ok(()) } else { Err("invalid concession") }
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// A trusted contact's signed `Decision` approving a configuration (hash and when it applies).
+    fn valid_approval(&self, json: &str) -> bool {
+        let Ok(d) = serde_json::from_str::<SignedEvent>(json) else { return false };
+        d.verify().is_ok()
+            && self.role_of(&d.body.author) == Some(Role::TrustedContact)
+            && matches!(
+                d.body.kind,
+                EventKind::Decision { approved: true, config_hash: Some(_), effective: Some(_), .. }
+            )
     }
 
     pub fn accept(&mut self, ev: SignedEvent) -> Result<Accepted, CoreError> {
@@ -108,6 +181,7 @@ impl Ledger {
         if family && guardian_only(&ev.body.kind) && !is_guardian {
             return Err(CoreError::protocol("action reserved for a guardian"));
         }
+        self.signer_check(&author, &ev.body.kind).map_err(CoreError::protocol)?;
         if let EventKind::MembersChanged { members } = &ev.body.kind {
             let family_after = members.iter().any(|m| m.role == Role::Guardian);
             // A family profile never ends up without a guardian, only has guardians and minors, and a
@@ -118,6 +192,14 @@ impl Ledger {
             }
             if !genesis && !family && family_after {
                 return Err(CoreError::protocol("a personal profile cannot become a family profile"));
+            }
+            // Personal: its owner's devices plus up to 3 trusted contacts.
+            let contacts = members.iter().filter(|m| m.role == Role::TrustedContact).count();
+            let personal_ok = members.iter().all(|m| matches!(m.role, Role::Owner | Role::TrustedContact))
+                && members.iter().any(|m| m.role == Role::Owner)
+                && contacts <= MAX_CONTACTS;
+            if !family_after && !personal_ok {
+                return Err(CoreError::protocol("invalid members for a personal profile"));
             }
         }
 
@@ -191,7 +273,14 @@ mod tests {
     }
 
     fn member(k: &DeviceKeys) -> Member {
-        Member { device_id: k.device_id(), age_recipient: k.age_recipient(), label: "x".into(), role: Role::Owner }
+        Member {
+            device_id: k.device_id(),
+            age_recipient: k.age_recipient(),
+            label: "x".into(),
+            role: Role::Owner,
+            node_id: k.node_id(),
+            time_source: false,
+        }
     }
 
     fn ev(k: &DeviceKeys, seq: u64, prev: Option<String>, kind: EventKind) -> SignedEvent {
@@ -253,7 +342,7 @@ mod tests {
         vec![
             EventKind::GrantPermit { minutes: 15 },
             EventKind::RestDayGranted,
-            EventKind::Decision { request_id: "ab".into(), approved: true },
+            EventKind::Decision { request_id: "ab".into(), approved: true, config_hash: None, effective: None },
             EventKind::GoalCompleted { goal_id: "read-30".into(), method: Method::Witness, score: 100, minutes: 0 },
             EventKind::MembersChanged { members: vec![as_role(m, Role::Guardian)] },
         ]

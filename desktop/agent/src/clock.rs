@@ -2,16 +2,24 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Time for the rules: the core's trusted time (relay signed time + monotonic),
-//! with the local UTC offset. Changing the Windows clock does not move this time.
+//! Time for the rules: the core's trusted time (the paired devices' time + monotonic clock),
+//! with the local UTC offset. Changing the system clock does not move this time.
 
 use chrono::{Local, Offset};
 use procastinacioff_core::api::Core;
 use procastinacioff_core::clock::Clock;
 
-/// System monotonic clock (ms since boot); the user cannot change it.
+/// System monotonic clock (ms since boot, including sleep); the user cannot change it.
+#[cfg(windows)]
 pub fn mono_ms() -> i64 {
     unsafe { windows::Win32::System::SystemInformation::GetTickCount64() as i64 }
+}
+
+/// CLOCK_BOOTTIME: like GetTickCount64, it keeps counting while suspended.
+#[cfg(target_os = "linux")]
+pub fn mono_ms() -> i64 {
+    use nix::sys::time::TimeValLike;
+    nix::time::clock_gettime(nix::time::ClockId::CLOCK_BOOTTIME).map(|t| t.num_milliseconds()).unwrap_or(0)
 }
 
 pub fn device_now_ms() -> i64 {
