@@ -52,8 +52,8 @@ pub fn run(core: Arc<Core>, shared: Shared, stop: Arc<AtomicBool>, install_dir: 
             }
         }
         // Web allowlist: only during FOCUS, and only rewritten when it changes
-        let want: Option<Vec<String>> = match (&state, &cfg) {
-            (DayState::Focus { .. }, Some(cfg)) => Some(cfg.web_allowlist.clone()),
+        let want: Option<Vec<String>> = match &state {
+            DayState::Focus { sites, .. } => Some(sites.clone()),
             _ => None,
         };
         if last_policy.as_ref() != Some(&want) {

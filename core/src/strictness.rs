@@ -19,6 +19,9 @@ pub fn is_stricter_or_equal(new: &Config, old: &Config) -> bool {
         && new.free_days & !old.free_days == 0 // a new free day relaxes
         && sleep_contains(new, old)
         && old.goals.iter().all(|g| goal_kept_or_harder(g, &new.goals))
+        // A new goal may only open what some focus already opened
+        && new.goals.iter().all(|g| g.apps.iter().all(|a| old.focus_app_known(a)))
+        && new.goals.iter().all(|g| g.sites.iter().all(|d| old.focus_site_known(d)))
         && new.essential_apps.iter().all(|a| old.essential_apps.contains(a))
         && new.focus_apps.iter().all(|a| old.focus_apps.contains(a))
         && new.web_allowlist.iter().all(|d| old.web_allowlist.contains(d))
@@ -53,6 +56,8 @@ pub fn goal_kept_or_harder(old: &Goal, new_goals: &[Goal]) -> bool {
             && n.target_count >= old.target_count
             && n.weekdays & old.weekdays == old.weekdays
             && n.methods.iter().all(|m| old.methods.contains(m))
+            && n.apps.iter().all(|a| old.apps.contains(a))
+            && n.sites.iter().all(|d| old.sites.contains(d))
     })
 }
 
@@ -90,6 +95,28 @@ mod tests {
         g.id = "ejercicio".into();
         added.goals.push(g);
         assert!(is_stricter_or_equal(&added, &old));
+    }
+
+    #[test]
+    fn a_goal_opening_more_is_laxer() {
+        let mut old = Config::example();
+        old.goals[0].apps = vec!["android:com.kindle@aa".into()];
+        let mut more = old.clone();
+        more.goals[0].sites.push("udemy.com".into());
+        assert!(!is_stricter_or_equal(&more, &old));
+        // A new goal with an app no focus opened before: laxer. Reusing a known one: not.
+        let mut added = old.clone();
+        let mut g = old.goals[0].clone();
+        g.id = "study".into();
+        g.apps = vec!["android:com.instagram.android@bb".into()];
+        added.goals.push(g.clone());
+        assert!(!is_stricter_or_equal(&added, &old));
+        g.apps = old.goals[0].apps.clone();
+        added.goals[2] = g;
+        assert!(is_stricter_or_equal(&added, &old));
+        let mut fewer = old.clone();
+        fewer.goals[0].apps.clear();
+        assert!(is_stricter_or_equal(&fewer, &old));
     }
 
     #[test]

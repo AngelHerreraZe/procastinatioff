@@ -39,6 +39,9 @@ pub enum Verdict {
     Block,
 }
 
+/// WhatsApp Desktop's Package Family Name (Microsoft Store).
+const WHATSAPP_PFN: &str = "5319275A.WhatsAppDesktop_cv1g1gvanyjgm";
+
 /// Windows subfolders a standard user can write to (known AppLocker bypass).
 const USER_WRITABLE: [&str; 8] = [
     "\\temp\\",
@@ -85,9 +88,14 @@ pub fn decide(state: &DayState, app: &AppIdentity, cfg: &Config, install_dir: &s
     if matches!(state, DayState::Sleep) {
         return Verdict::Block;
     }
+    // WhatsApp is always open outside SLEEP, like the phone's calls and SMS: it is never configured.
+    // Its Store identity comes from the WindowsApps path, which only TrustedInstaller can write.
+    if app.store_pfn.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(WHATSAPP_PFN)) {
+        return Verdict::Allow;
+    }
     // 4. LOCKED / FOCUS: configuration lists (case-insensitive comparison)
     let lists: Vec<&String> = match state {
-        DayState::Focus { .. } => cfg.essential_apps.iter().chain(cfg.focus_apps.iter()).collect(),
+        DayState::Focus { apps, .. } => cfg.essential_apps.iter().chain(apps).collect(),
         _ => cfg.essential_apps.iter().collect(),
     };
     let ids = app.ids();
@@ -120,7 +128,8 @@ mod tests {
 
     #[test]
     fn locked_allows_whatsapp_store_and_blocks_game() {
-        let cfg = Config::example();
+        let mut cfg = Config::example();
+        cfg.essential_apps.clear(); // WhatsApp is open without being listed
         let wa = app(WHATSAPP, None);
         let game = app(r"C:\Games\game.exe", Some("Game Studio"));
         assert_eq!(decide(&DayState::Locked, &wa, &cfg, INSTALL, WIN), Verdict::Allow);
@@ -132,9 +141,10 @@ mod tests {
         let cfg = Config::example();
         // Someone renames a game to chrome.exe: the signer is not Google
         let fake = app(r"C:\Users\x\chrome.exe", Some("Game Studio"));
-        assert_eq!(decide(&DayState::Focus { goal_id: "read-30".into() }, &fake, &cfg, INSTALL, WIN), Verdict::Block);
+        let focus = DayState::Focus { goal_id: "read-30".into(), apps: cfg.focus_apps.clone(), sites: vec![] };
+        assert_eq!(decide(&focus, &fake, &cfg, INSTALL, WIN), Verdict::Block);
         let real = app(r"C:\Program Files\Google\Chrome\Application\chrome.exe", Some("Google LLC"));
-        assert_eq!(decide(&DayState::Focus { goal_id: "read-30".into() }, &real, &cfg, INSTALL, WIN), Verdict::Allow);
+        assert_eq!(decide(&focus, &real, &cfg, INSTALL, WIN), Verdict::Allow);
     }
 
     #[test]

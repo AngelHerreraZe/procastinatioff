@@ -5,7 +5,7 @@ export type DayState =
   | { state: 'sleep' }
   | { state: 'locked' }
   | { state: 'pass'; until_ms: number }
-  | { state: 'focus'; goal_id: string }
+  | { state: 'focus'; goal_id: string; apps: string[]; sites: string[] }
   | { state: 'free' }
   | { state: 'emergency'; until_ms: number };
 
@@ -22,6 +22,9 @@ export interface Goal {
   target_count: number;
   methods: Method[];
   weekdays: number;
+  /** What this goal's focus opens besides the essential apps (omitted when empty). */
+  apps?: string[];
+  sites?: string[];
 }
 
 export interface GoalProgress {

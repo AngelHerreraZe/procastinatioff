@@ -32,7 +32,8 @@ enum StateBridge {
         guard let status = core.status(clock: clock) else { return } // no profile: nothing is blocked
         var s = SharedStore.load()
         let cfg = core.activeConfig(clock: clock)
-        s.webAllowlist = cfg?.webAllowlist ?? []
+        // During FOCUS the core already merged the global list with the goal's own sites.
+        if case .focus(_, _, let sites) = status.state { s.webAllowlist = sites } else { s.webAllowlist = cfg?.webAllowlist ?? [] }
         if let cfg {
             let (wake, bed) = (Int(cfg.schedule.wake.minutes), Int(cfg.schedule.bedtime.minutes))
             if wake != s.wakeMin || bed != s.bedtimeMin {
@@ -91,11 +92,12 @@ enum StateBridge {
 enum Erase {
     static func all() throws {
         let clock = CoreHolder.clock()
+        // Opened before the profile is erased: a database from before per-database keys adopts the
+        // shared key on open, and the profile's erase replaces that key.
+        let others = try [CoreHolder.existing("contact.db"), CoreHolder.existing("watching.db")].compactMap({ $0 })
+            + FamilyProfiles.all().keys.map { try CoreHolder.family($0) }
         try CoreHolder.shared().eraseAll(clock: clock)
-        for c in [CoreHolder.existing("contact.db"), CoreHolder.existing("watching.db")].compactMap({ $0 }) {
-            try c.eraseAll(clock: clock)
-        }
-        for id in FamilyProfiles.all().keys { try CoreHolder.family(id).eraseAll(clock: clock) }
+        for c in others { try c.eraseAll(clock: clock) }
         UserDefaults(suiteName: AppGroup.id)?.removePersistentDomain(forName: AppGroup.id)
         Schedules.center.stopMonitoring()
         ManagedSettingsStore(named: .day).clearAllSettings()

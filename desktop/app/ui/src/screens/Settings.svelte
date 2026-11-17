@@ -1,16 +1,21 @@
 <script lang="ts">
-  // Settings on this computer: the technical report and "delete all my data". Deleting is behind the
-  // local gate (a PIN, password or pattern set on the phone); the service checks it and counts the
-  // failed attempts. There is no fingerprint or face on the computer yet.
-  import { authState, call, text, type AuthState, type LocalFactor } from '../lib/agent';
-  import { t } from '../lib/i18n';
+  // Settings on this computer: the fixed goals, the technical report and "delete all my data". Relaxing a
+  // goal and deleting are behind the local gate (a PIN, password or pattern set at onboarding or on the
+  // phone); the service checks it and counts the failed attempts. There is no fingerprint or face on the
+  // computer yet.
+  import GoalsEditor from '../components/GoalsEditor.svelte';
+  import SecretInput from '../components/SecretInput.svelte';
+  import { authState, call, text, type AuthState, type Config, type Goal, type LocalFactor } from '../lib/agent';
+  import { locale, t } from '../lib/i18n';
 
   let { onclose, onerror }: { onclose: () => void; onerror: (e: unknown) => void } = $props();
 
   let auth = $state<AuthState | null>(null);
   let factor = $state<LocalFactor | null>(null);
-  let secret = $state('');
-  let cells = $state<number[]>([]); // pattern: cells of a 3×3 grid, in order
+  let secret = $state(''); // pattern: "0-4-8-5"
+  let config = $state<Config | null>(null);
+  let goals = $state<Goal[]>([]);
+  let saved = $state<string | null>(null);
   let report = $state<string | null>(null);
   let copied = $state(false);
   let confirming = $state(false);
@@ -23,8 +28,17 @@
     factor ??= auth ? (typed(auth)[0] ?? null) : null;
   }
 
+  async function loadConfig() {
+    const r = await call({ cmd: 'active_config' });
+    if (r.type === 'config' && r.config) {
+      config = r.config;
+      goals = r.config.goals;
+    }
+  }
+
   $effect(() => {
     load().catch(onerror);
+    loadConfig().catch(onerror);
     // Leaving the screen closes the gate again
     return () => {
       call({ cmd: 'lock_settings' }).catch(() => {});
@@ -44,11 +58,21 @@
 
   const unlock = () =>
     run(async () => {
-      const value = factor === 'pattern' ? cells.join('-') : secret;
+      const value = secret;
       secret = '';
-      cells = [];
       await call({ cmd: 'authorize_local', factor, secret: value });
       await load();
+    });
+
+  // Tightening applies now; relaxing, at the next wake-up (the core decides and says when).
+  const saveGoals = () =>
+    run(async () => {
+      saved = null;
+      const r = await call({ cmd: 'set_config', config: $state.snapshot({ ...config, goals }) });
+      if (r.type !== 'effective') return;
+      const when = new Date(r.from_ms).toLocaleString(locale, { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+      saved = r.from_ms <= Date.now() ? t('settings.applies_now') : t('settings.applies_from', { when });
+      await loadConfig();
     });
 
   const createReport = () =>
@@ -67,6 +91,36 @@
 <main class="settings stack">
   <button class="btn-text back" onclick={onclose}>{t('common.back')}</button>
   <h1>{t('settings.title')}</h1>
+
+  {#if auth && !auth.unlocked && typed(auth).length > 0}
+    <section class="card stack">
+      <h2>{t('settings.unlock')}</h2>
+      <p>{t('settings.unlock_lead')}</p>
+      {#if typed(auth).length > 1}
+        <div class="row" role="group" aria-label={t('settings.method')}>
+          {#each typed(auth) as f (f)}
+            <button class="btn-tonal" aria-pressed={factor === f} onclick={() => ((factor = f), (secret = ''))}>
+              {t(`settings.factor_${f}`)}
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#if factor}<SecretInput {factor} bind:value={secret} />{/if}
+      <button class="btn-primary" disabled={busy || (factor === 'pattern' ? secret.split('-').length < 4 : !secret)} onclick={unlock}>
+        {t('settings.unlock')}
+      </button>
+    </section>
+  {/if}
+
+  {#if config}
+    <section class="card stack" aria-labelledby="h-goals">
+      <h2 id="h-goals">{t('onb.fixed_goals')}</h2>
+      <GoalsEditor bind:goals />
+      <p class="muted small">{t('onb.anti_impulse')}</p>
+      <button class="btn-primary save" disabled={busy} onclick={saveGoals}>{t('settings.save_goals')}</button>
+      {#if saved}<p role="status">{saved}</p>{/if}
+    </section>
+  {/if}
 
   <section class="card stack">
     <h2>{t('settings.report_title')}</h2>
@@ -90,42 +144,7 @@
     {#if !auth}
       <p class="muted">{t('app.connecting')}</p>
     {:else if !auth.unlocked}
-      {#if typed(auth).length === 0}
-        <p>{t('settings.no_typed_method')}</p>
-      {:else}
-        <p>{t('settings.unlock_lead')}</p>
-        {#if typed(auth).length > 1}
-          <div class="row" role="group" aria-label={t('settings.method')}>
-            {#each typed(auth) as f (f)}
-              <button class="btn-tonal" aria-pressed={factor === f} onclick={() => ((factor = f), (secret = ''), (cells = []))}>
-                {t(`settings.factor_${f}`)}
-              </button>
-            {/each}
-          </div>
-        {/if}
-        {#if factor === 'pattern'}
-          <div class="grid" role="group" aria-label={t('settings.factor_pattern')}>
-            {#each [0, 1, 2, 3, 4, 5, 6, 7, 8] as i (i)}
-              <button
-                class="cell"
-                aria-pressed={cells.includes(i)}
-                onclick={() => {
-                  if (!cells.includes(i)) cells = [...cells, i];
-                }}>{cells.includes(i) ? cells.indexOf(i) + 1 : ''}</button
-              >
-            {/each}
-          </div>
-          <button class="btn-text" onclick={() => (cells = [])}>{t('settings.pattern_clear')}</button>
-        {:else}
-          <label>
-            <span>{t(`settings.factor_${factor}`)}</span>
-            <input type="password" inputmode={factor === 'pin' ? 'numeric' : 'text'} autocomplete="off" bind:value={secret} />
-          </label>
-        {/if}
-        <button class="btn-primary" disabled={busy || (factor === 'pattern' ? cells.length < 4 : !secret)} onclick={unlock}>
-          {t('settings.unlock')}
-        </button>
-      {/if}
+      <p>{t(typed(auth).length === 0 ? 'settings.no_typed_method' : 'settings.unlock_first')}</p>
     {:else if auth.contact_required}
       <p>{t('settings.erase_needs_contact')}</p>
     {:else if !confirming}
@@ -142,11 +161,9 @@
 
 <style>
   .settings { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
-  .back, .erase { justify-self: start; }
+  .back, .erase, .save { justify-self: start; }
   h2 { font-size: 18px; margin: 0; }
+  .small { font-size: 14px; }
   .report { white-space: pre-wrap; font-size: 13px; background: var(--chrome); padding: 12px; border-radius: 8px; margin: 0; }
-  .grid { display: grid; grid-template-columns: repeat(3, 56px); gap: 12px; }
-  .cell { width: 56px; height: 56px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--surface); font-weight: 700; }
-  .cell[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   [aria-pressed='true'].btn-tonal { outline: 2px solid var(--accent); }
 </style>

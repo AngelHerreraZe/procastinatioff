@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -68,6 +69,14 @@ fun factorName(f: LocalFactor): Int = when (f) {
     LocalFactor.PASSWORD -> R.string.factor_password
     LocalFactor.PATTERN -> R.string.factor_pattern
     LocalFactor.BIOMETRIC -> R.string.factor_biometric
+}
+
+/** What a new PIN, password or pattern needs. */
+@StringRes
+fun secretHint(f: LocalFactor): Int = when (f) {
+    LocalFactor.PIN -> R.string.auth_pin_hint
+    LocalFactor.PASSWORD -> R.string.auth_password_hint
+    else -> R.string.auth_pattern_hint
 }
 
 /** Pattern: tap the dots in order (cells 0..8 of a 3×3 grid); the core receives "0-4-8-5". */
@@ -209,16 +218,7 @@ fun AuthSettingsScreen(onContact: () -> Unit, onErased: () -> Unit, onBack: () -
                 }
             }
             editing?.let { f ->
-                Text(
-                    stringResource(
-                        when (f) {
-                            LocalFactor.PIN -> R.string.auth_pin_hint
-                            LocalFactor.PASSWORD -> R.string.auth_password_hint
-                            else -> R.string.auth_pattern_hint
-                        },
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text(stringResource(secretHint(f)), style = MaterialTheme.typography.bodySmall)
                 SecretInput(f, secret) { secret = it }
                 PrimaryButton(stringResource(R.string.save), enabled = secret.isNotEmpty()) {
                     scope.launch {
@@ -386,6 +386,7 @@ private fun RulesSection(core: Core, st: AuthState, onResult: (String) -> Unit) 
     var bedtime by remember(cfg) { mutableStateOf(hm(cfg.schedule.bedtime)) }
     var permits by remember(cfg) { mutableStateOf(cfg.permitsPerDay.toString()) }
     var minutes by remember(cfg) { mutableStateOf(cfg.permitMinutes.toString()) }
+    val goals = remember(cfg) { cfg.goals.toMutableStateList() }
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<uniffi.procastinacioff_core.Config?>(null) }
     Section(stringResource(R.string.your_rules)) {
@@ -394,6 +395,8 @@ private fun RulesSection(core: Core, st: AuthState, onResult: (String) -> Unit) 
             NumberField(permits, { permits = it }, stringResource(R.string.passes_per_day_short), Modifier.weight(1f))
             NumberField(minutes, { minutes = it }, stringResource(R.string.minutes), Modifier.weight(1f))
         }
+        Text(stringResource(R.string.fixed_goals), style = MaterialTheme.typography.titleMedium)
+        FixedGoalsEditor(goals)
         val wakeMin = parseTime(wake)
         val bedMin = parseTime(bedtime)
         PrimaryButton(stringResource(R.string.save), enabled = wakeMin != null && bedMin != null) {
@@ -401,6 +404,7 @@ private fun RulesSection(core: Core, st: AuthState, onResult: (String) -> Unit) 
                 schedule = cfg.schedule.copy(wake = TimeOfDay(wakeMin!!.toUShort()), bedtime = TimeOfDay(bedMin!!.toUShort())),
                 permitsPerDay = (permits.toIntOrNull() ?: 0).coerceIn(0, 10).toUByte(),
                 permitMinutes = (minutes.toIntOrNull() ?: 5).coerceIn(1, 60).toUShort(),
+                goals = goals.toList(),
             )
             scope.launch {
                 var from = 0L

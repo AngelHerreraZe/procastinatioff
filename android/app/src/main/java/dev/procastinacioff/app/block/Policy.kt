@@ -15,7 +15,8 @@ object Policy {
         }
         if (pkg in systemAllowed) return Verdict.ALLOW
         if (state is DayState.Sleep || cfg == null || appId == null) return Verdict.BLOCK
-        val allowed = if (state is DayState.Focus) cfg.essentialApps + cfg.focusApps else cfg.essentialApps
+        // During FOCUS the core already merged the global focus apps with the goal's own.
+        val allowed = if (state is DayState.Focus) cfg.essentialApps + state.apps else cfg.essentialApps
         return if (allowed.any { it.equals(appId, ignoreCase = true) }) Verdict.ALLOW else Verdict.BLOCK
     }
 }

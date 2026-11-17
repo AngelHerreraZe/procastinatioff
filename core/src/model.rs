@@ -72,6 +72,14 @@ pub struct Goal {
     pub methods: Vec<Method>,
     /// Days on which the goal is fixed (base of the plan): `ALL_DAYS` mask.
     pub weekdays: u8,
+    /// Apps this goal's FOCUS opens besides the essential ones (format of `Config::essential_apps`).
+    /// SECURITY: Omitted when empty, like `sites`: goals signed before both fields existed
+    /// re-serialize identically and their signature stays valid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub apps: Vec<String>,
+    /// Domains this goal's FOCUS allows (e.g. "udemy.com").
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sites: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
@@ -94,9 +102,9 @@ pub struct Config {
     /// Apps always allowed (except during SLEEP), per platform. Formats:
     /// "android:<package>@<sha256 cert>", "windows:pfn:<PackageFamilyName>", "windows:exe:<signer>|<file.exe>".
     pub essential_apps: Vec<String>,
-    /// Apps also allowed during FOCUS (Word, managed browser, PDF reader…).
+    /// Apps allowed during ANY focus, on top of each goal's own `Goal::apps`.
     pub focus_apps: Vec<String>,
-    /// Domains allowed during FOCUS (e.g. "udemy.com").
+    /// Domains allowed during ANY focus, on top of each goal's own `Goal::sites`.
     pub web_allowlist: Vec<String>,
     /// Extra passes pre-approved by the guardian, to spend on any day (rolling 7-day window).
     /// SECURITY: Omitted when serializing if 0: events signed before the field existed
@@ -266,11 +274,28 @@ impl Config {
             out.push(Change::Wake { from: old.schedule.wake, to: schedule.wake });
         }
         for g in goals {
-            match old.goals.iter().find(|o| o.id == g.id) {
+            let before = old.goals.iter().find(|o| o.id == g.id);
+            match before {
                 None => out.push(Change::GoalAdded { title: g.title.clone() }),
                 Some(o) if o != g => out.push(Change::GoalChanged { title: g.title.clone() }),
                 Some(_) => {}
             }
+            // What a goal's focus opens is spelled out: the contact must see which apps it adds.
+            let (apps, sites) = before.map_or((&[][..], &[][..]), |o| (&o.apps[..], &o.sites[..]));
+            list_diff(
+                &mut out,
+                apps,
+                &g.apps,
+                |app| Change::AppAdded { list: AppList::Focus, app },
+                |app| Change::AppRemoved { list: AppList::Focus, app },
+            );
+            list_diff(
+                &mut out,
+                sites,
+                &g.sites,
+                |domain| Change::SiteAdded { domain },
+                |domain| Change::SiteRemoved { domain },
+            );
         }
         for o in old.goals.iter().filter(|o| !goals.iter().any(|g| g.id == o.id)) {
             out.push(Change::GoalRemoved { title: o.title.clone() });
@@ -305,6 +330,16 @@ impl Config {
         out
     }
 
+    /// Some focus may open `app`: it is in the global list or in a fixed goal's.
+    pub fn focus_app_known(&self, app: &str) -> bool {
+        self.focus_apps.iter().chain(self.goals.iter().flat_map(|g| &g.apps)).any(|a| a == app)
+    }
+
+    /// Some focus may open `domain`: it is in the global list or in a fixed goal's.
+    pub fn focus_site_known(&self, domain: &str) -> bool {
+        self.web_allowlist.iter().chain(self.goals.iter().flat_map(|g| &g.sites)).any(|d| d == domain)
+    }
+
     /// Fingerprint of this exact configuration (what a trusted contact approves).
     pub fn hash(&self) -> String {
         use sha2::{Digest, Sha256};
@@ -330,6 +365,8 @@ impl Config {
                     target_count: 1,
                     methods: vec![Method::FocusSession, Method::HonorDeclaration],
                     weekdays: ALL_DAYS,
+                    apps: vec![],
+                    sites: vec![],
                 },
                 Goal {
                     id: "eat-healthy".into(),
@@ -339,6 +376,8 @@ impl Config {
                     target_count: 2,
                     methods: vec![Method::HonorDeclaration],
                     weekdays: ALL_DAYS,
+                    apps: vec![],
+                    sites: vec![],
                 },
             ],
             free_days: SATURDAY | SUNDAY,
@@ -588,13 +627,15 @@ impl Fact {
     }
 }
 
+/// In `Focus`, `apps`/`sites` are what that session opens besides the essential apps (the global
+/// lists plus the goal's own, computed by the core). Enforcement reads them there, never from the config.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum DayState {
     Sleep,
     Locked,
     Pass { until_ms: i64 },
-    Focus { goal_id: String },
+    Focus { goal_id: String, apps: Vec<String>, sites: Vec<String> },
     Free,
     Emergency { until_ms: i64 },
 }
@@ -654,6 +695,22 @@ mod tests {
     }
 
     #[test]
+    fn diff_spells_out_what_a_goal_opens() {
+        let old = Config::example();
+        let mut new = old.clone();
+        new.goals[0].apps.push("android:com.kindle@aa".into());
+        new.goals[0].sites.push("udemy.com".into());
+        assert_eq!(
+            old.diff(&new),
+            vec![
+                Change::GoalChanged { title: "Read for 30 minutes".into() },
+                Change::AppAdded { list: AppList::Focus, app: "android:com.kindle@aa".into() },
+                Change::SiteAdded { domain: "udemy.com".into() },
+            ]
+        );
+    }
+
+    #[test]
     fn hash_changes_with_any_field_and_old_events_keep_their_bytes() {
         let a = Config::example();
         let mut b = a.clone();
@@ -661,5 +718,8 @@ mod tests {
         assert_ne!(a.hash(), b.hash());
         // An empty policy is not serialized: configurations signed before it existed verify.
         assert!(!serde_json::to_string(&a).unwrap().contains("auth"));
+        // Same for goals without their own apps or sites.
+        let json = serde_json::to_string(&a).unwrap();
+        assert!(!json.contains("\"apps\"") && !json.contains("\"sites\""));
     }
 }

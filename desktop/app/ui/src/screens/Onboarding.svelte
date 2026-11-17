@@ -1,8 +1,10 @@
 <script lang="ts">
   // Onboarding: create the profile on this computer or join an existing one with another device's code.
-  import { ALL_DAYS, call, methodsFor, slug, text, type Config, type Goal } from '../lib/agent';
-  import { duration, toMinutes } from '../lib/format';
-  import { t, tn, weekdayNames } from '../lib/i18n';
+  import GoalsEditor from '../components/GoalsEditor.svelte';
+  import SecretInput from '../components/SecretInput.svelte';
+  import { ALL_DAYS, call, methodsFor, text, type Config, type Goal, type LocalFactor } from '../lib/agent';
+  import { toMinutes } from '../lib/format';
+  import { t, weekdayNames } from '../lib/i18n';
 
   let { onerror, ondone }: { onerror: (e: unknown) => void; ondone: () => void } = $props();
 
@@ -20,31 +22,20 @@
     { id: 'read-30', title: t('onb.goal_read'), kind: 'key', target_minutes: 30, target_count: 1, methods: methodsFor(30), weekdays: ALL_DAYS },
     { id: 'eat-healthy', title: t('onb.goal_eat'), kind: 'habit', target_minutes: 0, target_count: 2, methods: methodsFor(0), weekdays: ALL_DAYS },
   ]);
-  let newGoal = $state('');
-  let newMinutes = $state(30);
-  let essentials = $state('windows:pfn:5319275A.WhatsAppDesktop_cv1g1gvanyjgm');
-  let focusApps = $state('windows:exe:Microsoft Corporation|winword.exe\nwindows:exe:Google LLC|chrome.exe');
-  let web = $state('udemy.com\ncoursera.org');
+  let factor = $state<LocalFactor | null>(null);
+  let secret = $state(''); // pattern: "0-4-8-5"
   let qr = $state('');
   let code = $state<string | null>(null);
   let busy = $state(false);
 
-  const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
   const toggleDay = (i: number) => (freeDays ^= 1 << i);
-
-  function addGoal() {
-    const title = newGoal.trim();
-    if (!title) return;
-    goals.push({
-      id: slug(title, goals.map((g) => g.id)), title, kind: 'key', target_minutes: newMinutes,
-      target_count: 1, methods: methodsFor(newMinutes), weekdays: ALL_DAYS,
-    });
-    newGoal = '';
-  }
+  const secretReady = () => !factor || (factor === 'pattern' ? secret.split('-').length >= 4 : secret !== '');
 
   async function create() {
     busy = true;
     try {
+      // Checked before the profile exists: a weak secret must not leave it half set up.
+      if (factor) await call({ cmd: 'check_secret', factor, secret });
       const config: Config = {
         schedule: { wake: { minutes: toMinutes(wake) }, bedtime: { minutes: toMinutes(bedtime) } },
         permits_per_day: Math.min(10, Math.max(0, permits)),
@@ -55,11 +46,15 @@
         habit_penalty: true,
         goals,
         free_days: freeDays,
-        essential_apps: lines(essentials),
-        focus_apps: lines(focusApps),
-        web_allowlist: lines(web).map((d) => d.toLowerCase()),
+        // WhatsApp is always open without being listed (agent policy); the rest, only during the focus
+        // of a goal that lists it.
+        essential_apps: [],
+        focus_apps: [],
+        web_allowlist: [],
       };
       await call({ cmd: 'create_profile', label: label.trim() || 'PC', config });
+      if (factor) await call({ cmd: 'set_secret', factor, secret });
+      secret = '';
       ondone();
     } catch (e) {
       onerror(e);
@@ -123,36 +118,27 @@
       <p class="muted small">{t('onb.anti_impulse')}</p>
     </section>
 
-    <section class="card stack" aria-labelledby="h-goals">
-      <h2 id="h-goals">{t('onb.fixed_goals')}</h2>
-      <p class="muted small">{t('onb.fixed_goals_hint')}</p>
-      <ul class="list">
-        {#each goals as g, i (g.id)}
-          <li class="row">
-            <strong>{g.title}</strong>
-            <span class="chip {g.kind === 'key' ? '' : 'neutral'}">{g.kind === 'key' ? t('common.unlocks') : t('common.habit')}</span>
-            <span class="muted">{g.target_minutes ? duration(g.target_minutes) : tn('onb.times', g.target_count)}</span>
-            <button class="btn-text" onclick={() => goals.splice(i, 1)}>{t('common.remove')}</button>
-          </li>
+    <section class="card stack" aria-labelledby="h-protect">
+      <h2 id="h-protect">{t('onb.protect_title')}</h2>
+      <p class="muted small">{t('onb.protect_hint')}</p>
+      <div class="row" role="group" aria-label={t('settings.method')}>
+        <button class="btn-tonal" aria-pressed={factor === null} onclick={() => ((factor = null), (secret = ''))}>{t('onb.protect_none')}</button>
+        {#each ['pin', 'password', 'pattern'] as const as f (f)}
+          <button class="btn-tonal" aria-pressed={factor === f} onclick={() => ((factor = f), (secret = ''))}>{t(`settings.factor_${f}`)}</button>
         {/each}
-      </ul>
-      <div class="row">
-        <label class="grow"><span>{t('onb.new_goal')}</span><input bind:value={newGoal} maxlength="80" /></label>
-        <label><span>{t('common.minutes')}</span><input type="number" min="0" max="600" step="5" bind:value={newMinutes} /></label>
-        <button class="btn-secondary" disabled={!newGoal.trim()} onclick={addGoal}>{t('common.add')}</button>
       </div>
+      {#if factor}
+        <p class="muted small">{t(`onb.hint_${factor}`)}</p>
+        <SecretInput {factor} bind:value={secret} />
+      {/if}
     </section>
 
-    <details class="card">
-      <summary>{t('onb.apps_sites')}</summary>
-      <div class="stack" style="margin-top:12px">
-        <label><span>{t('onb.essential_apps')}</span><textarea rows="2" bind:value={essentials}></textarea></label>
-        <label><span>{t('onb.focus_apps')}</span><textarea rows="2" bind:value={focusApps}></textarea></label>
-        <label><span>{t('onb.focus_sites')}</span><textarea rows="2" bind:value={web}></textarea></label>
-      </div>
-    </details>
+    <section class="card stack" aria-labelledby="h-goals">
+      <h2 id="h-goals">{t('onb.fixed_goals')}</h2>
+      <GoalsEditor bind:goals />
+    </section>
 
-    <button class="btn-primary" disabled={busy || !goals.some((g) => g.kind === 'key')} onclick={create}>{t('onb.create_profile')}</button>
+    <button class="btn-primary" disabled={busy || !goals.some((g) => g.kind === 'key') || !secretReady()} onclick={create}>{t('onb.create_profile')}</button>
   {:else if !code}
     <section class="card stack">
       <p>{t('onb.join_instructions')}</p>
@@ -174,9 +160,7 @@
   .days legend { margin-bottom: 8px; font-weight: 600; color: var(--muted); font-size: 14px; }
   .day { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; color: var(--text); }
   .day input { min-height: auto; width: 18px; height: 18px; }
-  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .grow { flex: 1 1 220px; }
+  [aria-pressed='true'].btn-tonal { outline: 2px solid var(--accent); }
   .small { font-size: 14px; }
   .code { font-size: 48px; font-weight: 700; letter-spacing: 0.12em; }
-  summary { cursor: pointer; font-weight: 600; }
 </style>

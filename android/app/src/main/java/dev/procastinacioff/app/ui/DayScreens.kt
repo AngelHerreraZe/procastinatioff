@@ -289,6 +289,7 @@ fun PlanScreen(snap: Snapshot, adding: Boolean, onDone: () -> Unit, onCancel: ()
                         id = slug(title, rows.map { it.goal.id }), title = title.trim(),
                         kind = if (key) GoalKind.KEY else GoalKind.HABIT,
                         targetMinutes = m.toUShort(), targetCount = 1u, methods = methodsFor(check, m), weekdays = ALL_DAYS,
+                        apps = emptyList(), sites = emptyList(),
                     ),
                     locked = false,
                 )

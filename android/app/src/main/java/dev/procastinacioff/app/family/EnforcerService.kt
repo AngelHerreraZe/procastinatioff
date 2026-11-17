@@ -69,7 +69,7 @@ class EnforcerService : Service() {
                     dpm.setPackagesSuspended(admin, toSuspend.toTypedArray(), true) // returns those that could not be changed
                     suspended = toSuspend
                 }
-                val want = (status.state as? DayState.Focus)?.let { cfg?.webAllowlist }
+                val want = (status.state as? DayState.Focus)?.sites
                 if (want != chrome) {
                     DeviceOwnerPolicies.applyChromePolicy(this, want)
                     chrome = want

@@ -27,6 +27,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,10 +35,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,7 +48,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.procastinacioff.app.auth.LocalAuth
 import dev.procastinacioff.app.block.AdminReceiver
 import dev.procastinacioff.app.block.AppIdentity
 import dev.procastinacioff.app.core.CoreHolder
@@ -59,8 +62,11 @@ import uniffi.procastinacioff_core.AuthPolicy
 import uniffi.procastinacioff_core.Config
 import uniffi.procastinacioff_core.Goal
 import uniffi.procastinacioff_core.GoalKind
+import uniffi.procastinacioff_core.LocalFactor
 import uniffi.procastinacioff_core.Schedule
+import uniffi.procastinacioff_core.SecretHolder
 import uniffi.procastinacioff_core.TimeOfDay
+import uniffi.procastinacioff_core.checkSecret
 
 private const val ALL_DAYS: UByte = 0x7Fu
 
@@ -245,8 +251,7 @@ internal fun DayChips(mask: Int, onChange: (Int) -> Unit) {
     }
 }
 
-private enum class AppRole { NONE, ESSENTIAL, FOCUS }
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit) {
     val ctx = LocalContext.current
@@ -263,24 +268,20 @@ fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit
     val eatTitle = stringResource(R.string.example_goal_eat)
     val goals = remember {
         mutableStateListOf(
-            Goal("read-30", readTitle, GoalKind.KEY, 30u, 1u, methodsFor(30), ALL_DAYS),
-            Goal("eat-healthy", eatTitle, GoalKind.HABIT, 0u, 2u, methodsFor(0), ALL_DAYS),
+            Goal("read-30", readTitle, GoalKind.KEY, 30u, 1u, methodsFor(30), ALL_DAYS, emptyList(), emptyList()),
+            Goal("eat-healthy", eatTitle, GoalKind.HABIT, 0u, 2u, methodsFor(0), ALL_DAYS, emptyList(), emptyList()),
         )
     }
-    var newGoal by remember { mutableStateOf("") }
-    var newMinutes by remember { mutableStateOf("30") }
-    var web by remember { mutableStateOf("udemy.com, coursera.org") }
-    var apps by remember { mutableStateOf<List<LaunchableApp>?>(null) }
-    val roles = remember { mutableStateMapOf<String, AppRole>() }
+    var factor by remember { mutableStateOf<LocalFactor?>(null) }
+    var secret by remember { mutableStateOf("") }
+    var biometric by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val activity = ctx as FragmentActivity
 
-    LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) { launchableApps(ctx) }
-        apps?.firstOrNull { it.pkg == "com.whatsapp" }?.let { roles[it.id] = AppRole.ESSENTIAL } // preselected
-    }
     val wakeMin = parseTime(wake)
     val bedMin = parseTime(bedtime)
-    val ready = wakeMin != null && bedMin != null && goals.any { it.kind == GoalKind.KEY } && (!family || child.isNotBlank())
+    val ready = wakeMin != null && bedMin != null && goals.any { it.kind == GoalKind.KEY } && (!family || child.isNotBlank()) &&
+        (factor == null || secret.isNotEmpty())
 
     Screen(
         title = stringResource(if (family) R.string.config_minor_title else R.string.config_title),
@@ -288,6 +289,18 @@ fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit
         bottom = {
             ErrorText(error)
             PrimaryButton(stringResource(R.string.create_profile), enabled = ready) {
+                val f = factor
+                // Checked before the profile exists: a weak secret must not leave it half set up.
+                if (f != null) {
+                    error = withContext(Dispatchers.IO) { runCatching { checkSecret(f, secret) }.exceptionOrNull()?.userMessage(ctx) }
+                    if (error != null) return@PrimaryButton
+                    if (biometric) {
+                        // Used once before relying on it, as in "How changes are authorized".
+                        if (Build.VERSION.SDK_INT >= 30) runCatching { LocalAuth.ensureKey() }
+                        val title = ctx.getString(R.string.auth_use_biometric)
+                        if (!LocalAuth.confirm(activity, title, title)) return@PrimaryButton
+                    }
+                }
                 val config = Config(
                     schedule = Schedule(wake = TimeOfDay(wakeMin!!.toUShort()), bedtime = TimeOfDay(bedMin!!.toUShort())),
                     permitsPerDay = (permits.toIntOrNull() ?: 3).coerceIn(0, 10).toUByte(),
@@ -298,11 +311,13 @@ fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit
                     habitPenalty = true,
                     goals = goals.toList(),
                     freeDays = freeDays.toUByte(),
-                    essentialApps = roles.filterValues { it == AppRole.ESSENTIAL }.keys.toList(),
-                    focusApps = roles.filterValues { it == AppRole.FOCUS }.keys.toList(),
-                    webAllowlist = web.split(',', ' ', '\n').map { it.trim().lowercase() }.filter { it.isNotEmpty() },
+                    // Phone, SMS and WhatsApp are always open without being listed (AppIdentity.systemAllowed);
+                    // everything else only during the focus of a goal that lists it.
+                    essentialApps = emptyList(),
+                    focusApps = emptyList(),
+                    webAllowlist = emptyList(),
                     weeklyBonusPermits = if (family) (bonus.toIntOrNull() ?: 0).coerceIn(0, 20).toUByte() else 0u,
-                    // Methods are added from "How changes are authorized" (each one tightens).
+                    // The method chosen here is added by setSecret right after (each one tightens).
                     auth = AuthPolicy(local = emptyList(), contactRequired = false),
                 )
                 error = withContext(Dispatchers.IO) {
@@ -313,8 +328,15 @@ fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit
                         if (familyId != null) core.createFamilyProfile(clock, label.ifBlank { defaultLabel }, config)
                         else core.createProfile(clock, label.ifBlank { defaultLabel }, config)
                         familyId?.let { CoreHolder.saveFamilyProfile(ctx, it, child.trim()) }
+                        if (f != null) {
+                            core.setSecret(clock, f, secret, SecretHolder.OWNER)
+                            if (biometric) core.activeConfig(clock)?.let { cfg ->
+                                core.setConfig(clock, cfg.copy(auth = cfg.auth.copy(local = cfg.auth.local + LocalFactor.BIOMETRIC)))
+                            }
+                        }
                     }.exceptionOrNull()?.userMessage(ctx)
                 }
+                secret = ""
                 if (error == null) onDone()
             }
         },
@@ -342,42 +364,116 @@ fun ConfigScreen(family: Boolean = false, onBack: () -> Unit, onDone: () -> Unit
             }
         }
 
-        Section(stringResource(R.string.fixed_goals)) {
-            Text(stringResource(R.string.fixed_goals_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            goals.forEachIndexed { i, g ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(g.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                    KindChip(g.kind)
-                    TextButton(onClick = { goals.removeAt(i) }) { Text(stringResource(R.string.remove)) }
+        // A minor's profile: the guardian sets their own PIN or pattern on the minor's phone, not here.
+        if (!family) Section(stringResource(R.string.auth_title)) {
+            Text(stringResource(R.string.auth_setup_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = factor == null, onClick = { factor = null; secret = "" }, label = { Text(stringResource(R.string.auth_none)) })
+                listOf(LocalFactor.PIN, LocalFactor.PASSWORD, LocalFactor.PATTERN).forEach { f ->
+                    FilterChip(selected = factor == f, onClick = { factor = f; secret = "" }, label = { Text(stringResource(factorName(f))) })
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(newGoal, { newGoal = it.take(80) }, label = { Text(stringResource(R.string.new_goal)) }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(
-                    newMinutes, { newMinutes = it.filter(Char::isDigit).take(3) }, label = { Text(stringResource(R.string.min_short)) }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(96.dp),
-                )
-            }
-            SecondaryButton(stringResource(R.string.add_goal), enabled = newGoal.isNotBlank()) {
-                val m = (newMinutes.toIntOrNull() ?: 0).coerceIn(0, 600)
-                goals += Goal(slug(newGoal, goals.map { it.id }), newGoal.trim(), GoalKind.KEY, m.toUShort(), 1u, methodsFor(m), ALL_DAYS)
-                newGoal = ""
+            factor?.let { f ->
+                Text(stringResource(secretHint(f)), style = MaterialTheme.typography.bodySmall)
+                SecretInput(f, secret) { secret = it }
+                if (LocalAuth.available(activity)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.auth_use_biometric), Modifier.weight(1f))
+                        Switch(checked = biometric, onCheckedChange = { biometric = it })
+                    }
+                }
             }
         }
 
-        Section(stringResource(R.string.apps)) {
-            Text(stringResource(R.string.apps_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val list = apps
-            if (list == null) LoadingState()
-            list?.forEach { app ->
-                val role = roles[app.id] ?: AppRole.NONE
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(app.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    FilterChip(selected = role == AppRole.ESSENTIAL, onClick = { roles[app.id] = if (role == AppRole.ESSENTIAL) AppRole.NONE else AppRole.ESSENTIAL }, label = { Text(stringResource(R.string.app_essential)) })
-                    FilterChip(selected = role == AppRole.FOCUS, onClick = { roles[app.id] = if (role == AppRole.FOCUS) AppRole.NONE else AppRole.FOCUS }, label = { Text(stringResource(R.string.check_focus)) })
+        Section(stringResource(R.string.fixed_goals)) { FixedGoalsEditor(goals) }
+    }
+}
+
+/**
+ * Fixed goals: add, edit and remove, with the apps and sites each one's focus opens. Used when creating
+ * the profile and in the settings; the core decides when a change applies (relaxing: next wake-up).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun FixedGoalsEditor(goals: SnapshotStateList<Goal>) {
+    val ctx = LocalContext.current
+    var apps by remember { mutableStateOf<List<LaunchableApp>?>(null) }
+    var editing by remember { mutableStateOf<Int?>(null) } // null: a new goal
+    var title by remember { mutableStateOf("") }
+    var minutes by remember { mutableStateOf("30") }
+    val picked = remember { mutableStateListOf<String>() }
+    var sites by remember { mutableStateOf("") }
+    var pickApps by remember { mutableStateOf(false) }
+    fun reset() {
+        editing = null; title = ""; minutes = "30"; picked.clear(); sites = ""; pickApps = false
+    }
+
+    // Phone, SMS, WhatsApp, launcher…: always open, so they are not offered.
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.IO) {
+            val always = AppIdentity.systemAllowed(ctx, sleeping = false)
+            launchableApps(ctx).filter { it.pkg !in always }
+        }
+    }
+
+    Text(stringResource(R.string.fixed_goals_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    goals.forEachIndexed { i, g ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(g.title, style = MaterialTheme.typography.titleMedium)
+                // What its focus opens: app names, then sites
+                val opens = g.apps.mapNotNull { id -> apps?.firstOrNull { it.id == id }?.label } + g.sites
+                if (opens.isNotEmpty()) {
+                    Text(opens.joinToString(", "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            OutlinedTextField(web, { web = it }, label = { Text(stringResource(R.string.focus_sites_pc)) }, modifier = Modifier.fillMaxWidth())
+            KindChip(g.kind)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = {
+                editing = i; title = g.title; minutes = g.targetMinutes.toString()
+                picked.clear(); picked += g.apps; sites = g.sites.joinToString(", "); pickApps = false
+            }) { Text(stringResource(R.string.edit)) }
+            TextButton(onClick = { goals.removeAt(i); reset() }) { Text(stringResource(R.string.remove)) }
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            title, { title = it.take(80) }, label = { Text(stringResource(if (editing == null) R.string.new_goal else R.string.goal)) },
+            singleLine = true, modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            minutes, { minutes = it.filter(Char::isDigit).take(3) }, label = { Text(stringResource(R.string.min_short)) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(96.dp),
+        )
+    }
+    LinkRow(stringResource(R.string.goal_apps, picked.size)) { pickApps = !pickApps }
+    if (pickApps) {
+        val list = apps
+        if (list == null) LoadingState()
+        else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            list.forEach { app ->
+                val on = app.id in picked
+                FilterChip(selected = on, onClick = { if (on) picked.remove(app.id) else picked.add(app.id) }, label = { Text(app.label) })
+            }
+        }
+    }
+    OutlinedTextField(sites, { sites = it }, label = { Text(stringResource(R.string.goal_sites_pc)) }, modifier = Modifier.fillMaxWidth())
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        SecondaryButton(stringResource(if (editing == null) R.string.add_goal else R.string.save_goal), Modifier.weight(1f), enabled = title.isNotBlank()) {
+            val m = (minutes.toIntOrNull() ?: 0).coerceIn(0, 600)
+            val siteList = sites.split(',', ' ', '\n').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct()
+            val at = editing
+            if (at == null) {
+                goals += Goal(slug(title, goals.map { it.id }), title.trim(), GoalKind.KEY, m.toUShort(), 1u, methodsFor(m), ALL_DAYS, picked.toList(), siteList)
+            } else {
+                val old = goals[at]
+                // The methods only change when the goal starts or stops being measured by time.
+                val methods = if ((m > 0) == (old.targetMinutes > 0u)) old.methods else methodsFor(m)
+                goals[at] = old.copy(title = title.trim(), targetMinutes = m.toUShort(), methods = methods, apps = picked.toList(), sites = siteList)
+            }
+            reset()
+        }
+        if (editing != null) TextButton(onClick = { reset() }) { Text(stringResource(R.string.cancel)) }
     }
 }

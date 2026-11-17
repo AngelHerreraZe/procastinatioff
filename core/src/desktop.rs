@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::{AuthState, Core, DeviceSeen, FamilyAlertView, PendingRequest};
 use crate::clock::Clock;
 use crate::error::CoreError;
-use crate::model::{Config, Goal, LocalFactor, Member, Method, RequestKind, Role, Status};
+use crate::model::{Config, Goal, LocalFactor, Member, Method, RequestKind, Role, SecretHolder, Status};
 
 pub const MAX_LINE: usize = 64 * 1024;
 
@@ -26,6 +26,10 @@ pub enum Request {
     Members,
     DevicesSeen,
     CreateProfile { label: String, config: Config },
+    // Onboarding: the PIN, password or pattern chosen there is checked before creating the profile and
+    // set right after. Setting one later needs the gate open, as on the phone (the core checks it).
+    CheckSecret { factor: LocalFactor, secret: String },
+    SetSecret { factor: LocalFactor, secret: String },
     SetConfig { config: Config },
     PlanDay { goals: Vec<Goal> },
     StartPass,
@@ -138,6 +142,10 @@ pub fn handle(core: &Arc<Core>, clock: Clock, mut agent: AgentStatus, req: Reque
         Request::Members => Response::Members { members: core.members() },
         Request::DevicesSeen => Response::Devices { devices: core.devices_seen(clock.now_ms) },
         Request::CreateProfile { label, config } => ok_or(core.create_profile(clock, label, config), |_| Response::Ok),
+        Request::CheckSecret { factor, secret } => ok_or(crate::api::check_secret(factor, secret), |_| Response::Ok),
+        Request::SetSecret { factor, secret } => {
+            ok_or(core.set_secret(clock, factor, secret, SecretHolder::Owner), |_| Response::Ok)
+        }
         Request::SetConfig { config } => {
             ok_or(core.set_config(clock, config), |from_ms| Response::Effective { from_ms })
         }
@@ -254,10 +262,15 @@ mod tests {
                 .contains(r#""code":"error.too_large""#)
         );
         // Settings: the gate, then "delete all my data" leaves the PC without a profile
-        core.create_profile(clock, "PC".into(), Config::example()).unwrap();
-        core.set_secret(clock, LocalFactor::Pin, "482916".into(), crate::model::SecretHolder::Owner).unwrap();
-        core.lock_settings();
+        // Onboarding: a weak PIN is caught before the profile exists; the good one is set right after.
         let call = |line: &str| core.clone().desktop_call(clock, agent.clone(), line.into());
+        assert!(call(r#"{"cmd":"check_secret","factor":"pin","secret":"123456"}"#).contains("denied.easy_pin"));
+        assert_eq!(call(r#"{"cmd":"check_secret","factor":"pin","secret":"482916"}"#), r#"{"type":"ok"}"#);
+        core.create_profile(clock, "PC".into(), Config::example()).unwrap();
+        assert_eq!(call(r#"{"cmd":"set_secret","factor":"pin","secret":"482916"}"#), r#"{"type":"ok"}"#);
+        core.lock_settings();
+        // With a method set, setting another one needs the gate open
+        assert!(call(r#"{"cmd":"set_secret","factor":"pin","secret":"917364"}"#).contains("denied.auth_required"));
         assert!(call(r#"{"cmd":"auth_state"}"#).contains(r#""unlocked":false"#));
         assert!(call(r#"{"cmd":"erase_all"}"#).contains(r#""code":"denied.auth_required""#));
         assert!(call(r#"{"cmd":"authorize_local","factor":"pin","secret":"000000"}"#).contains("denied.wrong_secret"));

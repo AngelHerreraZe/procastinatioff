@@ -89,9 +89,12 @@ object CoreHolder {
      */
     fun eraseAll(context: Context) {
         val clock = clock()
+        // Opened before the profile is erased: a database from before per-database keys adopts the
+        // shared key on open, and the profile's erase replaces that key.
+        val others = listOfNotNull(contactChannelOrNull(context), watchingBoxOrNull(context)) +
+            familyProfiles(context).keys.map { family(context, it) }
         get(context).eraseAll(clock)
-        listOfNotNull(contactChannelOrNull(context), watchingBoxOrNull(context)).forEach { it.eraseAll(clock) }
-        familyProfiles(context).keys.forEach { family(context, it).eraseAll(clock) }
+        others.forEach { it.eraseAll(clock) }
         listOf("family", "tamper").forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
     }
 

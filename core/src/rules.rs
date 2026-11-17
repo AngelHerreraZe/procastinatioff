@@ -470,7 +470,8 @@ pub fn status(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Option<S
     let free_day = is_free_day(cfg, day_start, offset) || rest_day(facts, day_start, now);
     let plan = day_plan(facts, day_start, now);
     let needs_plan = !free_day && plan.is_none();
-    let goals = progress(&day_goals(cfg, plan.as_deref(), day_start, offset), facts, day_start, now);
+    let defs = day_goals(cfg, plan.as_deref(), day_start, offset);
+    let goals = progress(&defs, facts, day_start, now);
 
     let used = passes_today(facts, day_start, now).count() as u32;
     let today = allowance(cfg, facts, day_start, now + 1, offset);
@@ -478,7 +479,7 @@ pub fn status(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Option<S
     let permits_left = left.min(u8::MAX as u32) as u8;
 
     let sched = tonight(cfg, facts, day_start, now);
-    let state = compute_state(cfg, &sched, facts, clock, day_start, &goals, free_day, needs_plan);
+    let state = compute_state(cfg, &sched, facts, clock, day_start, &defs, &goals, free_day, needs_plan);
     Some(Status {
         state,
         permits_left,
@@ -498,6 +499,7 @@ fn compute_state(
     facts: &[Fact],
     clock: Clock,
     day_start: i64,
+    today: &[Goal],
     goals: &[GoalProgress],
     free_day: bool,
     needs_plan: bool,
@@ -536,11 +538,25 @@ fn compute_state(
         .filter(|f| matches!(f.kind, EventKind::FocusStarted { .. } | EventKind::FocusEnded { .. }))
         .last();
     if let Some(Fact { kind: EventKind::FocusStarted { goal_id }, .. }) = last_focus {
-        return DayState::Focus { goal_id: goal_id.clone() };
+        let (apps, sites) =
+            today.iter().find(|g| &g.id == goal_id).map_or((&[][..], &[][..]), |g| (&g.apps[..], &g.sites[..]));
+        return DayState::Focus {
+            goal_id: goal_id.clone(),
+            apps: focus_list(&cfg.focus_apps, apps, |a| cfg.focus_app_known(a)),
+            sites: focus_list(&cfg.web_allowlist, sites, |d| cfg.focus_site_known(d)),
+        };
     }
 
     // 6. LOCKED
     DayState::Locked
+}
+
+/// The global list plus the goal's own entries. SECURITY: Only those some focus of the configuration
+/// already opens (`known`): a goal the day plan adds cannot unblock a new app or site.
+fn focus_list(global: &[String], own: &[String], known: impl Fn(&str) -> bool) -> Vec<String> {
+    let mut out = global.to_vec();
+    out.extend(own.iter().filter(|x| known(x) && !global.contains(x)).cloned());
+    out
 }
 
 // ───────────────────────── Commands ─────────────────────────
@@ -597,7 +613,7 @@ pub fn cmd_start_focus(
 /// Closes the FOCUS session. If the minutes were reached, it also records the completed goal.
 pub fn cmd_end_focus(history: &ConfigHistory, facts: &[Fact], clock: Clock) -> Result<Vec<EventKind>, Denied> {
     let st = status(history, facts, clock).ok_or(Denied::NotConfigured)?;
-    let DayState::Focus { goal_id } = st.state else { return Err(Denied::WrongState) };
+    let DayState::Focus { goal_id, .. } = st.state else { return Err(Denied::WrongState) };
     let goal = find_goal(history, facts, clock, &goal_id)?;
     let minutes = focus_minutes(facts, &goal_id, st.day_start_ms, clock.now_ms);
     let mut out = vec![EventKind::FocusEnded { goal_id: goal_id.clone() }];
@@ -723,6 +739,8 @@ mod tests {
             target_count: 1,
             methods: vec![Method::FocusSession, Method::HonorDeclaration],
             weekdays: ALL_DAYS,
+            apps: vec![],
+            sites: vec![],
         }
     }
 
@@ -767,7 +785,9 @@ mod tests {
         plan(&h, &mut f, at(7, 59));
         let ev = cmd_start_focus(&h, &f, at(8, 0), "read-30").unwrap();
         record(&mut f, at(8, 0), ev);
-        assert_eq!(status(&h, &f, at(8, 10)).unwrap().state, DayState::Focus { goal_id: "read-30".into() });
+        assert!(
+            matches!(status(&h, &f, at(8, 10)).unwrap().state, DayState::Focus { goal_id, .. } if goal_id == "read-30")
+        );
         for ev in cmd_end_focus(&h, &f, at(8, 31)).unwrap() {
             record(&mut f, at(8, 31), ev);
         }
@@ -943,6 +963,39 @@ mod tests {
         assert_eq!(status(&h, &f, at(8, 21)).unwrap().state, DayState::Free);
         // The next day the plan does not carry over
         assert!(status(&h, &f, on(1, 7, 0)).unwrap().needs_plan);
+    }
+
+    #[test]
+    fn focus_opens_the_goals_own_apps_and_sites_only() {
+        let kindle = "android:com.kindle@aa".to_string();
+        let mut cfg = Config::example();
+        cfg.focus_apps.clear();
+        cfg.web_allowlist = vec!["wikipedia.org".into()];
+        cfg.goals[0].apps = vec![kindle.clone()];
+        cfg.goals[0].sites = vec!["udemy.com".into()];
+        let mut h = ConfigHistory::default();
+        h.push(0, cfg);
+        let mut f = vec![];
+        // The plan adds a goal that reuses the fixed goal's app and tries one no focus opens.
+        let mut extra = goal("study", GoalKind::Key, 20);
+        extra.apps = vec![kindle.clone(), "android:com.instagram.android@bb".into()];
+        let ev = cmd_plan_day(&h, &f, at(7, 0), vec![extra]).unwrap();
+        record(&mut f, at(7, 0), ev);
+        let focus = |f: &mut Vec<Fact>, id: &str, t: Clock| {
+            let ev = cmd_start_focus(&h, f, t, id).unwrap();
+            record(f, t, ev);
+            let st = status(&h, f, t).unwrap().state;
+            for ev in cmd_end_focus(&h, f, t).unwrap() {
+                record(f, t, ev);
+            }
+            st
+        };
+        let read = focus(&mut f, "read-30", at(8, 0));
+        let wiki_udemy = vec!["wikipedia.org".to_string(), "udemy.com".into()];
+        assert_eq!(read, DayState::Focus { goal_id: "read-30".into(), apps: vec![kindle.clone()], sites: wiki_udemy });
+        let study = focus(&mut f, "study", at(9, 0));
+        let wiki = vec!["wikipedia.org".to_string()];
+        assert_eq!(study, DayState::Focus { goal_id: "study".into(), apps: vec![kindle], sites: wiki });
     }
 
     // ── Family mode ──

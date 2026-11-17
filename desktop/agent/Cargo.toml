@@ -49,6 +49,7 @@ windows = { version = "0.58.0", features = [
 # The signed category list joins `assets` once its key exists (pending admin task 11): /usr/lib/procastinacioff/lists/.
 [package.metadata.deb]
 maintainer = "ProcastinaciOFF maintainers"
+copyright = "2026, ProcastinaciOFF maintainers"
 section = "admin"
 depends = "$auto, systemd (>= 250), nftables"
 assets = [

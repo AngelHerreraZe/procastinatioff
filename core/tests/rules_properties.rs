@@ -22,6 +22,8 @@ fn arb_event() -> impl Strategy<Value = EventKind> {
                 target_count: 1,
                 methods: vec![Method::HonorDeclaration],
                 weekdays: ALL_DAYS,
+                apps: vec![],
+                sites: vec![],
             }],
         }),
         Just(EventKind::GoalCompleted {

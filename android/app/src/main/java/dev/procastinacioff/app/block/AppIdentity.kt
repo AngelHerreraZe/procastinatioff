@@ -44,6 +44,9 @@ object AppIdentity {
         set += listOf("com.google.android.permissioncontroller", "com.android.permissioncontroller")
         if (!sleeping) {
             Telephony.Sms.getDefaultSmsPackage(context)?.let { set += it }       // SMS (during the day)
+            // WhatsApp (during the day), never configured. SECURITY: by package name, without its
+            // certificate: another app could only take this name after WhatsApp is uninstalled.
+            set += "com.whatsapp"
             set += "com.android.settings"                                        // settings (during the day)
         }
         return set

@@ -46,8 +46,11 @@ pub fn allow(
     }
     let Some(cfg) = cfg else { return false };
     let ident = format!("linux:desktop:{id}");
-    let focus = matches!(state, DayState::Focus { .. });
-    cfg.essential_apps.iter().chain(cfg.focus_apps.iter().filter(|_| focus)).any(|a| a.eq_ignore_ascii_case(&ident))
+    let focus: &[String] = match state {
+        DayState::Focus { apps, .. } => apps,
+        _ => &[],
+    };
+    cfg.essential_apps.iter().chain(focus).any(|a| a.eq_ignore_ascii_case(&ident))
 }
 
 #[cfg(test)]
@@ -90,7 +93,8 @@ mod tests {
     fn focus_adds_focus_apps_and_sleep_allows_no_app() {
         let writer = Some("org.libreoffice.LibreOffice.writer");
         assert!(!ok(DayState::Locked, writer, "/usr/lib/libreoffice/program/soffice.bin", 1000));
-        assert!(ok(DayState::Focus { goal_id: "g".into() }, writer, "/usr/lib/libreoffice/program/soffice.bin", 1000));
+        let focus = DayState::Focus { goal_id: "g".into(), apps: cfg().focus_apps, sites: vec![] };
+        assert!(ok(focus, writer, "/usr/lib/libreoffice/program/soffice.bin", 1000));
         assert!(!ok(DayState::Sleep, Some("org.gnome.Calculator"), "/usr/bin/gnome-calculator", 1000));
         assert!(ok(DayState::Sleep, None, "/usr/bin/gnome-screensaver", 1000));
     }

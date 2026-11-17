@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -295,6 +296,7 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
     var bonus by remember { mutableStateOf(cfg.weeklyBonusPermits.toString()) }
     var freeDays by remember { mutableIntStateOf(cfg.freeDays.toInt()) }
     var web by remember { mutableStateOf(cfg.webAllowlist.joinToString(", ")) }
+    val goals = remember { cfg.goals.toMutableStateList() }
     var error by remember { mutableStateOf<String?>(null) }
     val wakeMin = parseTime(wake)
     val bedMin = parseTime(bedtime)
@@ -313,6 +315,7 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
                     weeklyBonusPermits = (bonus.toIntOrNull() ?: 0).coerceIn(0, 20).toUByte(),
                     freeDays = freeDays.toUByte(),
                     webAllowlist = web.split(',', ' ', '\n').map { it.trim().lowercase() }.filter { it.isNotEmpty() },
+                    goals = goals.toList(),
                 )
                 if (!confirmAsGuardian(activity, reason)) return@PrimaryButton
                 error = withContext(Dispatchers.IO) {
@@ -334,6 +337,7 @@ fun ChildSettingsScreen(id: String, onBack: () -> Unit) {
             }
             NumberField(bonus, { bonus = it }, stringResource(R.string.extra_per_week), Modifier.fillMaxWidth())
         }
+        Section(stringResource(R.string.fixed_goals)) { FixedGoalsEditor(goals) }
         OutlinedTextField(web, { web = it }, label = { Text(stringResource(R.string.focus_sites)) }, modifier = Modifier.fillMaxWidth())
     }
 }

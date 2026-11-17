@@ -29,8 +29,9 @@ class PolicyTest {
         assertEquals(Verdict.BLOCK, Policy.decide(DayState.Locked, "com.whatsapp", "android:com.whatsapp@ffff", cfg, system))
     }
 
-    @Test fun focusAddsFocusApps() {
-        assertEquals(Verdict.ALLOW, Policy.decide(DayState.Focus("leer-30"), "com.udemy.android", udemy, cfg, system))
+    @Test fun focusAddsOnlyThatGoalsApps() {
+        assertEquals(Verdict.ALLOW, Policy.decide(DayState.Focus("leer-30", listOf(udemy), emptyList()), "com.udemy.android", udemy, cfg, system))
+        assertEquals(Verdict.BLOCK, Policy.decide(DayState.Focus("correr", emptyList(), emptyList()), "com.udemy.android", udemy, cfg, system))
     }
 
     @Test fun sleepOnlySystem() {

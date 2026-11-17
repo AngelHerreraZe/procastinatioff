@@ -200,8 +200,8 @@ fn enforce(
             _ => None,
         };
         // Web allowlist: only during FOCUS, and only rewritten when it changes.
-        let want = match (&state, &cfg) {
-            (DayState::Focus { .. }, Some(cfg)) => Some(cfg.web_allowlist.clone()),
+        let want = match &state {
+            DayState::Focus { sites, .. } => Some(sites.clone()),
             _ => None,
         };
         if last_policy.as_ref() != Some(&want) {

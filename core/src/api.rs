@@ -365,9 +365,7 @@ impl Inner {
         let Some(st) = rules::status(&h, &f, clock) else { return (FilterMode::Categories, 0) };
         // Peer sync uses LAN addresses, never DNS: nothing to add to the allowlist.
         let mode = match st.state {
-            DayState::Focus { .. } => {
-                FilterMode::Allowlist(h.active_at(clock.now_ms).map(|c| c.web_allowlist.clone()).unwrap_or_default())
-            }
+            DayState::Focus { sites, .. } => FilterMode::Allowlist(sites),
             DayState::Sleep | DayState::Locked => FilterMode::Allowlist(vec![]),
             DayState::Pass { .. } | DayState::Free | DayState::Emergency { .. } => FilterMode::Categories,
         };
@@ -631,6 +629,42 @@ pub struct Core {
     secrets: Arc<dyn SecretStore>,
 }
 
+/// Secrets of the database at `path`. `core.db` (the device's own profile) keeps the original names;
+/// any other database (contact channel, watching box, a minor's profile) gets its own copy. "Delete all
+/// my data" re-keys each database: with shared names, erasing a second one left the first without its
+/// key, unreadable after a restart.
+fn scoped(path: &str, shared: Arc<dyn SecretStore>) -> Arc<dyn SecretStore> {
+    let stem = std::path::Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+    if stem == "core" {
+        return shared;
+    }
+    let suffix = stem.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+    Arc::new(Scoped { shared, suffix })
+}
+
+struct Scoped {
+    shared: Arc<dyn SecretStore>,
+    suffix: String,
+}
+
+impl SecretStore for Scoped {
+    fn load(&self, name: String) -> Result<Option<Vec<u8>>, CoreError> {
+        let own = format!("{name}_{}", self.suffix);
+        if let Some(v) = self.shared.load(own.clone())? {
+            return Ok(Some(v));
+        }
+        // Databases from before per-database secrets used the shared ones: adopted on first use.
+        // Platforms open every database before erasing any, so the shared key is still the old one.
+        let Some(v) = self.shared.load(name)? else { return Ok(None) };
+        self.shared.save(own, v.clone())?;
+        Ok(Some(v))
+    }
+
+    fn save(&self, name: String, value: Vec<u8>) -> Result<(), CoreError> {
+        self.shared.save(format!("{name}_{}", self.suffix), value)
+    }
+}
+
 /// The database with its key. If "delete all my data" stopped after re-encrypting the file but
 /// before saving the new key, the staged key opens it and the erase is finished here, in the same
 /// order as `erase_all` (new identity, then the database key): the new keys are returned.
@@ -787,6 +821,7 @@ impl Core {
     /// Opens the core. `db_path`: the app's private path. `secrets`: the platform keystore.
     #[uniffi::constructor]
     pub fn open(db_path: String, secrets: Arc<dyn SecretStore>) -> Result<Arc<Self>, CoreError> {
+        let secrets = scoped(&db_path, secrets);
         let (db, erased_keys) = open_db(&db_path, secrets.as_ref())?;
         let keys = match erased_keys {
             Some(keys) => keys,
@@ -2037,6 +2072,14 @@ pub fn new_backup_passphrase() -> String {
     crate::backup::new_passphrase()
 }
 
+/// Checks a new PIN, password or pattern without storing it. Onboarding calls it before creating the
+/// profile, so a weak secret never leaves a profile half set up. Same errors as `set_secret`.
+#[uniffi::export]
+pub fn check_secret(factor: LocalFactor, secret: String) -> Result<(), CoreError> {
+    let secret = zeroize::Zeroizing::new(secret);
+    Ok(auth::check_new_secret(factor, &secret)?)
+}
+
 /// Verifies a minisign-signed category list and parses it.
 fn verified_list(pubkey_b64: &str, data: &[u8], minisig: &str) -> Result<CategorySet, CoreError> {
     let pk = minisign_verify::PublicKey::from_base64(pubkey_b64).map_err(CoreError::crypto)?;
@@ -2504,7 +2547,28 @@ mod tests {
     fn store_and_path() -> (String, Arc<MemStore>) {
         let dir = std::env::temp_dir().join(format!("pco-erase-{}-{}", std::process::id(), rand::random::<u32>()));
         std::fs::create_dir_all(&dir).unwrap();
-        (dir.join("db").to_string_lossy().into(), Arc::new(MemStore::default()))
+        (dir.join("core.db").to_string_lossy().into(), Arc::new(MemStore::default()))
+    }
+
+    #[test]
+    fn erasing_every_database_leaves_each_one_readable() {
+        let (path, store) = store_and_path();
+        let contact_path = path.replace("core.db", "contact.db");
+        let main = Core::open(path.clone(), store.clone()).unwrap();
+        if !main.lock().db.encrypted() {
+            return; // needs SQLCipher: without it any key opens the file
+        }
+        // A contact channel from before per-database secrets: encrypted with the shared key.
+        let shared = crate::crypto::db_key(store.as_ref()).unwrap();
+        drop(crate::storage::Db::open(&contact_path, &shared).unwrap());
+        let contact = Core::open(contact_path.clone(), store.clone()).unwrap();
+        assert_eq!(contact.device_id(), main.device_id(), "adopts the shared identity");
+        // "Delete all my data": the profile first, then the other databases (CoreHolder.eraseAll)
+        main.clone().erase_all(MONDAY_9).unwrap();
+        contact.clone().erase_all(MONDAY_9).unwrap();
+        drop((main, contact));
+        Core::open(path, store.clone()).unwrap();
+        Core::open(contact_path, store).unwrap();
     }
 
     #[test]
