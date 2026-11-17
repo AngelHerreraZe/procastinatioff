@@ -31,7 +31,7 @@ mod imp {
     };
     use windows::core::{PCWSTR, PWSTR, w};
 
-    const CONTAINER: PCWSTR = w!("ProcastinaciOFF.Verifier");
+    const CONTAINER: PCWSTR = w!("ProcastinatiOFF.Verifier");
     const SE_GROUP_ENABLED: u32 = 0x4; // winnt.h
 
     /// Output of the sandboxed process.

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! UI socket (security-critical): anyone may connect to /run/procastinacioff/agent.sock, but only
+//! UI socket (security-critical): anyone may connect to /run/procastinatioff/agent.sock, but only
 //! our UI, installed by the package in a root-owned path, is answered.
 //! Honest limit (same as Windows): the check is the client's executable at connect time. The UI
 //! cannot do anything the user cannot do by clicking; this only keeps scripts out.
@@ -11,8 +11,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use procastinacioff_core::api::Core;
-use procastinacioff_ipc::SOCKET_PATH;
+use procastinatioff_core::api::Core;
+use procastinatioff_ipc::SOCKET_PATH;
 use tokio::net::{UnixListener, UnixStream};
 
 use crate::common::{Shared, serve_lines};

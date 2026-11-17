@@ -10,7 +10,7 @@ import re
 import sys
 
 DOMAIN = re.compile(r"^(?=.{1,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
-HEADER = "procastinacioff-categories v1"
+HEADER = "procastinatioff-categories v1"
 # Never block what the filter needs (ESSENTIAL_DOMAINS also protects it in the core).
 NEVER = {"localhost", "localhost.localdomain", "local", "broadcasthost"}
 

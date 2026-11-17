@@ -59,7 +59,7 @@ fn main() {
         }
         // The uninstaller calls it before deleting anything: without it a minor's PC would be left without DNS.
         Some("restore-dns") => family::restore(std::path::Path::new(service::DATA_DIR)),
-        _ => eprintln!("uso: procastinacioff-agent (service|install|restore-dns)"),
+        _ => eprintln!("uso: procastinatioff-agent (service|install|restore-dns)"),
     }
 }
 

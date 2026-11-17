@@ -19,7 +19,7 @@ import Security
 enum LocalAuth {
     private static var item: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "dev.procastinacioff.biometric",
+         kSecAttrService as String: "dev.procastinatioff.biometric",
          kSecAttrAccount as String: "gate-v1"]
     }
 

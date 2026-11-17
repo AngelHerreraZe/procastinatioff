@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use procastinacioff_core::model::{Config, DayState};
+use procastinatioff_core::model::{Config, DayState};
 
 /// First uid of a person's account (Debian/Ubuntu/Fedora). Below: root and system services.
 pub const FIRST_USER_UID: u32 = 1000;
@@ -65,7 +65,7 @@ mod tests {
     }
 
     fn ok(state: DayState, app: Option<&str>, path: &str, uid: u32) -> bool {
-        let ours = [PathBuf::from("/usr/lib/procastinacioff"), PathBuf::from("/usr/bin/procastinacioff-app")];
+        let ours = [PathBuf::from("/usr/lib/procastinatioff"), PathBuf::from("/usr/bin/procastinatioff-app")];
         allow(&state, app, Path::new(path), uid, Some(&cfg()), &ours)
     }
 
@@ -75,10 +75,10 @@ mod tests {
         assert!(!ok(DayState::Locked, Some("org.mozilla.firefox"), "/usr/lib/firefox/firefox", 1000));
         assert!(ok(DayState::Locked, None, "/usr/bin/ls", 1000), "command-line tools keep working");
         assert!(ok(DayState::Locked, Some("gnome-control-center"), "/usr/bin/gnome-control-center", 1000));
-        assert!(ok(DayState::Locked, None, "/usr/lib/procastinacioff/procastinacioff-agent", 1000));
+        assert!(ok(DayState::Locked, None, "/usr/lib/procastinatioff/procastinatioff-agent", 1000));
         // Our UI has a menu entry (an app), and must never be blocked
-        assert!(ok(DayState::Sleep, Some("ProcastinaciOFF"), "/usr/bin/procastinacioff-app", 1000));
-        assert!(!ok(DayState::Locked, Some("x"), "/usr/bin/procastinacioff-app-fake", 1000));
+        assert!(ok(DayState::Sleep, Some("ProcastinatiOFF"), "/usr/bin/procastinatioff-app", 1000));
+        assert!(!ok(DayState::Locked, Some("x"), "/usr/bin/procastinatioff-app-fake", 1000));
     }
 
     #[test]

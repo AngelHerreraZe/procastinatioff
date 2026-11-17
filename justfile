@@ -2,7 +2,7 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 # The Tauri app needs the built UI (desktop/app/ui/dist): built with `just app`.
-app_crate := "procastinacioff-app"
+app_crate := "procastinatioff-app"
 
 default:
     @just --list
@@ -46,7 +46,7 @@ fuzz target secs="60":
 
 # End-to-end test: devices pairing and syncing directly (real QUIC on this machine)
 it:
-    cargo test -p procastinacioff-core --test two_devices
+    cargo test -p procastinatioff-core --test two_devices
 
 # Desktop UI (Svelte) + Tauri app
 app:
@@ -57,18 +57,19 @@ app:
 # Linux packages (run on Linux): the agent (.deb with the systemd unit) and the UI (.deb that depends on it).
 # Needs cargo-deb 2 and tauri-cli 2. Plan 09 · A.7.
 linux-packages: app
-    cargo deb -p procastinacioff-agent
+    cargo deb -p procastinatioff-agent
     cd desktop/app/src-tauri; cargo tauri build --bundles deb --config tauri.linux.bundle.json
 
 # Signed Windows NSIS installer (service + UI). Needs tauri-cli 2 and the signing certificate.
 installer: app
-    cargo build -p procastinacioff-agent --release
+    cargo build -p procastinatioff-agent -p procastinatioff-verifier --release
     New-Item -ItemType Directory -Force desktop/app/src-tauri/binaries | Out-Null
-    Copy-Item target/release/procastinacioff-agent.exe desktop/app/src-tauri/binaries/procastinacioff-agent-x86_64-pc-windows-msvc.exe
+    Copy-Item target/release/procastinatioff-agent.exe desktop/app/src-tauri/binaries/procastinatioff-agent-x86_64-pc-windows-msvc.exe
+    Copy-Item target/release/procastinatioff-verifier.exe desktop/app/src-tauri/binaries/procastinatioff-verifier-x86_64-pc-windows-msvc.exe
     cd desktop/app/src-tauri; cargo tauri build --config tauri.bundle.json
 
 # Kotlin bindings from the host library (library mode). Debug on purpose: the release library is
 # stripped and uniffi-bindgen then generates nothing without failing (stale bindings, crash on start).
 bindings:
-    cargo build -p procastinacioff-core
-    cargo run -p uniffi-bindgen -- generate --library target/debug/{{ if os() == "windows" { "procastinacioff_core.dll" } else if os() == "macos" { "libprocastinacioff_core.dylib" } else { "libprocastinacioff_core.so" } }} --language kotlin --out-dir android/app/src/main/java
+    cargo build -p procastinatioff-core
+    cargo run -p uniffi-bindgen -- generate --library target/debug/{{ if os() == "windows" { "procastinatioff_core.dll" } else if os() == "macos" { "libprocastinatioff_core.dylib" } else { "libprocastinatioff_core.so" } }} --language kotlin --out-dir android/app/src/main/java

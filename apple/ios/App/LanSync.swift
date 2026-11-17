@@ -18,8 +18,8 @@ import UserNotifications
 /// `syncSoon()`; on `.background`: `scheduleBackground()`.
 enum LanSync {
     /// Must be listed in `BGTaskSchedulerPermittedIdentifiers` (Info.plist).
-    static let refreshTask = "dev.procastinacioff.app.sync"
-    private static let queue = DispatchQueue(label: "dev.procastinacioff.lan")
+    static let refreshTask = "dev.procastinatioff.app.sync"
+    private static let queue = DispatchQueue(label: "dev.procastinatioff.lan")
     private static let busy = NSLock()
 
     /// Syncs now in the background (after an own event or when the app opens).
@@ -168,7 +168,7 @@ enum Notices {
             let (id, text) = content(notice.kind, fromWatching)
             guard shown.insert(id).inserted else { continue }
             let c = UNMutableNotificationContent()
-            c.title = "ProcastinaciOFF"
+            c.title = "ProcastinatiOFF"
             c.body = text
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "notice-\(id)", content: c, trigger: nil))
         }

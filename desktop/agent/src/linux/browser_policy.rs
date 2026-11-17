@@ -17,7 +17,7 @@ const CHROMIUM_DIRS: [&str; 4] = [
     "/etc/chromium-browser/policies/managed",
     "/etc/opt/edge/policies/managed",
 ];
-const CHROMIUM_FILE: &str = "procastinacioff.json";
+const CHROMIUM_FILE: &str = "procastinatioff.json";
 /// Read by Firefox from the distribution and from the Snap.
 const FIREFOX_DIR: &str = "/etc/firefox/policies";
 

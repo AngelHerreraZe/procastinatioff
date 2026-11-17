@@ -1,6 +1,6 @@
 # Privacy
 
-ProcastinaciOFF has **no servers and no accounts**. Your data lives only on your devices (and, if
+ProcastinatiOFF has **no servers and no accounts**. Your data lives only on your devices (and, if
 you decide so, on your family's or your trusted contact's devices), and travels directly between
 them, end-to-end encrypted. The project cannot see, sell or hand over anything: it has nothing.
 

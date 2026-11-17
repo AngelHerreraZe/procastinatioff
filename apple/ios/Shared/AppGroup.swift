@@ -4,5 +4,5 @@
 
 /// App Group shared by the app and all its extensions (the notification one too).
 enum AppGroup {
-    static let id = "group.dev.procastinacioff"
+    static let id = "group.dev.procastinatioff"
 }

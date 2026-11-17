@@ -58,6 +58,8 @@ pub fn goal_kept_or_harder(old: &Goal, new_goals: &[Goal]) -> bool {
             && n.methods.iter().all(|m| old.methods.contains(m))
             && n.apps.iter().all(|a| old.apps.contains(a))
             && n.sites.iter().all(|d| old.sites.contains(d))
+            // A new QR could be kept in a pocket: changing a place's anchor relaxes
+            && (old.anchor.is_empty() || n.anchor == old.anchor)
     })
 }
 
@@ -117,6 +119,17 @@ mod tests {
         let mut fewer = old.clone();
         fewer.goals[0].apps.clear();
         assert!(is_stricter_or_equal(&fewer, &old));
+    }
+
+    #[test]
+    fn a_new_place_qr_is_laxer() {
+        let mut old = Config::example();
+        old.goals[0].anchor = "aa".into();
+        let mut new = old.clone();
+        new.goals[0].anchor = "bb".into();
+        assert!(!is_stricter_or_equal(&new, &old));
+        new.goals[0].anchor = "aa".into();
+        assert!(is_stricter_or_equal(&new, &old));
     }
 
     #[test]

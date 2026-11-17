@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # scripts/check_verify_no_net.py
-"""Fails if the procastinacioff-verify crate depends (directly or indirectly) on network crates."""
+"""Fails if the procastinatioff-verify crate depends (directly or indirectly) on network crates."""
 import pathlib
 import subprocess
 import sys
@@ -14,7 +14,7 @@ if not (pathlib.Path(__file__).resolve().parent.parent / "verify" / "Cargo.toml"
     sys.exit(0)
 
 out = subprocess.run(
-    ["cargo", "tree", "-p", "procastinacioff-verify", "--edges", "normal,build",
+    ["cargo", "tree", "-p", "procastinatioff-verify", "--edges", "normal,build",
      "--prefix", "none", "--format", "{p}"],
     check=True, capture_output=True, text=True,
 ).stdout

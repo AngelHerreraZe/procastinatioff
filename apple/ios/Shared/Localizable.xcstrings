@@ -71,6 +71,16 @@
         }
       }
     },
+    "Every minute on your goal counts. Keep it up.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada minuto en tu meta cuenta. Sigue así."
+          }
+        }
+      }
+    },
     "Got it": {
       "localizations": {
         "es": {
@@ -87,6 +97,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sin conexión con tus otros dispositivos. Se reintentará."
+          }
+        }
+      }
+    },
+    "One more step. You're closer than you think.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un paso más. Estás más cerca de lo que crees."
           }
         }
       }
@@ -111,22 +131,22 @@
         }
       }
     },
-    "Open ProcastinaciOFF": {
+    "Open ProcastinatiOFF": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir ProcastinaciOFF"
+            "value": "Abrir ProcastinatiOFF"
           }
         }
       }
     },
-    "Open ProcastinaciOFF to see what's left or use a pass.": {
+    "Open ProcastinatiOFF to see what's left or use a pass.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre ProcastinaciOFF para ver qué te falta o usar un permiso."
+            "value": "Abre ProcastinatiOFF para ver qué te falta o usar un permiso."
           }
         }
       }
@@ -231,6 +251,16 @@
         }
       }
     },
+    "Tomorrow's you will thank you. Stay with your goal.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu yo de mañana te lo agradecerá. Sigue con tu meta."
+          }
+        }
+      }
+    },
     "You have requests from your family": {
       "localizations": {
         "es": {
@@ -247,6 +277,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aún no cumples tus metas"
+          }
+        }
+      }
+    },
+    "You're doing great. That app can wait; your goal can't.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vas muy bien. Esa app puede esperar; tu meta no."
+          }
+        }
+      }
+    },
+    "You've got this. Finish your goal and everything opens up.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo estás logrando. Termina tu meta y todo se abre."
           }
         }
       }
@@ -647,6 +697,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "The PIN needs at least 6 digits."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "denied.wrong_anchor": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese QR no es el del lugar de esta meta."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That QR is not this goal's place."
           }
         }
       },

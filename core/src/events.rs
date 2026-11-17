@@ -18,7 +18,7 @@ use crate::error::CoreError;
 use crate::model::EventKind;
 
 /// Domain separation: an event signature is never valid as an HTTP request signature.
-const EVENT_DOMAIN: &[u8] = b"procastinacioff/event/v1\0";
+const EVENT_DOMAIN: &[u8] = b"procastinatioff/event/v1\0";
 /// Padding: the blob size does not reveal the event type.
 const BUCKETS: [usize; 4] = [1024, 4096, 16 * 1024, 64 * 1024];
 
@@ -58,7 +58,7 @@ impl SignedEvent {
 
     pub fn verify(&self) -> Result<(), CoreError> {
         let key =
-            procastinacioff_proto::parse_key(&self.body.author).ok_or_else(|| CoreError::protocol("invalid author"))?;
+            procastinatioff_proto::parse_key(&self.body.author).ok_or_else(|| CoreError::protocol("invalid author"))?;
         let sig: [u8; 64] = hex::decode(&self.sig)
             .ok()
             .and_then(|v| v.try_into().ok())
@@ -94,7 +94,7 @@ pub fn seal(ev: &SignedEvent, recipients: &[age::x25519::Recipient]) -> Result<V
 
 /// Decrypts and deserializes a blob. Does NOT verify the signature: the Ledger does that.
 pub fn open(blob: &[u8], identity: &age::x25519::Identity) -> Result<SignedEvent, CoreError> {
-    if blob.len() > procastinacioff_proto::MAX_BLOB {
+    if blob.len() > procastinatioff_proto::MAX_BLOB {
         return Err(CoreError::protocol("blob too large"));
     }
     let decryptor = age::Decryptor::new(blob).map_err(CoreError::crypto)?;

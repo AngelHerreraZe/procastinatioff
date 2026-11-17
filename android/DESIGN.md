@@ -6,7 +6,7 @@ font scale.
 
 ## 1. The theme in code
 
-- `app/src/main/java/dev/procastinacioff/app/ui/Common.kt`: `Look`, `lookFor(status, nowMs)` and
+- `app/src/main/java/dev/procastinatioff/app/ui/Common.kt`: `Look`, `lookFor(status, nowMs)` and
   `PcoTheme(look)`. `MainActivity` and `ShieldActivity` wrap everything in
   `PcoTheme(lookFor(snap.status, snap.nowMs))`; no screen picks a look by itself.
 - Screens read `MaterialTheme.colorScheme`, never `Color(0x...)`:
@@ -80,8 +80,9 @@ Every screen below uses `PcoTheme` and the components in `ui/Common.kt` (`GoalRo
 | Route | Screen (file) | Pattern | Primary action |
 |---|---|---|---|
 | `welcome` | `WelcomeScreen` (SetupScreens.kt) | Intro: what the app does, what it never does | Start |
-| `permissions` | `PermissionsScreen` (SetupScreens.kt) | "Step 1 of 2". One card per permission: icon, name, "Granted"/"Pending" badge, why in one sentence, "Grant permission  >". "Set up later" while one is missing; from Today it is a checklist that returns | Continue (all three granted) |
-| `choose` | `ChooseScreen` (SetupScreens.kt) | "Step 2 of 2". Four choice cards (icon, label, chevron): new, join, support someone, family | The chosen card |
+| `verifier` | `VerifierScreen` (SetupScreens.kt) | "Step 1 of 3". Why there are two installs (camera without Internet vs. app with sync) and why now: once Accessibility is on, the blocker gets in the system installer's way. "Installed"/"Pending" badge; "Set up later" while missing | Install the verifier, then Continue |
+| `permissions` | `PermissionsScreen` (SetupScreens.kt) | "Step 2 of 3". One card per permission: icon, name, "Granted"/"Pending" badge, why in one sentence, "Grant permission  >". "Set up later" while one is missing; from Today it is a checklist that returns | Continue (all three granted) |
+| `choose` | `ChooseScreen` (SetupScreens.kt) | "Step 3 of 3". Four choice cards (icon, label, chevron): new, join, support someone, family | The chosen card |
 | `config`, `family-new` | `ConfigScreen` (SetupScreens.kt) | Form: labels above fields, errors under them | Save |
 | `join`, `watch-join` | `JoinScreen` (PairingScreens.kt) | Scan or paste the code, then compare the 6-digit code | Confirm the code matches |
 | `invite`, `contact-invite`, `child/{id}/invite/{role}` | `InviteScreen` (PairingScreens.kt) | QR, then the 6-digit code shown large | Codes match |

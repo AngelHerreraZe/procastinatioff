@@ -21,14 +21,17 @@ APP = {
     "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED",  # family mode: app suspension (Device Owner)
     "android.permission.USE_BIOMETRIC",                 # family mode: the guardian confirms with fingerprint or PIN
     "android.permission.USE_FINGERPRINT",               # (androidx.biometric on older Android)
-    "dev.procastinacioff.permission.VERIFY",            # open the verifier (signature permission)
-    "dev.procastinacioff.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+    "dev.procastinatioff.permission.VERIFY",            # open the verifier (signature permission)
+    "android.permission.REQUEST_INSTALL_PACKAGES",      # install the verifier embedded in the app
+    "android.permission.health.READ_EXERCISE",          # "Workout" goals: today's exercise minutes (read only)
+    "com.google.android.apps.aicore.service.BIND_SERVICE",  # ML Kit GenAI: binds to AICore (Gemini Nano runs on the phone)
+    "dev.procastinatioff.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
 }
 VERIFIER = {
     "android.permission.CAMERA",
     "android.permission.RECORD_AUDIO",
-    "dev.procastinacioff.permission.VERIFY",            # declared (signature) so only the app can open it
-    "dev.procastinacioff.verifier.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+    "dev.procastinatioff.permission.VERIFY",            # declared (signature) so only the app can open it
+    "dev.procastinatioff.verifier.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
 }
 NETWORK = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
            "android.permission.ACCESS_WIFI_STATE", "android.permission.CHANGE_NETWORK_STATE"}

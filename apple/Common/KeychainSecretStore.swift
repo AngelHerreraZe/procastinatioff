@@ -10,7 +10,7 @@ import Security
 /// night) and NEVER goes to backups or to another device. On macOS the agent (root) uses the
 /// system keychain, without an access group.
 final class KeychainSecretStore: SecretStore {
-    private let service = "dev.procastinacioff.secrets"
+    private let service = "dev.procastinatioff.secrets"
     private let accessGroup: String?
 
     init(accessGroup: String?) {

@@ -12,7 +12,7 @@ val modelHashes = file("models.lock").readLines()
     .joinToString(";") { line -> line.split(Regex("\\s+")).let { "${it[1]}=${it[0]}" } }
 
 android {
-    namespace = "dev.procastinacioff.verifier"
+    namespace = "dev.procastinatioff.verifier"
     // Reproducible builds (plan 09 · B.1): the dependency metadata block Google adds is not reproducible.
     dependenciesInfo {
         includeInApk = false
@@ -22,7 +22,7 @@ android {
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "dev.procastinacioff.verifier"
+        applicationId = "dev.procastinatioff.verifier"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
@@ -43,13 +43,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         compose = true
         buildConfig = true
     }
     androidResources { noCompress += listOf("task", "tflite") } // models are read without decompressing
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -64,14 +65,14 @@ dependencies {
     // only, with javapoet) as a runtime dependency: R8 fails on it and it does not belong in the APK.
     implementation(libs.mediapipe.tasks.vision) { exclude(group = "com.google.auto.value", module = "auto-value") }
     implementation(libs.mlkit.text.recognition)   // OCR with a bundled model (no download)
-    implementation("${libs.jna.get()}@aar")       // procastinacioff-verify bindings
+    implementation("${libs.jna.get()}@aar")       // procastinatioff-verify bindings
 }
 
 val buildVerifyRust by tasks.registering(Exec::class) {
     workingDir = rootProject.projectDir.parentFile
     commandLine(
         "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86_64",
-        "-o", "android/verifier/src/main/jniLibs", "build", "-p", "procastinacioff-verify", "--release",
+        "-o", "android/verifier/src/main/jniLibs", "build", "-p", "procastinatioff-verify", "--release",
     )
 }
 tasks.named("preBuild") { dependsOn(buildVerifyRust) }

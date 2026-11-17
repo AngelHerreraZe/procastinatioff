@@ -1,8 +1,0 @@
-# XDG autostart for the UI (shield and day plan), installed by the UI package in /etc/xdg/autostart.
-[Desktop Entry]
-Type=Application
-Name=ProcastinaciOFF
-Icon=procastinacioff-app
-Exec=/usr/bin/procastinacioff-app --background
-NoDisplay=true
-X-GNOME-Autostart-enabled=true

@@ -13,7 +13,7 @@ Anyone can check that a published binary was built from this code.
 
    It builds the agent twice from the tagged code, in two different folders, with the release
    flags (`SOURCE_DATE_EPOCH` = commit date, `--remap-path-prefix`), and prints its SHA-256.
-3. Compare that hash with `procastinacioff-agent-linux-x86_64` in the release's `SHA256SUMS`.
+3. Compare that hash with `procastinatioff-agent-linux-x86_64` in the release's `SHA256SUMS`.
 
 ## Android
 

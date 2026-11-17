@@ -6,8 +6,8 @@
 //! with the local UTC offset. Changing the system clock does not move this time.
 
 use chrono::{Local, Offset};
-use procastinacioff_core::api::Core;
-use procastinacioff_core::clock::Clock;
+use procastinatioff_core::api::Core;
+use procastinatioff_core::clock::Clock;
 
 /// System monotonic clock (ms since boot, including sleep); the user cannot change it.
 #[cfg(windows)]

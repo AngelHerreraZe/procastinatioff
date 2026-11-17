@@ -22,7 +22,7 @@ pub fn install() -> windows_service::Result<()> {
     )?;
     let info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),
-        display_name: OsString::from("ProcastinaciOFF"),
+        display_name: OsString::from("ProcastinatiOFF"),
         service_type: ServiceType::OWN_PROCESS,
         start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal,

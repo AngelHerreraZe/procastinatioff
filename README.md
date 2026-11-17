@@ -1,6 +1,6 @@
-<img src="branding/logo.png" width="112" alt="ProcastinaciOFF logo" />
+<img src="branding/logo.png" width="112" alt="ProcastinatiOFF logo" />
 
-# ProcastinaciOFF
+# ProcastinatiOFF
 
 **Blocks the mindless use of your devices until you complete the goals you set for yourself each morning.** No accounts, no servers, and nothing is ever recorded: everything happens on your devices.
 
@@ -72,7 +72,7 @@ Tightening never needs authorization, and neither does the emergency button.
 
 ## Goal verification (100 % local)
 
-Every goal has at least one **camera-free** option: a focus session on the PC, QR anchors stuck around the house, Health Connect / HealthKit, a trusted witness, or a declaration with friction. If you choose the camera or microphone: rep counting by pose, reading presence, page numbers by OCR, a live food photo, or a summary of what you read scored by a local LLM. Models ship inside the app and are verified by hash.
+Any goal fits, not only reading or eating well: how it is checked is suggested from its name, by the phone's own on-device model when it has one (Gemini Nano through AICore, Apple's on-device model) or by a keyword catalog that works on every device. Every goal has at least one **camera-free** option: a focus session on the PC or phone, a QR stuck at the place (gym, library, office), workout minutes from Health Connect / HealthKit, the guardian's confirmation, or a declaration with friction. If you choose the camera or microphone: rep counting by pose, reading presence, page numbers by OCR, a live food photo, or a summary of what you read scored by a local LLM. Models ship inside the app and are verified by hash.
 
 ## Platforms
 
@@ -95,7 +95,7 @@ Every goal has at least one **camera-free** option: a focus session on the PC, Q
 | `verify/` | Verification logic (pose, reading, summary, food, pages). No network or disk, checked in CI |
 | `netfilter/` | Local DNS server for a minor's PC (the core decides the policy) |
 | `desktop/` | Windows service (`agent/`), IPC (`ipc/`), Tauri + Svelte UI (`app/`), AppContainer verifier (`sandbox/`, `verifier/`) |
-| `android/` | Kotlin + Jetpack Compose app (`app/`) and the verifier without Internet permission (`verifier/`) |
+| `android/` | Kotlin + Jetpack Compose app (`app/`) and the verifier without Internet permission (`verifier/`, shipped inside the app, which installs it first during setup) |
 | `apple/` | Core for iOS/macOS (`ffi/`) and the iOS app with its Screen Time extensions |
 | `lists/`, `scripts/` | Category list sources; privacy and translation checks, build utilities |
 | `relay/`, `push-gateway/` | Previous architecture, **being removed** |
@@ -151,7 +151,7 @@ Contributions are welcome. For anything big, open an issue first so we can discu
 
 ## Translations
 
-ProcastinaciOFF is meant to be global: **developers add translations to their own languages**. Translations are **local files bundled with each app**: they are never downloaded, and no translation service is used at runtime. Dates, times, weekdays and durations come from the operating system (`Intl`, ICU, Foundation), so they need no translation.
+ProcastinatiOFF is meant to be global: **developers add translations to their own languages**. Translations are **local files bundled with each app**: they are never downloaded, and no translation service is used at runtime. Dates, times, weekdays and durations come from the operating system (`Intl`, ICU, Foundation), so they need no translation.
 
 | Where | Source (English) | Your language |
 |---|---|---|
@@ -175,7 +175,7 @@ ProcastinaciOFF is meant to be global: **developers add translations to their ow
 
 - Be kind and clear: the app explains and never blames ("You haven't met today's goals yet", not "You failed").
 - Notification texts appear on the lock screen: keep them generic (no goal names or details).
-- Do not translate the product name **ProcastinaciOFF**.
+- Do not translate the product name **ProcastinatiOFF**.
 - Use these terms consistently: *pass* (a few free minutes), *focus*, *locked*, *free*, *sleep*, *goal*, *key goal* ("unlocks"), *habit*, *guardian*, *trusted contact*, *pairing*, *emergency*.
 
 **For developers adding text:** add the key to the English file *and* to every existing translation you can write (at least Spanish). Never concatenate translated fragments: use a full sentence with placeholders, because word order changes between languages.

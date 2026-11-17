@@ -1,5 +1,5 @@
 [package]
-name = "procastinacioff-agent"
+name = "procastinatioff-agent"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -7,9 +7,9 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
-procastinacioff-core = { path = "../../core" }
-procastinacioff-ipc = { path = "../ipc" }
-procastinacioff-netfilter = { path = "../../netfilter" }
+procastinatioff-core = { path = "../../core" }
+procastinatioff-ipc = { path = "../ipc" }
+procastinatioff-netfilter = { path = "../../netfilter" }
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
@@ -45,15 +45,15 @@ windows = { version = "0.58.0", features = [
   "Win32_System_Threading",
 ] }
 
-# Linux package (`cargo deb -p procastinacioff-agent`). The UI ships in its own package (Tauri).
-# The signed category list joins `assets` once its key exists (pending admin task 11): /usr/lib/procastinacioff/lists/.
+# Linux package (`cargo deb -p procastinatioff-agent`). The UI ships in its own package (Tauri).
+# The signed category list joins `assets` once its key exists (pending admin task 11): /usr/lib/procastinatioff/lists/.
 [package.metadata.deb]
-maintainer = "ProcastinaciOFF maintainers"
-copyright = "2026, ProcastinaciOFF maintainers"
+maintainer = "ProcastinatiOFF maintainers"
+copyright = "2026, ProcastinatiOFF maintainers"
 section = "admin"
 depends = "$auto, systemd (>= 250), nftables"
 assets = [
-  ["target/release/procastinacioff-agent", "usr/lib/procastinacioff/", "755"],
-  ["../../packaging/linux/procastinacioff-agent.service", "lib/systemd/system/", "644"],
+  ["target/release/procastinatioff-agent", "usr/lib/procastinatioff/", "755"],
+  ["../../packaging/linux/procastinatioff-agent.service", "lib/systemd/system/", "644"],
 ]
 maintainer-scripts = "../../packaging/linux/debian/"

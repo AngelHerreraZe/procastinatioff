@@ -13,8 +13,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use procastinacioff_core::api::{Core, DnsAction};
-use procastinacioff_core::clock::Clock;
+use procastinatioff_core::api::{Core, DnsAction};
+use procastinatioff_core::clock::Clock;
 use tokio::net::UdpSocket;
 
 pub type ClockFn = Arc<dyn Fn() -> Clock + Send + Sync>;
@@ -78,8 +78,8 @@ pub async fn serve(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use procastinacioff_core::crypto::SecretStore;
-    use procastinacioff_core::error::CoreError;
+    use procastinatioff_core::crypto::SecretStore;
+    use procastinatioff_core::error::CoreError;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 

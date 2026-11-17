@@ -12,10 +12,10 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_core::clock::Clock;
-use procastinacioff_core::model::TamperKind;
-use procastinacioff_ipc::{AgentStatus, MAX_LINE};
+use procastinatioff_core::api::Core;
+use procastinatioff_core::clock::Clock;
+use procastinatioff_core::model::TamperKind;
+use procastinatioff_ipc::{AgentStatus, MAX_LINE};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::clock::{device_now_ms, mono_ms, now_clock};
@@ -139,7 +139,7 @@ where
         let (core, shared) = (core.clone(), shared.clone());
         let reply = tokio::task::spawn_blocking(move || {
             let agent = shared.lock().unwrap_or_else(|p| p.into_inner()).clone();
-            procastinacioff_core::desktop::handle_json(&core, now_clock(&core), agent, &line)
+            procastinatioff_core::desktop::handle_json(&core, now_clock(&core), agent, &line)
         })
         .await;
         let Ok(mut out) = reply else { break };
@@ -161,11 +161,11 @@ pub fn start_dns(core: Arc<Core>, upstreams: Vec<SocketAddr>) {
         };
         rt.block_on(async move {
             let clock_core = core.clone();
-            let clock: procastinacioff_netfilter::ClockFn = Arc::new(move || now_clock(&clock_core));
+            let clock: procastinatioff_netfilter::ClockFn = Arc::new(move || now_clock(&clock_core));
             let mut tasks = Vec::new();
             for addr in ["127.0.0.1:53", "[::1]:53"] {
                 match tokio::net::UdpSocket::bind(addr).await {
-                    Ok(sock) => tasks.push(tokio::spawn(procastinacioff_netfilter::serve(
+                    Ok(sock) => tasks.push(tokio::spawn(procastinatioff_netfilter::serve(
                         sock,
                         core.clone(),
                         upstreams.clone(),

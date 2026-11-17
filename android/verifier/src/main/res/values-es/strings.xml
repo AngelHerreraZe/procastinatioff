@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Spanish translation. Missing entries fall back to English (values/strings.xml). -->
 <resources>
-    <string name="verifier_label">ProcastinaciOFF · Verificador</string>
+    <string name="verifier_label">ProcastinatiOFF · Verificador</string>
     <string name="models_missing">Faltan los modelos de este método.</string>
     <string name="analyze_failed">No se pudo analizar la imagen.</string>
     <string name="progress_minutes">%1$d de %2$d min</string>

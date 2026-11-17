@@ -5,17 +5,17 @@ plugins {
 }
 
 android {
-    namespace = "dev.procastinacioff.app"
+    namespace = "dev.procastinatioff.app"
     // Reproducible builds (plan 09 · B.1): the dependency metadata block Google adds is not reproducible.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
     }
-    compileSdk = 35
+    compileSdk = 36 // Health Connect 1.1 needs it; targetSdk stays at 35
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "dev.procastinacioff.app"
+        applicationId = "dev.procastinatioff.app"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
@@ -34,16 +34,20 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     // Per-app language picker (Android 13+): built from the values-<lang>/ folders. Source language: res/resources.properties
-    androidResources { generateLocaleConfig = true }
+    androidResources {
+        generateLocaleConfig = true
+        noCompress += "apk" // the embedded verifier is already a zip
+    }
     sourceSets["main"].res.srcDir("../branding/res") // launcher icon, shared with the verifier
     packaging { jniLibs { useLegacyPackaging = false } }
     testOptions { unitTests.isReturnDefaultValues = true }
     // The generated UniFFI bindings use java.lang.ref.Cleaner with a runtime check
     lint { lintConfig = file("lint.xml") }
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -65,10 +69,33 @@ dependencies {
     implementation(libs.zxing.core)                   // decodes/generates QR codes on the device
     implementation(libs.biometric)                    // family mode: the guardian confirms with fingerprint or PIN
     implementation(libs.fragment)
+    implementation(libs.health.connect)                // "Workout" goals: today's exercise minutes (read only)
+    implementation(libs.mlkit.genai.prompt)            // goal check suggestions with the phone's own Gemini Nano (AICore)
     testImplementation(libs.junit)
     testImplementation(libs.jna)                      // the UniFFI types load JNA in the test JVM
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.espresso.core)
+}
+
+// SECURITY: The camera verifier stays a separate APK WITHOUT Internet, but it ships inside this one
+// (assets/verifier.apk, same build type) and onboarding installs it first, before blocking starts (VerifierScreen, VerifierLauncher.kt).
+// Release: CI embeds the unsigned verifier; the signing ceremony swaps in the signed one (RELEASING.md).
+abstract class EmbedVerifier : DefaultTask() {
+    @get:InputFiles abstract val apks: ConfigurableFileCollection
+    @get:OutputDirectory abstract val out: DirectoryProperty
+
+    @TaskAction fun copy() {
+        apks.asFileTree.matching { include("*.apk") }.singleFile
+            .copyTo(out.file("verifier.apk").get().asFile, overwrite = true)
+    }
+}
+androidComponents.onVariants { variant ->
+    val type = variant.buildType ?: return@onVariants
+    val embed = tasks.register<EmbedVerifier>("embed${variant.name.replaceFirstChar(Char::uppercase)}Verifier") {
+        apks.from(rootProject.layout.projectDirectory.dir("verifier/build/outputs/apk/$type"))
+            .builtBy(":verifier:assemble${type.replaceFirstChar(Char::uppercase)}")
+    }
+    variant.sources.assets?.addGeneratedSourceDirectory(embed, EmbedVerifier::out)
 }
 
 // Builds the Rust core before every build (needs cargo-ndk and the NDK).
@@ -79,7 +106,7 @@ val buildRust by tasks.registering(Exec::class) {
         "cargo", "ndk",
         "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86_64",
         "-o", "android/app/src/main/jniLibs",
-        "build", "-p", "procastinacioff-core", "--release",
+        "build", "-p", "procastinatioff-core", "--release",
     )
 }
 tasks.named("preBuild") { dependsOn(buildRust) }

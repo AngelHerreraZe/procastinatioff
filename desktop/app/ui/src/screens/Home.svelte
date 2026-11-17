@@ -112,7 +112,7 @@
 
 <div class="layout">
   <nav class="side" aria-label={t('home.nav_label')}>
-    <p class="brand"><img src="/logo.png" alt="" width="28" height="28" /> ProcastinaciOFF</p>
+    <p class="brand"><img src="/logo.png" alt="" width="28" height="28" /> ProcastinatiOFF</p>
     <button class="nav-item active" aria-current="page"><Icon name="home" /> {t('home.today')}</button>
     {#if !status.free_day && !status.needs_plan}
       <button class="nav-item" onclick={onplan}><Icon name="plus" /> {t('home.add_goal')}</button>

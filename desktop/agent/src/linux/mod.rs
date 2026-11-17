@@ -21,8 +21,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_core::model::DayState;
+use procastinatioff_core::api::Core;
+use procastinatioff_core::model::DayState;
 
 use crate::clock::now_clock;
 use crate::common::{self, Grace, Shared, TICK, Upkeep, note_blocked};
@@ -30,10 +30,10 @@ use crate::lan;
 use apps::DesktopApps;
 use exec_guard::{Guard, Snapshot, View};
 
-pub const DATA_DIR: &str = "/var/lib/procastinacioff";
-pub const INSTALL_DIR: &str = "/usr/lib/procastinacioff";
+pub const DATA_DIR: &str = "/var/lib/procastinatioff";
+pub const INSTALL_DIR: &str = "/usr/lib/procastinatioff";
 /// Where the UI package (Tauri `.deb`) installs the UI: root-owned, the user cannot replace it.
-const UI_EXE: &str = "/usr/bin/procastinacioff-app";
+const UI_EXE: &str = "/usr/bin/procastinatioff-app";
 /// New apps installed and drives mounted are picked up this often.
 const RESCAN_EVERY: Duration = Duration::from_secs(60);
 /// While sleeping, sessions are locked again this often if someone unlocks them.
@@ -51,7 +51,7 @@ pub fn main() {
         }
         // The package calls it before removing the agent: a minor's computer must not keep a dead DNS.
         Some("restore-dns") => family::restore(Path::new(DATA_DIR)),
-        _ => eprintln!("usage: procastinacioff-agent (service|restore-dns)"),
+        _ => eprintln!("usage: procastinatioff-agent (service|restore-dns)"),
     }
 }
 

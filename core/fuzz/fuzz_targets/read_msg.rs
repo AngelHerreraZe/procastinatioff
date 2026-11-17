@@ -3,7 +3,7 @@
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    if data.len() <= procastinacioff_proto::MAX_FRAME {
-        let _ = procastinacioff_proto::decode(data);
+    if data.len() <= procastinatioff_proto::MAX_FRAME {
+        let _ = procastinatioff_proto::decode(data);
     }
 });

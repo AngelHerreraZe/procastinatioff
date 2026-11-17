@@ -4,8 +4,9 @@
   // Once confirmed, the plan can only be tightened (add goals or raise targets) until tomorrow.
   import { untrack } from 'svelte';
   import {
-    ALL_DAYS, CHECKS, call, methodsForCheck, slug, usesMinutes, type Check, type Goal, type GoalKind, type Status,
+    ALL_DAYS, PLAN_CHECKS, call, methodsForCheck, slug, usesMinutes, type Check, type Goal, type GoalKind, type Status,
   } from '../lib/agent';
+  import CheckSelect from '../components/CheckSelect.svelte';
   import { today } from '../lib/format';
   import { t } from '../lib/i18n';
 
@@ -124,11 +125,7 @@
         <label class="radio"><input type="radio" bind:group={kind} value="key" /> {t('common.unlocks')}</label>
         <label class="radio"><input type="radio" bind:group={kind} value="habit" /> {t('common.habit')}</label>
       </fieldset>
-      <label><span>{t('plan.how_checked')}</span>
-        <select bind:value={check}>
-          {#each CHECKS as value (value)}<option {value}>{t(`check.${value}`)}</option>{/each}
-        </select>
-      </label>
+      <CheckSelect {title} {check} options={PLAN_CHECKS} suggest onpick={(c) => (check = c)} />
       {#if usesMinutes(check)}
         <label><span>{t('common.minutes')}</span><input type="number" min="0" max="600" step="5" bind:value={minutes} /></label>
       {/if}

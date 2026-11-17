@@ -1,7 +1,7 @@
 # SECURITY: Desktop verifier. Runs INSIDE an AppContainer without network (the UI launches it with
-# procastinacioff-sandbox). Never writes to disk: frames in RAM and one JSON line on stdout.
+# procastinatioff-sandbox). Never writes to disk: frames in RAM and one JSON line on stdout.
 [package]
-name = "procastinacioff-verifier"
+name = "procastinatioff-verifier"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
-procastinacioff-verify = { path = "../../verify" }
+procastinatioff-verify = { path = "../../verify" }
 serde_json.workspace = true
 sha2.workspace = true
 hex.workspace = true
@@ -19,4 +19,4 @@ tract-onnx = "0.23.10"                                             # pure-Rust O
 nokhwa = { version = "0.10.11", features = ["input-native"] }     # camera (Media Foundation), in memory
 
 [dev-dependencies]
-procastinacioff-sandbox = { path = "../sandbox" }
+procastinatioff-sandbox = { path = "../sandbox" }

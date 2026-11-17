@@ -5,7 +5,7 @@
 import ManagedSettings
 import UserNotifications
 
-/// Shield buttons. The shield cannot open the app: "Open ProcastinaciOFF" posts a
+/// Shield buttons. The shield cannot open the app: "Open ProcastinatiOFF" posts a
 /// local notification that opens it when tapped.
 final class ShieldActions: ShieldActionDelegate {
     override func handle(action: ShieldAction, for application: ApplicationToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
@@ -23,7 +23,7 @@ final class ShieldActions: ShieldActionDelegate {
     private func respond(_ action: ShieldAction, _ done: @escaping (ShieldActionResponse) -> Void) {
         guard action == .secondaryButtonPressed else { return done(.close) }
         let content = UNMutableNotificationContent()
-        content.title = "ProcastinaciOFF"
+        content.title = "ProcastinatiOFF"
         content.body = String(localized: "Tap here to see your goals or use a pass.")
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "open-app", content: content, trigger: nil)) { _ in
             done(.defer)

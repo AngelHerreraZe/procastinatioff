@@ -10,7 +10,7 @@
 //! in the last 24 h; otherwise the median of the samples (one peer with a changed clock cannot win).
 
 use ed25519_dalek::{Signature, Signer, SigningKey};
-use procastinacioff_proto as proto;
+use procastinatioff_proto as proto;
 
 const FRESH_MS: i64 = 24 * 3_600_000;
 

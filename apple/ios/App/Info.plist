@@ -13,7 +13,7 @@
 	</dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>dev.procastinacioff.app.sync</string>
+		<string>dev.procastinatioff.app.sync</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -33,5 +33,7 @@
 	<string>To turn your voice into text on this iPhone, without sending it to any server.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>To confirm changes to your rules with Face ID.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>To check workout goals with today's exercise minutes. Nothing else is read, nothing is written, and nothing leaves this iPhone.</string>
 </dict>
 </plist>

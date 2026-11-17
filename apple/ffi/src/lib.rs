@@ -6,5 +6,5 @@
 //! the same binary would duplicate the standard library and the UniFFI symbols. The Swift bindings
 //! are generated from each crate separately (`scripts/build_apple.sh`); here they are only linked.
 
-pub use procastinacioff_core;
-pub use procastinacioff_verify;
+pub use procastinatioff_core;
+pub use procastinatioff_verify;

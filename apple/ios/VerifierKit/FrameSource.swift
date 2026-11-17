@@ -14,7 +14,7 @@ enum VerifierError: Error {
 /// that save photos or video, and any network or disk API in VerifierKit).
 final class FrameSource: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let session = AVCaptureSession()
-    private let queue = DispatchQueue(label: "dev.procastinacioff.frames")
+    private let queue = DispatchQueue(label: "dev.procastinatioff.frames")
     private let everyMs: Int64
     private let onFrame: (CVPixelBuffer, Int64) -> Void
     private var lastMs: Int64?

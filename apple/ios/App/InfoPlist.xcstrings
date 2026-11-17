@@ -35,6 +35,23 @@
         }
       }
     },
+    "NSHealthShareUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To check workout goals with today's exercise minutes. Nothing else is read, nothing is written, and nothing leaves this iPhone."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para revisar metas de ejercicio con los minutos de ejercicio de hoy. No se lee nada más, no se escribe nada y nada sale de este iPhone."
+          }
+        }
+      }
+    },
     "NSLocalNetworkUsageDescription": {
       "extractionState": "manual",
       "localizations": {

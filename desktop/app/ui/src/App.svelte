@@ -110,7 +110,7 @@
 {#if !agent}
   <main class="center stack">
     <img src="/logo.png" alt="" width="72" height="72" />
-    <h1>ProcastinaciOFF</h1>
+    <h1>ProcastinatiOFF</h1>
     <p class="muted" aria-live="polite">{message ? t('app.no_service') : t('app.connecting')}</p>
   </main>
 {:else if !core}

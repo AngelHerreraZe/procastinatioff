@@ -26,11 +26,31 @@ one for 6 months.
 - Android: if another fingerprint is enrolled, fingerprint unlock is turned off and says so; it
   can be turned on again only after unlocking with the PIN, password or pattern.
 - Sync protocol version 2.
+- Renamed to ProcastinatiOFF, internal ids included (`dev.procastinatioff.*`, signing domains,
+  sync ALPN, key aliases). Not compatible with earlier builds: install again and pair again.
+- Android: the camera verifier (still a separate app without Internet access) now comes inside the
+  app, which installs it as the first setup step, before blocking can get in the installer's way;
+  the screen explains why there are two installs (new permission `REQUEST_INSTALL_PACKAGES`, used
+  only for that). Windows: the installer now includes the verifier.
+- Goal check suggestions run on the device: the phone's own model when it has one (Gemini Nano
+  through AICore on Android, Apple's on-device model on iOS 26) or the core's keyword catalog. The
+  goal's name never leaves the device, and the answer can only be one of the offered checks.
+- New Android permissions: `health.READ_EXERCISE` (only today's total workout minutes, for workout
+  goals) and AICore's `BIND_SERVICE` (added by ML Kit GenAI). iOS: HealthKit, read only.
+- Place goals keep only the hash of their QR, so no device can show it again; a new QR counts as
+  relaxing (next wake-up), and a day plan cannot swap it.
 
 ### Added
 - Linux agent (systemd service), packaging for Debian/Ubuntu.
 - Trusted contact mode, encrypted backup, local network discovery (mDNS with names that change
   every day).
+- Goals for anyone, not only reading or eating well: place goals (scan a QR stuck at the gym, the
+  library or the office), workout goals (Health Connect / Apple Health minutes) and goals the
+  guardian confirms from their phone. How a goal is checked is suggested from its name.
+
+### Changed
+- Android build: AGP 8.9.3, Gradle 8.14, Kotlin 2.3.21, compileSdk 36 (targetSdk stays 35), needed
+  by Health Connect 1.1 and ML Kit GenAI.
 
 ### Removed
 - `relay/`, `push-gateway/`, Firebase and the iOS notification service extension.

@@ -8,7 +8,7 @@
 mod pipe;
 mod verify;
 
-use procastinacioff_ipc::{Request, Response};
+use procastinatioff_ipc::{Request, Response, goals};
 use tauri::Manager;
 
 /// The only UI → service bridge. The UI's JSON is validated when deserializing `Request`.
@@ -36,12 +36,27 @@ fn qr_svg(text: String) -> Result<String, String> {
     Ok(code.render::<qrcode::render::svg::Color>().min_dimensions(256, 256).quiet_zone(true).build())
 }
 
+/// How to check a goal, suggested from its name: the core's keyword catalog. The PC has no usable
+/// on-device model (Phi Silica needs an MSIX package, a Microsoft unlock token and a Copilot+ PC).
+#[tauri::command]
+fn suggest_checks(title: String) -> Vec<goals::Check> {
+    goals::suggest_checks(title.chars().take(80).collect())
+}
+
+/// A new place QR: the UI shows `code` once and saves only `hash` in the goal.
+#[tauri::command]
+fn new_place_anchor() -> goals::PlaceAnchor {
+    goals::new_place_anchor()
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             agent,
             lock_screen,
             qr_svg,
+            suggest_checks,
+            new_place_anchor,
             verify::verify_on_pc,
             verify::stop_verification
         ])
@@ -66,6 +81,14 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn suggestions_and_anchors_reach_the_ui_as_json() {
+        let s = serde_json::to_string(&super::suggest_checks("Ir al gimnasio".into())).unwrap();
+        assert!(s.starts_with(r#"["place""#), "{s}");
+        let a = serde_json::to_value(super::new_place_anchor()).unwrap();
+        assert!(a["code"].is_string() && a["hash"].as_str().unwrap().len() == 64);
+    }
+
     #[test]
     fn qr_is_svg_and_rejects_huge_input() {
         assert!(super::qr_svg("{\"v\":1}".into()).unwrap().contains("<svg"));

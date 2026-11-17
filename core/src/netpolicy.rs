@@ -95,10 +95,10 @@ fn safe_target(domain: &str) -> Option<&'static str> {
 pub struct CategorySet(HashSet<String>);
 
 impl CategorySet {
-    /// Format: first line "procastinacioff-categories v1", then one domain per line ("#" = comment).
+    /// Format: first line "procastinatioff-categories v1", then one domain per line ("#" = comment).
     pub fn parse(text: &str) -> Option<Self> {
         let mut lines = text.lines();
-        if lines.next()?.trim() != "procastinacioff-categories v1" {
+        if lines.next()?.trim() != "procastinatioff-categories v1" {
             return None;
         }
         Some(Self(lines.map(normalize).filter(|l| !l.is_empty() && !l.starts_with('#')).collect()))
@@ -240,7 +240,7 @@ mod tests {
     use hickory_proto::rr::rdata::A;
 
     fn cats() -> CategorySet {
-        CategorySet::parse("procastinacioff-categories v1\n# adultos\nexample-adult.com\n").unwrap()
+        CategorySet::parse("procastinatioff-categories v1\n# adultos\nexample-adult.com\n").unwrap()
     }
 
     fn query(name: &str, t: RecordType) -> Vec<u8> {
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn category_list_format() {
         assert!(CategorySet::parse("otra cosa\nx.com").is_none());
-        let c = CategorySet::parse("procastinacioff-categories v1\nX.com.\n\n# c\n").unwrap();
+        let c = CategorySet::parse("procastinatioff-categories v1\nX.com.\n\n# c\n").unwrap();
         assert_eq!(c.len(), 1);
         assert!(c.contains("a.b.x.com") && !c.contains("ax.com"));
     }

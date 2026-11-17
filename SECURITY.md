@@ -28,4 +28,4 @@ social engineering; attacks on devices or accounts that are not yours.
 Rewards: a paid bounty program is planned. Until it opens, every valid report is credited in the
 release notes (if you want).
 
-ProcastinaciOFF has no servers: the project holds no user data.
+ProcastinatiOFF has no servers: the project holds no user data.

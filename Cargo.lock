@@ -5174,16 +5174,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "procastinacioff-agent"
+name = "procastinatioff-agent"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
  "chrono",
  "mdns-sd",
  "nix",
- "procastinacioff-core",
- "procastinacioff-ipc",
- "procastinacioff-netfilter",
+ "procastinatioff-core",
+ "procastinatioff-ipc",
+ "procastinatioff-netfilter",
  "serde",
  "serde_json",
  "tokio",
@@ -5196,11 +5196,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "procastinacioff-app"
+name = "procastinatioff-app"
 version = "0.1.0"
 dependencies = [
- "procastinacioff-ipc",
- "procastinacioff-sandbox",
+ "procastinatioff-ipc",
+ "procastinatioff-sandbox",
  "qrcode",
  "serde",
  "serde_json",
@@ -5210,15 +5210,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "procastinacioff-apple"
+name = "procastinatioff-apple"
 version = "0.1.0"
 dependencies = [
- "procastinacioff-core",
- "procastinacioff-verify",
+ "procastinatioff-core",
+ "procastinatioff-verify",
 ]
 
 [[package]]
-name = "procastinacioff-core"
+name = "procastinatioff-core"
 version = "0.1.0"
 dependencies = [
  "age",
@@ -5230,8 +5230,9 @@ dependencies = [
  "hickory-proto",
  "hmac",
  "iroh",
+ "jni-sys 0.4.1",
  "minisign-verify",
- "procastinacioff-proto",
+ "procastinatioff-proto",
  "proptest",
  "rand 0.8.8",
  "rusqlite",
@@ -5246,23 +5247,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "procastinacioff-ipc"
+name = "procastinatioff-ipc"
 version = "0.1.0"
 dependencies = [
- "procastinacioff-core",
+ "procastinatioff-core",
 ]
 
 [[package]]
-name = "procastinacioff-netfilter"
+name = "procastinatioff-netfilter"
 version = "0.1.0"
 dependencies = [
- "procastinacioff-core",
+ "procastinatioff-core",
  "tokio",
  "tracing",
 ]
 
 [[package]]
-name = "procastinacioff-proto"
+name = "procastinatioff-proto"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek 2.2.0",
@@ -5273,27 +5274,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "procastinacioff-sandbox"
+name = "procastinatioff-sandbox"
 version = "0.1.0"
 dependencies = [
  "windows 0.58.0",
 ]
 
 [[package]]
-name = "procastinacioff-verifier"
+name = "procastinatioff-verifier"
 version = "0.1.0"
 dependencies = [
  "hex",
  "nokhwa",
- "procastinacioff-sandbox",
- "procastinacioff-verify",
+ "procastinatioff-sandbox",
+ "procastinatioff-verify",
  "serde_json",
  "sha2 0.10.9",
  "tract-onnx",
 ]
 
 [[package]]
-name = "procastinacioff-verify"
+name = "procastinatioff-verify"
 version = "0.1.0"
 dependencies = [
  "proptest",

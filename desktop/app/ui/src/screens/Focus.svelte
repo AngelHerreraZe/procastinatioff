@@ -5,7 +5,7 @@
   // - Goal with the PC camera → the verifier runs sandboxed without network; it only returns whether it was done.
   import { canVerifyOnPc, stopVerification, verifyOnPc } from '../lib/native';
   import { errorText, t, tn } from '../lib/i18n';
-  import { PC_CAMERA, call, type Goal, type Status } from '../lib/agent';
+  import { PC_CAMERA, PHONE_ONLY, call, type Goal, type Status } from '../lib/agent';
   import Emergency from '../components/Emergency.svelte';
 
   let {
@@ -52,6 +52,9 @@
   });
 
   const cameraMethod = $derived(canVerifyOnPc ? goal?.methods.find((m) => PC_CAMERA.includes(m)) : undefined);
+  // Witness: only the guardian completes it. Place and workout goals: the phone checks them.
+  const declares = $derived(!goal || goal.methods.includes('honor_declaration'));
+  const onPhone = $derived(!!goal?.methods.some((m) => PHONE_ONLY.includes(m)));
   let verifying = $state(false);
   let cameraNote = $state('');
 
@@ -89,7 +92,9 @@
     <span class="chip now">{t('focus.now')}</span>
     <h1 id="task">{progress?.title ?? t('focus.your_goal')}</h1>
 
-    {#if declaring}
+    {#if declaring && !declares}
+      <p class="instruction">{t('focus.witness_waiting')}</p>
+    {:else if declaring}
       <p class="instruction">{t('focus.declare_instruction')}</p>
       <label>
         <span class="sr-only">{t('focus.what_you_did')}</span>
@@ -111,6 +116,8 @@
       </button>
       <p class="sr-only" aria-live="polite">{announced}</p>
     {/if}
+
+    {#if onPhone}<p class="muted" role="note">{t('focus.on_phone')}</p>{/if}
 
     {#if cameraMethod}
       {#if verifying}

@@ -4,14 +4,14 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use procastinacioff_core::api::{Core, FamilyAlert};
-use procastinacioff_core::clock::Clock;
-use procastinacioff_core::crypto::SecretStore;
-use procastinacioff_core::error::CoreError;
-use procastinacioff_core::model::{
+use procastinatioff_core::api::{Core, FamilyAlert};
+use procastinatioff_core::clock::Clock;
+use procastinatioff_core::crypto::SecretStore;
+use procastinatioff_core::error::CoreError;
+use procastinatioff_core::model::{
     Change, Config, ContactAlert, DayState, Effective, Method, NoticeKind, OfflineAsk, RequestKind, Role, TamperKind,
 };
-use procastinacioff_core::peer::PeerNet;
+use procastinatioff_core::peer::PeerNet;
 
 #[derive(Default)]
 struct Mem(Mutex<BTreeMap<String, Vec<u8>>>);
@@ -243,7 +243,7 @@ fn outsiders_get_nothing() {
     let stranger = PeerNet::bind(&[42u8; 32], 0, false).unwrap();
     let got = stranger.block_on(async {
         let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
-        let conn = stranger.connect(&node, &[addr], procastinacioff_proto::SYNC_ALPN).await.unwrap();
+        let conn = stranger.connect(&node, &[addr], procastinatioff_proto::SYNC_ALPN).await.unwrap();
         let Ok((mut send, mut recv)) = conn.open_bi().await else { return 0 };
         let _ = send.write_all(b"hello?").await;
         let _ = send.finish();
@@ -258,7 +258,7 @@ fn backup_restores_the_same_device() {
     phone.create_profile(MONDAY_9, "Phone".into(), Config::example()).unwrap();
     pair(&phone, &pc, "PC", None, MONDAY_9);
     phone.plan_day(MONDAY_9, vec![]).unwrap();
-    let pass = procastinacioff_core::api::new_backup_passphrase();
+    let pass = procastinatioff_core::api::new_backup_passphrase();
     let file = phone.export_backup(pass.clone()).unwrap();
 
     let dir = std::env::temp_dir().join(format!("pco-it-restore-{}-{}", std::process::id(), rand_suffix()));

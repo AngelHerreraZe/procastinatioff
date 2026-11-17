@@ -1,6 +1,6 @@
 # A single static library for iOS and macOS.
 [package]
-name = "procastinacioff-apple"
+name = "procastinatioff-apple"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -8,9 +8,9 @@ rust-version.workspace = true
 publish.workspace = true
 
 [lib]
-name = "procastinacioff_apple"
+name = "procastinatioff_apple"
 crate-type = ["staticlib"]
 
 [dependencies]
-procastinacioff-core = { path = "../../core" }
-procastinacioff-verify = { path = "../../verify" }
+procastinatioff-core = { path = "../../core" }
+procastinatioff-verify = { path = "../../verify" }

@@ -4,7 +4,7 @@
 
 //! Linux keystore (security-critical): a 32-byte master key that systemd decrypts for the service
 //! only (`LoadCredentialEncrypted`, bound to the TPM2 if there is one) and ChaCha20-Poly1305 per
-//! secret in /var/lib/procastinacioff/secrets (0700, root).
+//! secret in /var/lib/procastinatioff/secrets (0700, root).
 //! File = random 12-byte nonce ‖ ciphertext; the secret's name is the associated data, so files
 //! cannot be swapped for one another.
 //! ponytail: root can read the master key while the service runs; acceptable because root is the
@@ -15,12 +15,12 @@ use std::path::{Path, PathBuf};
 
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use procastinacioff_core::crypto::SecretStore;
-use procastinacioff_core::error::CoreError;
+use procastinatioff_core::crypto::SecretStore;
+use procastinatioff_core::error::CoreError;
 use zeroize::Zeroizing;
 
-/// Name of the credential in the unit (`LoadCredentialEncrypted=procastinacioff.master:…`).
-pub const MASTER: &str = "procastinacioff.master";
+/// Name of the credential in the unit (`LoadCredentialEncrypted=procastinatioff.master:…`).
+pub const MASTER: &str = "procastinatioff.master";
 const NONCE_LEN: usize = 12;
 
 fn err(e: impl std::fmt::Display) -> CoreError {

@@ -2,9 +2,9 @@
 <!-- Source language (English). Translators: copy this file to values-<lang>/strings.xml and translate the text only.
      Keep the names and the %1$s / %1$d placeholders. Do not translate entries marked translatable="false". -->
 <resources>
-    <string name="app_name" translatable="false">ProcastinaciOFF</string>
+    <string name="app_name" translatable="false">ProcastinatiOFF</string>
     <string name="blocker_summary">Blocks apps until you complete your goals.</string>
-    <string name="blocker_description">ProcastinaciOFF uses Accessibility ONLY to know which app is open (its package name) and show a block screen if it is not allowed by your goals. It does not read the screen content, does not record what you type and does not send this information anywhere.</string>
+    <string name="blocker_description">ProcastinatiOFF uses Accessibility ONLY to know which app is open (its package name) and show a block screen if it is not allowed by your goals. It does not read the screen content, does not record what you type and does not send this information anywhere.</string>
     <string name="action_continue">Continue</string>
     <string name="action_start">Start</string>
     <string name="add">Add</string>
@@ -34,6 +34,27 @@
     <string name="check_exercise">Exercise (camera)</string>
     <string name="check_food">Healthy food (photo)</string>
     <string name="check_mark">Mark as done</string>
+    <string name="check_place">Place (QR)</string>
+    <string name="check_health">Workout (Health Connect)</string>
+    <string name="check_witness">Guardian confirms</string>
+    <string name="suggested_by_name">Suggested from the goal\'s name. Tap another one if it does not fit.</string>
+    <string name="suggested_by_ai">Suggested by this phone\'s own AI, without sending anything. Tap another one if it does not fit.</string>
+    <string name="place_qr_title">The QR for this place</string>
+    <string name="place_qr_note">Print it or take a screenshot now and stick it where you do this goal. It is shown only once: a new QR counts as relaxing the goal.</string>
+    <string name="place_qr_saved">I saved it</string>
+    <string name="health_minutes_note">Minutes of workouts in Health Connect today (from your watch or a sports app).</string>
+    <string name="scan_place">Scan the QR at the place</string>
+    <string name="health_check">Check my workouts in Health Connect</string>
+    <string name="health_unavailable">Health Connect is not available on this phone. You can mark the goal as done instead.</string>
+    <string name="health_denied">Without access to your workouts, Health Connect cannot check this goal.</string>
+    <string name="health_progress">Health Connect shows %1$d of %2$d min of workouts today.</string>
+    <string name="health_rationale_title">What ProcastinatiOFF reads from Health Connect</string>
+    <string name="health_rationale_body">Only today\'s total minutes of workouts, to check goals such as \"Go for a run\". It never reads routes, heart rate or any other data, never writes anything, and nothing leaves this phone.</string>
+    <string name="witness_waiting">Your guardian confirms this goal from their phone.</string>
+    <string name="witness_title">Confirm what you saw</string>
+    <string name="witness_confirm">I saw it: mark as done</string>
+    <string name="witness_reason">Confirm \"%1$s\"</string>
+    <string name="denied_wrong_anchor">That QR is not this goal\'s place.</string>
     <string name="emergency_title">Emergency</string>
     <string name="emergency_body">Gives you 15 free minutes. It costs one pass tomorrow and is recorded.</string>
     <string name="emergency_why">Why do you need it?</string>
@@ -106,7 +127,7 @@
     <string name="camera_food">Live photo of the plate</string>
     <string name="camera_pages">Photograph the pages and summarize</string>
     <string name="camera_reading">Check reading with the camera</string>
-    <string name="install_verifier">Install the ProcastinaciOFF verifier (it has no Internet access) to use the camera.</string>
+    <string name="verifier_install_failed">The camera verifier (it comes inside the app and has no Internet access) was not installed. Try again and accept the installation.</string>
     <string name="camera_note">The camera is only used in the verifier, which has no Internet access. Nothing is recorded.</string>
     <string name="next_goal">Next: %1$s</string>
     <string name="no_rush_habit">No rush: %1$s (habit)</string>
@@ -126,13 +147,23 @@
     <string name="permissions_title">Prepare your space</string>
     <string name="permissions_lead">Turn on only what is needed. You can review each one before you continue.</string>
     <string name="setup_later">Set up later</string>
+    <string name="verifier_setup_title">First, the verifier</string>
+    <string name="verifier_setup_lead">ProcastinatiOFF comes in two apps, so there are two installs. Install the verifier now; then you set up the app.</string>
+    <string name="verifier_why_camera_title">The verifier sees, but cannot send</string>
+    <string name="verifier_why_camera_body">It uses the camera to check your goals and has no Internet access: Android denies it the network, so nothing it sees can leave the phone.</string>
+    <string name="verifier_why_app_title">The app syncs, but never sees</string>
+    <string name="verifier_why_app_body">It talks to your other devices, but only learns whether a goal was met. Two apps keep the camera and the Internet apart.</string>
+    <string name="verifier_why_now_title">Before blocking starts</string>
+    <string name="verifier_why_now_body">Once blocking is on, the system installer is out of reach. Android will ask you to allow installs from ProcastinatiOFF: it is only for the verifier.</string>
+    <string name="verifier_install">Install the verifier</string>
+    <string name="verifier_installed">Installed</string>
     <string name="calls_stay_available">Calls and emergencies stay available.</string>
     <string name="protection_off">Blocking is paused: Accessibility is off on this phone.</string>
     <string name="review_permissions">Review permissions</string>
     <string name="perm_accessibility">Accessibility</string>
     <string name="perm_accessibility_why">To know which app is open (only its name) and show the block screen. We do not read the screen or what you type.</string>
     <string name="perm_dnd">Do Not Disturb</string>
-    <string name="perm_dnd_why">To silence everything except calls at bedtime.</string>
+    <string name="perm_dnd_why">To silence notifications at bedtime. Calls, alarms and music keep their sound.</string>
     <string name="perm_admin">Uninstall protection</string>
     <string name="perm_admin_why">So you cannot uninstall the app on an impulse. You can turn it off, but it will be recorded.</string>
     <string name="perm_admin_explanation">Prevents impulsive uninstalls.</string>
@@ -148,7 +179,7 @@
     <string name="choose_guardian">I\'m a parent or guardian</string>
     <string name="default_label_guardian">Guardian</string>
     <string name="default_label_phone">Phone</string>
-    <string name="example_goal_read">Read for 30 minutes</string>
+    <string name="example_goal_read">Read</string>
     <string name="example_goal_eat">Eat healthy</string>
     <string name="config_minor_title">Minor\'s profile</string>
     <string name="config_minor_name">Minor\'s name (only on this phone)</string>
@@ -173,7 +204,7 @@
     <string name="focus_sites">Sites allowed during focus</string>
     <string name="goal">Goal</string>
     <string name="edit">Edit</string>
-    <string name="save_goal">Save goal</string>
+    <string name="done">Done</string>
     <string name="goal_apps">Apps for this goal (%1$d)</string>
     <string name="goal_sites_pc">Sites for this goal (PC)</string>
     <string name="create_profile">Create profile</string>
@@ -284,6 +315,15 @@
     <string name="shield_continue">Continue: %1$s</string>
     <string name="ask_your_guardian">Ask your guardian</string>
     <string name="channel_updates">Updates</string>
+    <string name="channel_goal_reminders">Goal reminders</string>
+    <string name="cheer_title">Keep going</string>
+    <string-array name="cheers">
+        <item>You\'re doing great. That app can wait; your goal can\'t.</item>
+        <item>Every minute on your goal counts. Keep it up.</item>
+        <item>You\'ve got this. Finish your goal and everything opens up.</item>
+        <item>Tomorrow\'s you will thank you. Stay with your goal.</item>
+        <item>One more step. You\'re closer than you think.</item>
+    </string-array>
     <string name="notify_contact_alert">There are alerts from the person you support</string>
     <string name="notify_family_request">You have requests from your family</string>
     <string name="notify_request_answered">Your request has an answer</string>
@@ -291,8 +331,8 @@
     <string name="notify_device_silent">One of your devices has not been seen for a while</string>
     <string name="admin_disable_warning">If you turn off the protection, it will be recorded and your other devices will know.</string>
     <string name="channel_protection">Active protection</string>
-    <string name="protection_active">ProcastinaciOFF is active</string>
-    <string name="vpn_session">ProcastinaciOFF · filter</string>
+    <string name="protection_active">ProcastinatiOFF is active</string>
+    <string name="vpn_session">ProcastinatiOFF · filter</string>
     <string name="verify_no_result">The check stopped without a result.</string>
     <string name="verify_not_genuine">The installed verifier is not genuine.</string>
     <string name="verify_not_confirmed">It could not be confirmed this time. You can try again or use another option.</string>

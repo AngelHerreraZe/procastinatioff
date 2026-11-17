@@ -1,6 +1,6 @@
 {
   "bundle": {
-    "externalBin": ["binaries/procastinacioff-agent"],
+    "externalBin": ["binaries/procastinatioff-agent", "binaries/procastinatioff-verifier"],
     "windows": {
       "nsis": { "languages": ["English", "Spanish"] }
     }

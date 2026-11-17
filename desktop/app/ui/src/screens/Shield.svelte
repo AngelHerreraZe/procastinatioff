@@ -26,6 +26,8 @@
   const next = $derived(pending[0]);
   const nextGoal = $derived(next ? goals.find((g) => g.id === next.goal_id) : undefined);
   const focusing = $derived(status.state.state === 'focus');
+  // A positive reminder, a different one each time the shield appears (shield.cheer_1…5).
+  const cheer = t(`shield.cheer_${1 + Math.floor(Math.random() * 5)}`);
 </script>
 
 <main class="shield" aria-labelledby="shield-title">
@@ -70,6 +72,7 @@
         <button class="btn-text" onclick={ondismiss}>{t('shield.ok')}</button>
       </div>
     {/if}
+    {#if reason !== 'sleep'}<p class="cheer">{cheer}</p>{/if}
     <Emergency {onerror} />
   </section>
 </main>
@@ -79,4 +82,5 @@
   .panel { max-width: 640px; width: 100%; padding: 36px; gap: 18px; }
   .icon { width: 56px; height: 56px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
   .lead { font-size: 18px; line-height: 1.5; }
+  .cheer { color: var(--accent); font-weight: 600; }
 </style>

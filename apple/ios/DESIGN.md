@@ -45,7 +45,7 @@ at the default Dynamic Type size.
 | Icon | SF Symbol in `accent`: `moon` (bedtime), `target` (focus), `lock` (locked) |
 | Title / subtitle | `text` / `muted` |
 | Primary button | "Got it": `accent` fill, `on-accent` text |
-| Secondary button | "Open ProcastinaciOFF" in `accent`; none at bedtime (only calls) |
+| Secondary button | "Open ProcastinatiOFF" in `accent`; none at bedtime (only calls) |
 
 The shield cannot open the app; the secondary button posts a local notification that does.
 
@@ -64,6 +64,7 @@ section 3) with iOS conventions:
 | Settings | Unlock first (PIN, password, pattern, Face ID or Touch ID via `LocalAuth`); technical report; "Delete all my data" last and apart (`Erase.all()`) |
 | Trusted contact, Family, Guardian, Minor | Same content as Android; lists in inset grouped style |
 | Verifier flows | "Camera on" banner always visible with Stop; nothing is recorded |
+| How a goal is checked | Picker of `Check` cases, preselected by `GoalSuggest` (Apple's on-device model, else the core's catalog) until the person picks; Witness only for a guardian. Place: show `newPlaceAnchor().code` once as a QR (Share sheet to print); scan it with VisionKit's `DataScannerViewController` and call `completeAtAnchor`. Workout: `HealthMinutes`, then `completeGoal(method: .health)` |
 
 ## 5. Not done yet
 

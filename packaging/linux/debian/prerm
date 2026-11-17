@@ -2,6 +2,6 @@
 # On removal: a minor's computer must not be left with a DNS that no longer exists.
 set -e
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
-  /usr/lib/procastinacioff/procastinacioff-agent restore-dns || true
-  systemctl disable --now procastinacioff-agent.service || true
+  /usr/lib/procastinatioff/procastinatioff-agent restore-dns || true
+  systemctl disable --now procastinatioff-agent.service || true
 fi

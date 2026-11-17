@@ -7,7 +7,7 @@
 
 use std::sync::Mutex;
 
-use procastinacioff_ipc::{Request, Response};
+use procastinatioff_ipc::{Request, Response};
 use serde_json::Value;
 
 use crate::pipe;
@@ -33,7 +33,7 @@ pub async fn verify_on_pc(goal_id: String, method: String, target_minutes: u16) 
     if !valid_goal_id(&goal_id) {
         return Err("verify.invalid_goal".into()); // also prevents injecting command-line arguments
     }
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("procastinacioff-verifier.exe");
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("procastinatioff-verifier.exe");
     let cmd = format!("\"{}\" --method {flag} --goal {goal_id} --target {target}", exe.display());
     let timeout_ms = (target as u32 * 60 + 600) * 1000;
     let line =
@@ -69,7 +69,7 @@ pub async fn verify_on_pc(goal_id: String, method: String, target_minutes: u16) 
 }
 
 /// Converts the method's serde name to the core type (via JSON: the UI does not depend on the core).
-fn parse_method(name: &str) -> Option<procastinacioff_ipc::Method> {
+fn parse_method(name: &str) -> Option<procastinatioff_ipc::Method> {
     serde_json::from_value(Value::String(name.into())).ok()
 }
 
@@ -78,7 +78,7 @@ fn parse_method(name: &str) -> Option<procastinacioff_ipc::Method> {
 pub fn stop_verification() {
     if let Some(pid) = RUNNING.lock().unwrap_or_else(|p| p.into_inner()).take() {
         #[cfg(windows)]
-        procastinacioff_sandbox::terminate(pid);
+        procastinatioff_sandbox::terminate(pid);
         #[cfg(not(windows))]
         let _ = pid;
     }
@@ -86,7 +86,7 @@ pub fn stop_verification() {
 
 #[cfg(windows)]
 fn run(cmd: &str, timeout_ms: u32) -> Result<String, String> {
-    procastinacioff_sandbox::run_sandboxed(cmd, timeout_ms, |pid| {
+    procastinatioff_sandbox::run_sandboxed(cmd, timeout_ms, |pid| {
         *RUNNING.lock().unwrap_or_else(|p| p.into_inner()) = Some(pid);
     })
     .map(|o| o.line)

@@ -2,10 +2,10 @@
 # Creates the master key once (TPM2 if available) and starts the agent.
 set -e
 if [ "$1" = "configure" ]; then
-  if [ ! -f /etc/credstore.encrypted/procastinacioff.master ]; then
+  if [ ! -f /etc/credstore.encrypted/procastinatioff.master ]; then
     mkdir -p -m 0700 /etc/credstore.encrypted
-    head -c 32 /dev/urandom | systemd-creds encrypt --with-key=auto --name=procastinacioff.master - /etc/credstore.encrypted/procastinacioff.master
+    head -c 32 /dev/urandom | systemd-creds encrypt --with-key=auto --name=procastinatioff.master - /etc/credstore.encrypted/procastinatioff.master
   fi
   systemctl daemon-reload
-  systemctl enable --now procastinacioff-agent.service
+  systemctl enable --now procastinatioff-agent.service
 fi

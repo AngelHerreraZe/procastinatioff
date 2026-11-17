@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// Sync between members of a profile.
-pub const SYNC_ALPN: &[u8] = b"procastinacioff/sync/1";
+pub const SYNC_ALPN: &[u8] = b"procastinatioff/sync/1";
 /// Pairing: only the device showing the QR accepts it, and only while the QR is valid.
-pub const PAIR_ALPN: &[u8] = b"procastinacioff/pair/1";
+pub const PAIR_ALPN: &[u8] = b"procastinatioff/pair/1";
 /// 2: change authorization (ADR 0013): the trusted contact role and its events.
 pub const PROTOCOL_VERSION: u8 = 2;
 /// Oldest version still accepted. A family's devices update at different paces: after raising
@@ -37,7 +37,7 @@ pub const MAX_EVENTS_PER_SESSION: usize = 10_000;
 /// 64 KB of padding + age header.
 pub const MAX_BLOB: usize = 70 * 1024;
 /// Domain separation: a time signature is never valid as an event signature.
-pub const TIME_DOMAIN: &[u8] = b"procastinacioff/time/v2\0";
+pub const TIME_DOMAIN: &[u8] = b"procastinatioff/time/v2\0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]

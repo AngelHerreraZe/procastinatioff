@@ -1,7 +1,7 @@
 // Global properties of the rules: thousands of random days; none breaks the guarantees.
-use procastinacioff_core::clock::{Clock, DAY_MS, MINUTE_MS, day_start_ms, in_sleep, weekday_index};
-use procastinacioff_core::model::{ALL_DAYS, Config, DayState, EventKind, Fact, Goal, GoalKind, Method};
-use procastinacioff_core::rules::{ConfigHistory, status};
+use procastinatioff_core::clock::{Clock, DAY_MS, MINUTE_MS, day_start_ms, in_sleep, weekday_index};
+use procastinatioff_core::model::{ALL_DAYS, Config, DayState, EventKind, Fact, Goal, GoalKind, Method};
+use procastinatioff_core::rules::{ConfigHistory, status};
 use proptest::prelude::*;
 
 const MONDAY: i64 = 1_773_014_400_000; // 2026-03-09 00:00 UTC
@@ -24,6 +24,7 @@ fn arb_event() -> impl Strategy<Value = EventKind> {
                 weekdays: ALL_DAYS,
                 apps: vec![],
                 sites: vec![],
+                anchor: String::new(),
             }],
         }),
         Just(EventKind::GoalCompleted {

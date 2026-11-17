@@ -12,6 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ProcastinaciOFF"
+rootProject.name = "ProcastinatiOFF"
 include(":app")
 include(":verifier") // SECURITY: Separate APK WITHOUT the Internet permission (camera and microphone)

@@ -8,8 +8,8 @@
 
 use std::path::PathBuf;
 
-use procastinacioff_core::crypto::SecretStore;
-use procastinacioff_core::error::CoreError;
+use procastinatioff_core::crypto::SecretStore;
+use procastinatioff_core::error::CoreError;
 use windows::Win32::Foundation::{HLOCAL, LocalFree};
 use windows::Win32::Security::Cryptography::{
     CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,

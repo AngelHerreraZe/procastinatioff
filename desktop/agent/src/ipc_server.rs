@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::common::{Shared, serve_lines};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_ipc::PIPE_NAME;
+use procastinatioff_core::api::Core;
+use procastinatioff_ipc::PIPE_NAME;
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows::Win32::Foundation::{HANDLE, HLOCAL, LocalFree};
 use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1};
@@ -24,8 +24,8 @@ use windows::core::w;
 use crate::signer::SignerCache;
 
 /// Signer of our binaries (CN of the organization's code-signing certificate).
-pub const OUR_SIGNER: &str = "ProcastinaciOFF SAS"; // ← replace with the real certificate CN
-pub const UI_EXE: &str = "procastinacioff-app.exe";
+pub const OUR_SIGNER: &str = "ProcastinatiOFF SAS"; // ← replace with the real certificate CN
+pub const UI_EXE: &str = "procastinatioff-app.exe";
 
 fn create_pipe(first: bool) -> std::io::Result<NamedPipeServer> {
     unsafe {

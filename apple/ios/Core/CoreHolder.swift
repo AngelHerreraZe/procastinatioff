@@ -16,7 +16,7 @@ enum CoreHolder {
     private static var cores: [String: Core] = [:]
 
     private static var keychainGroup: String {
-        (Bundle.main.object(forInfoDictionaryKey: "AppIdentifierPrefix") as? String ?? "") + "dev.procastinacioff.shared"
+        (Bundle.main.object(forInfoDictionaryKey: "AppIdentifierPrefix") as? String ?? "") + "dev.procastinatioff.shared"
     }
 
     static func open(_ file: String) throws -> Core {

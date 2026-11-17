@@ -6,7 +6,7 @@ use std::time::Instant;
 use iroh::endpoint::presets;
 use iroh::{Endpoint, EndpointAddr, RelayMode, SecretKey};
 
-const ALPN: &[u8] = b"procastinacioff/sync/1";
+const ALPN: &[u8] = b"procastinatioff/sync/1";
 
 async fn ep(seed: u8) -> Endpoint {
     Endpoint::builder(presets::Minimal)

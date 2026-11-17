@@ -2,7 +2,7 @@
 <!-- Spanish translation. Missing entries fall back to English (values/strings.xml). -->
 <resources>
     <string name="blocker_summary">Bloquea apps hasta que cumplas tus metas.</string>
-    <string name="blocker_description">ProcastinaciOFF usa la Accesibilidad SOLO para saber qué app está abierta (su nombre de paquete) y mostrar una pantalla de bloqueo si no está permitida según tus metas. No lee el contenido de la pantalla, no registra lo que escribes y no envía esta información a ningún lugar.</string>
+    <string name="blocker_description">ProcastinatiOFF usa la Accesibilidad SOLO para saber qué app está abierta (su nombre de paquete) y mostrar una pantalla de bloqueo si no está permitida según tus metas. No lee el contenido de la pantalla, no registra lo que escribes y no envía esta información a ningún lugar.</string>
     <string name="action_continue">Continuar</string>
     <string name="action_start">Empezar</string>
     <string name="add">Añadir</string>
@@ -32,6 +32,27 @@
     <string name="check_exercise">Ejercicio (cámara)</string>
     <string name="check_food">Comida sana (foto)</string>
     <string name="check_mark">Marcar como hecha</string>
+    <string name="check_place">Lugar (QR)</string>
+    <string name="check_health">Ejercicio (Health Connect)</string>
+    <string name="check_witness">Lo confirma el tutor</string>
+    <string name="suggested_by_name">Sugerido por el nombre de la meta. Toca otra opción si no encaja.</string>
+    <string name="suggested_by_ai">Sugerido por la IA de este teléfono, sin enviar nada. Toca otra opción si no encaja.</string>
+    <string name="place_qr_title">El QR de este lugar</string>
+    <string name="place_qr_note">Imprímelo o toma una captura ahora y pégalo donde haces esta meta. Solo se muestra una vez: un QR nuevo cuenta como relajar la meta.</string>
+    <string name="place_qr_saved">Ya lo guardé</string>
+    <string name="health_minutes_note">Minutos de ejercicio en Health Connect hoy (de tu reloj o una app de deporte).</string>
+    <string name="scan_place">Escanear el QR del lugar</string>
+    <string name="health_check">Revisar mi ejercicio en Health Connect</string>
+    <string name="health_unavailable">Health Connect no está disponible en este teléfono. Puedes marcar la meta como hecha.</string>
+    <string name="health_denied">Sin acceso a tus entrenamientos, Health Connect no puede revisar esta meta.</string>
+    <string name="health_progress">Health Connect muestra %1$d de %2$d min de ejercicio hoy.</string>
+    <string name="health_rationale_title">Qué lee ProcastinatiOFF de Health Connect</string>
+    <string name="health_rationale_body">Solo el total de minutos de ejercicio de hoy, para revisar metas como \"Salir a correr\". Nunca lee rutas, ritmo cardiaco ni otros datos, nunca escribe nada y nada sale de este teléfono.</string>
+    <string name="witness_waiting">Tu tutor confirma esta meta desde su teléfono.</string>
+    <string name="witness_title">Confirma lo que viste</string>
+    <string name="witness_confirm">Lo vi: marcar como hecha</string>
+    <string name="witness_reason">Confirmar \"%1$s\"</string>
+    <string name="denied_wrong_anchor">Ese QR no es el del lugar de esta meta.</string>
     <string name="emergency_title">Emergencia</string>
     <string name="emergency_body">Te da 15 minutos libres. Cuesta un permiso mañana y queda registrado.</string>
     <string name="emergency_why">¿Por qué lo necesitas?</string>
@@ -104,7 +125,7 @@
     <string name="camera_food">Foto del plato en vivo</string>
     <string name="camera_pages">Fotografiar las páginas y resumir</string>
     <string name="camera_reading">Comprobar la lectura con la cámara</string>
-    <string name="install_verifier">Instala el verificador de ProcastinaciOFF (no tiene acceso a Internet) para usar la cámara.</string>
+    <string name="verifier_install_failed">No se instaló el verificador de la cámara (viene dentro de la app y no tiene Internet). Inténtalo de nuevo y acepta la instalación.</string>
     <string name="camera_note">La cámara solo se usa en el verificador, que no tiene Internet. Nada se graba.</string>
     <string name="next_goal">Después: %1$s</string>
     <string name="no_rush_habit">Sin prisa: %1$s (hábito)</string>
@@ -124,13 +145,23 @@
     <string name="permissions_title">Prepara tu espacio</string>
     <string name="permissions_lead">Activa solo los permisos necesarios. Puedes revisar cada uno antes de continuar.</string>
     <string name="setup_later">Configurar más tarde</string>
+    <string name="verifier_setup_title">Primero, el verificador</string>
+    <string name="verifier_setup_lead">ProcastinatiOFF son dos apps, por eso hay dos instalaciones. Instala ahora el verificador; después configuras la app.</string>
+    <string name="verifier_why_camera_title">El verificador ve, pero no puede enviar</string>
+    <string name="verifier_why_camera_body">Usa la cámara para comprobar tus metas y no tiene acceso a Internet: Android le niega la red, así que nada de lo que ve puede salir del teléfono.</string>
+    <string name="verifier_why_app_title">La app sincroniza, pero nunca ve</string>
+    <string name="verifier_why_app_body">Habla con tus otros dispositivos, pero solo sabe si una meta se cumplió. Dos apps mantienen separadas la cámara e Internet.</string>
+    <string name="verifier_why_now_title">Antes de que empiece el bloqueo</string>
+    <string name="verifier_why_now_body">Con el bloqueo activo, el instalador del sistema queda fuera de alcance. Android te pedirá permitir instalaciones desde ProcastinatiOFF: es solo para el verificador.</string>
+    <string name="verifier_install">Instalar el verificador</string>
+    <string name="verifier_installed">Instalado</string>
     <string name="calls_stay_available">Las llamadas y emergencias permanecen disponibles.</string>
     <string name="protection_off">El bloqueo está en pausa: la Accesibilidad está desactivada en este teléfono.</string>
     <string name="review_permissions">Revisar permisos</string>
     <string name="perm_accessibility">Accesibilidad</string>
     <string name="perm_accessibility_why">Para saber qué app está abierta (solo su nombre) y mostrar la pantalla de bloqueo. No leemos la pantalla ni lo que escribes.</string>
     <string name="perm_dnd">No molestar</string>
-    <string name="perm_dnd_why">Para silenciar todo excepto las llamadas a la hora de dormir.</string>
+    <string name="perm_dnd_why">Para silenciar las notificaciones a la hora de dormir. Las llamadas, las alarmas y la música siguen sonando.</string>
     <string name="perm_admin">Protección contra desinstalación</string>
     <string name="perm_admin_why">Para que no puedas desinstalar la app en un impulso. Puedes desactivarla, pero quedará registrado.</string>
     <string name="perm_admin_explanation">Evita desinstalaciones impulsivas.</string>
@@ -146,7 +177,7 @@
     <string name="choose_guardian">Soy madre, padre o tutor</string>
     <string name="default_label_guardian">Tutor</string>
     <string name="default_label_phone">Teléfono</string>
-    <string name="example_goal_read">Leer 30 minutos</string>
+    <string name="example_goal_read">Leer</string>
     <string name="example_goal_eat">Comer sano</string>
     <string name="config_minor_title">Perfil del menor</string>
     <string name="config_minor_name">Nombre del menor (solo en este teléfono)</string>
@@ -171,7 +202,7 @@
     <string name="focus_sites">Sitios permitidos en el enfoque</string>
     <string name="goal">Meta</string>
     <string name="edit">Editar</string>
-    <string name="save_goal">Guardar meta</string>
+    <string name="done">Listo</string>
     <string name="goal_apps">Apps de esta meta (%1$d)</string>
     <string name="goal_sites_pc">Sitios de esta meta (PC)</string>
     <string name="create_profile">Crear perfil</string>
@@ -282,6 +313,15 @@
     <string name="shield_continue">Continuar: %1$s</string>
     <string name="ask_your_guardian">Pedir a tu tutor</string>
     <string name="channel_updates">Novedades</string>
+    <string name="channel_goal_reminders">Recordatorios de metas</string>
+    <string name="cheer_title">Sigue así</string>
+    <string-array name="cheers">
+        <item>Vas muy bien. Esa app puede esperar; tu meta no.</item>
+        <item>Cada minuto en tu meta cuenta. Sigue así.</item>
+        <item>Lo estás logrando. Termina tu meta y todo se abre.</item>
+        <item>Tu yo de mañana te lo agradecerá. Sigue con tu meta.</item>
+        <item>Un paso más. Estás más cerca de lo que crees.</item>
+    </string-array>
     <string name="notify_contact_alert">Hay avisos de la persona a la que acompañas</string>
     <string name="notify_family_request">Tienes solicitudes de tu familia</string>
     <string name="notify_request_answered">Tu solicitud tiene respuesta</string>
@@ -289,8 +329,8 @@
     <string name="notify_device_silent">Uno de tus dispositivos lleva un tiempo sin aparecer</string>
     <string name="admin_disable_warning">Si desactivas la protección, se registrará y tus otros dispositivos lo sabrán.</string>
     <string name="channel_protection">Protección activa</string>
-    <string name="protection_active">ProcastinaciOFF activo</string>
-    <string name="vpn_session">ProcastinaciOFF · filtro</string>
+    <string name="protection_active">ProcastinatiOFF activo</string>
+    <string name="vpn_session">ProcastinatiOFF · filtro</string>
     <string name="verify_no_result">La comprobación se detuvo sin resultado.</string>
     <string name="verify_not_genuine">El verificador instalado no es auténtico.</string>
     <string name="verify_not_confirmed">Esta vez no se pudo comprobar. Puedes intentarlo de nuevo o usar otra opción.</string>

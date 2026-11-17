@@ -15,8 +15,8 @@ use sha2::Sha256;
 use crate::auth::{ALPHABET, normalize_code};
 use crate::model::OfflineAsk;
 
-const DOMAIN: &[u8] = b"procastinacioff/offline/v1\0";
-const KEY_DOMAIN: &[u8] = b"procastinacioff/offline-key/v1\0";
+const DOMAIN: &[u8] = b"procastinatioff/offline/v1\0";
+const KEY_DOMAIN: &[u8] = b"procastinatioff/offline-key/v1\0";
 /// A request expires after this long; after `MAX_ATTEMPTS` wrong answers it needs a new nonce.
 pub const REQUEST_TTL_MS: i64 = 24 * 3_600_000;
 pub const MAX_ATTEMPTS: u32 = 3;
@@ -126,7 +126,7 @@ mod tests {
         assert_eq!(response_code(&[7; 32], "p", "0123-4567-89"), response_code(&[7; 32], "p", "0123-4567-89"));
         let r = response_code(&[7; 32], "p", "0123-4567-89");
         assert_eq!(r.len(), 8);
-        assert_eq!(r, "50018659");
+        assert_eq!(r, "59196638"); // since the ProcastinatiOFF rename (domain procastinatioff/offline/v1)
         assert_ne!(r, response_code(&[8; 32], "p", "0123-4567-89"));
         assert_ne!(r, response_code(&[7; 32], "q", "0123-4567-89"));
         assert_ne!(approver_key(&[1; 32], "a"), approver_key(&[1; 32], "b"));

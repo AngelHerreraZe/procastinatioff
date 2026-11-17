@@ -7,16 +7,16 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Duration;
 
-use procastinacioff_ipc::{MAX_LINE, Request, Response};
+use procastinatioff_ipc::{MAX_LINE, Request, Response};
 
 #[cfg(windows)]
 fn connect() -> std::io::Result<std::fs::File> {
-    std::fs::OpenOptions::new().read(true).write(true).open(procastinacioff_ipc::PIPE_NAME)
+    std::fs::OpenOptions::new().read(true).write(true).open(procastinatioff_ipc::PIPE_NAME)
 }
 
 #[cfg(unix)]
 fn connect() -> std::io::Result<std::os::unix::net::UnixStream> {
-    std::os::unix::net::UnixStream::connect(procastinacioff_ipc::SOCKET_PATH)
+    std::os::unix::net::UnixStream::connect(procastinatioff_ipc::SOCKET_PATH)
 }
 
 /// One connection per request. ponytail: simple and enough at 1–2 requests per second.

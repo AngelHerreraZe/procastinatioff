@@ -34,9 +34,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2              # pin SHA
       - run: cargo fmt --all -- --check
       # The Tauri app is built in `desktop-windows` (it needs the built UI).
-      - run: cargo clippy --workspace --exclude procastinacioff-app --all-targets -- -D warnings
+      - run: cargo clippy --workspace --exclude procastinatioff-app --all-targets -- -D warnings
       # Includes core/tests/two_devices.rs: devices pairing and syncing over real QUIC on the runner.
-      - run: cargo test --workspace --exclude procastinacioff-app
+      - run: cargo test --workspace --exclude procastinatioff-app
 
   supply-chain:
     runs-on: ubuntu-24.04
@@ -87,10 +87,10 @@ jobs:
       - run: npm ci --prefix desktop/app/ui
       - run: npm run --prefix desktop/app/ui check
       - run: npm run --prefix desktop/app/ui build
-      - run: cargo clippy -p procastinacioff-app -p procastinacioff-agent -p procastinacioff-verifier -- -D warnings
-      - run: cargo build -p procastinacioff-agent -p procastinacioff-verifier --release
+      - run: cargo clippy -p procastinatioff-app -p procastinatioff-agent -p procastinatioff-verifier -- -D warnings
+      - run: cargo build -p procastinatioff-agent -p procastinatioff-verifier --release
       # SECURITY: Privacy audit, test 4: the verifier inside the AppContainer has NO network
-      - run: cargo test -p procastinacioff-verifier --test sandbox_no_network
+      - run: cargo test -p procastinatioff-verifier --test sandbox_no_network
 
   android:
     runs-on: ubuntu-24.04
@@ -107,9 +107,9 @@ jobs:
       - run: cargo install --locked cargo-ndk
       # Bindings from the DEBUG libraries: the release ones are stripped and uniffi-bindgen then
       # generates nothing without failing (stale bindings → "checksum mismatch" crash on start).
-      - run: cargo build -p procastinacioff-core -p procastinacioff-verify
-      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_core.so --language kotlin --out-dir android/app/src/main/java
-      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinacioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
+      - run: cargo build -p procastinatioff-core -p procastinatioff-verify
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinatioff_core.so --language kotlin --out-dir android/app/src/main/java
+      - run: cargo run -p uniffi-bindgen -- generate --library target/debug/libprocastinatioff_verify.so --language kotlin --out-dir android/verifier/src/main/java
       - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :verifier:assembleRelease
         working-directory: android
         env:

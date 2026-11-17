@@ -1,6 +1,6 @@
 [versions]
-agp = "8.7.3"
-kotlin = "2.0.21"
+agp = "8.9.3"
+kotlin = "2.3.21"
 coreKtx = "1.15.0"
 lifecycle = "2.8.7"
 activityCompose = "1.9.3"
@@ -15,6 +15,8 @@ biometric = "1.1.0"
 fragment = "1.8.5"
 mediapipe = "0.10.18"
 mlkitText = "16.0.1"
+healthConnect = "1.1.0"
+mlkitGenaiPrompt = "1.0.0-beta5"
 junit = "4.13.2"
 androidxTest = "1.6.1"
 espresso = "3.6.1"
@@ -41,6 +43,8 @@ biometric = { module = "androidx.biometric:biometric", version.ref = "biometric"
 fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }  # FragmentActivity (biometrics)
 mediapipe-tasks-vision = { module = "com.google.mediapipe:tasks-vision", version.ref = "mediapipe" }  # Apache-2.0
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }   # bundled model
+health-connect = { module = "androidx.health.connect:connect-client", version.ref = "healthConnect" }   # Apache-2.0
+mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkitGenaiPrompt" }        # on-device Gemini Nano via AICore
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTest" }
 espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }

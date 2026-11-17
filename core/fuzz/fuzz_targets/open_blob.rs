@@ -8,5 +8,5 @@ static ID: OnceLock<age::x25519::Identity> = OnceLock::new();
 
 fuzz_target!(|data: &[u8]| {
     let id = ID.get_or_init(age::x25519::Identity::generate);
-    let _ = procastinacioff_core::events::open(data, id);
+    let _ = procastinatioff_core::events::open(data, id);
 });

@@ -19,13 +19,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_core::model::Role;
+use procastinatioff_core::api::Core;
+use procastinatioff_core::model::Role;
 
 use super::policy::FIRST_USER_UID;
 use crate::common::{load_bundled_list, start_dns, upstreams};
 
-const RESOLVED_DROPIN: &str = "/etc/systemd/resolved.conf.d/procastinacioff.conf";
+const RESOLVED_DROPIN: &str = "/etc/systemd/resolved.conf.d/procastinatioff.conf";
 const RESOLVED_CONF: &str = "[Resolve]\nDNS=127.0.0.1\nDomains=~.\nDNSOverTLS=no\nDNSSEC=no\n";
 /// Known public DoH resolvers (the same list as Windows).
 const DOH4: [&str; 10] = [
@@ -63,8 +63,8 @@ pub fn nft_rules(resolver: Option<&str>) -> String {
     rules += &format!("    {user} ip daddr @doh4 meta l4proto {{ tcp, udp }} th dport 443 drop\n");
     rules += &format!("    {user} ip6 daddr @doh6 meta l4proto {{ tcp, udp }} th dport 443 drop\n");
     format!(
-        "table inet procastinacioff\ndelete table inet procastinacioff\n\
-table inet procastinacioff {{\n  set doh4 {{ type ipv4_addr; elements = {{ {} }} }}\n  set doh6 {{ type ipv6_addr; elements = {{ {} }} }}\n  chain output {{\n    type filter hook output priority 0; policy accept;\n{rules}  }}\n}}\n",
+        "table inet procastinatioff\ndelete table inet procastinatioff\n\
+table inet procastinatioff {{\n  set doh4 {{ type ipv4_addr; elements = {{ {} }} }}\n  set doh6 {{ type ipv6_addr; elements = {{ {} }} }}\n  chain output {{\n    type filter hook output priority 0; policy accept;\n{rules}  }}\n}}\n",
         DOH4.join(", "),
         DOH6.join(", ")
     )
@@ -117,7 +117,7 @@ pub fn restore(data_dir: &Path) {
     if std::fs::remove_file(RESOLVED_DROPIN).is_ok() {
         restart_resolved();
     }
-    let _ = nft("delete table inet procastinacioff\n");
+    let _ = nft("delete table inet procastinatioff\n");
     let _ = std::fs::remove_file(data_dir.join("upstream.txt"));
 }
 
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn rules_cover_users_and_the_resolver() {
         let r = nft_rules(Some("systemd-resolve"));
-        assert!(r.starts_with("table inet procastinacioff\ndelete table inet procastinacioff\n"), "atomic replace");
+        assert!(r.starts_with("table inet procastinatioff\ndelete table inet procastinatioff\n"), "atomic replace");
         assert!(r.contains("meta skuid >= 1000 udp dport 53 ip daddr != 127.0.0.0/8 drop"));
         assert!(r.contains("meta skuid \"systemd-resolve\" tcp dport 53 ip6 daddr != ::1 drop"));
         assert!(r.contains("meta skuid >= 1000 meta l4proto { tcp, udp } th dport 853 drop"));

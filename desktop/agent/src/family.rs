@@ -17,8 +17,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_core::model::Role;
+use procastinatioff_core::api::Core;
+use procastinatioff_core::model::Role;
 
 use crate::common::{load_bundled_list, start_dns, upstreams};
 

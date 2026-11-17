@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use base64::Engine;
 use iroh::endpoint::Connection;
-use procastinacioff_proto::{self as proto, Msg};
+use procastinatioff_proto::{self as proto, Msg};
 use rand::{RngCore, rngs::OsRng};
 
 use crate::auth::{self, Secrets};
@@ -1002,6 +1002,15 @@ impl Core {
         let mut g = self.lock();
         let (h, f) = g.state(clock);
         let ev = rules::cmd_complete_goal(&h, &f, clock, &goal_id, method, score, minutes)?;
+        g.record(clock.now_ms, ev)?;
+        g.must_status(clock)
+    }
+
+    /// A place goal: `code` is the scanned QR. Errors: `denied.wrong_anchor` if it is another QR.
+    pub fn complete_at_anchor(&self, clock: Clock, goal_id: String, code: String) -> Result<Status, CoreError> {
+        let mut g = self.lock();
+        let (h, f) = g.state(clock);
+        let ev = rules::cmd_complete_at_anchor(&h, &f, clock, &goal_id, &code)?;
         g.record(clock.now_ms, ev)?;
         g.must_status(clock)
     }
@@ -2714,12 +2723,12 @@ mod tests {
     }
 
     /// minisign vector with a throwaway key (BLAKE2b prehash, like `minisign -S`).
-    const TEST_PK: &str = "RWQlDdRnNvC7WVLh30EvLQwEavQfCouzpAMSx6NTBaRAfOKIjJDumRaD";
-    const TEST_LIST: &[u8] = b"procastinacioff-categories v1\nexample-adult.com\n";
+    const TEST_PK: &str = "RWSR1VaqRkzVxD9R0i0mjqvxxVDb0CSIcbePF1vq29RvuFMv6ZhUbi0l";
+    const TEST_LIST: &[u8] = b"procastinatioff-categories v1\nexample-adult.com\n";
     const TEST_SIG: &str = "untrusted comment: prueba
-RUQlDdRnNvC7Wcl60rnIlQPVfyM7Nc9QRq23JVyEqLSz8YcUVrRIL3LLe3HWaZ47i6dxagLR8vVpLVOLOFPSp/xxiswxcchvbAQ=
+RUSR1VaqRkzVxPmMcdavqT6j6T8fC6lOi12olW5+/bklsEgN4WtwiY3eDzf/lapp3Db5piAJ31F/whPh8sWZ+VLz2oHOfLCE6g0=
 trusted comment: timestamp:0\tfile:categories.txt\tprehashed
-cYXq6Cd/cf1X9l7OI+KZ0w8776VB/XSZ/5WeXKfE0oMuGPfhhJrh0KVkSwSaYR44zj/LaHT0UgDHyT2NGf5xBA==
+jejp/L9GYq8GlNdlzjzuwTYvooWG1WLF58tS9hY2CxHKOIqH3Azwf+m0qLKtVsve5/88jRWSaGnfyS8136H4CQ==
 ";
 
     #[test]

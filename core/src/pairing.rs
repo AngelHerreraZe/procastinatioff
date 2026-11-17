@@ -52,7 +52,7 @@ pub struct PendingPairing {
 /// 6-digit code that both devices compute separately. It covers both network keys too: whoever
 /// swaps one of them gets a different code.
 pub fn sas(offer: &PairingOffer, joiner: &JoinRequest) -> String {
-    let mut h = Sha256::new().chain_update(b"procastinacioff/sas/v2\n");
+    let mut h = Sha256::new().chain_update(b"procastinatioff/sas/v2\n");
     for part in
         [&offer.token, &offer.inviter, &offer.node_id, &joiner.device_id, &joiner.age_recipient, &joiner.node_id]
     {
@@ -87,8 +87,8 @@ pub fn parse_offer(qr: &str) -> Result<PairingOffer, CoreError> {
     if o.v != OFFER_VERSION
         || !addrs_ok
         || !is_hex(&o.token, 32)
-        || procastinacioff_proto::parse_key(&o.inviter).is_none()
-        || procastinacioff_proto::parse_key(&o.node_id).is_none()
+        || procastinatioff_proto::parse_key(&o.inviter).is_none()
+        || procastinatioff_proto::parse_key(&o.node_id).is_none()
     {
         return Err(bad());
     }
@@ -115,8 +115,8 @@ pub fn open_join(blob: &[u8], eph: &age::x25519::Identity) -> Result<JoinRequest
     let mut buf = Vec::new();
     r.by_ref().take(4096).read_to_end(&mut buf).map_err(CoreError::crypto)?;
     let req: JoinRequest = serde_json::from_slice(&buf).map_err(CoreError::protocol)?;
-    if procastinacioff_proto::parse_key(&req.device_id).is_none()
-        || procastinacioff_proto::parse_key(&req.node_id).is_none()
+    if procastinatioff_proto::parse_key(&req.device_id).is_none()
+        || procastinatioff_proto::parse_key(&req.node_id).is_none()
         || req.label.chars().count() > MAX_LABEL_CHARS
     {
         return Err(CoreError::protocol("invalid pairing request"));

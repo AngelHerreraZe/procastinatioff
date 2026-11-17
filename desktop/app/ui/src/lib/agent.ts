@@ -25,6 +25,8 @@ export interface Goal {
   /** What this goal's focus opens besides the essential apps (omitted when empty). */
   apps?: string[];
   sites?: string[];
+  /** Place goals: SHA-256 of its QR's code (omitted when empty). */
+  anchor?: string;
 }
 
 export interface GoalProgress {
@@ -188,11 +190,20 @@ export async function devices(): Promise<DeviceSeen[]> {
   return r.type === 'devices' ? r.devices : [];
 }
 
-/** How a goal is checked (label: `check.<value>` in the locale files). There is always a camera-free option ("mark"). */
-export type Check = 'focus' | 'reading' | 'exercise' | 'food' | 'pages' | 'mark';
-export const CHECKS: Check[] = ['focus', 'reading', 'exercise', 'food', 'pages', 'mark'];
+/**
+ * How a goal is checked (label: `check.<value>` in the locale files). Mirror of core/src/goals.rs, which the
+ * phones call directly; the core only accepts the methods a goal lists, so a mismatch here cannot loosen anything.
+ * ponytail: a copy of a 9-row table, because Tauri calls are async and this is used while rendering.
+ */
+export type Check = 'focus' | 'reading' | 'pages' | 'exercise' | 'food' | 'place' | 'health' | 'witness' | 'mark';
+/** Offered on the PC. Witness: only a guardian sets it, from the phone. Place and health are completed on the phone. */
+export const CHECKS: Check[] = ['focus', 'reading', 'exercise', 'food', 'pages', 'place', 'health', 'mark'];
+/** A day plan has no place goals: their QR has to be printed beforehand. */
+export const PLAN_CHECKS: Check[] = CHECKS.filter((c) => c !== 'place');
 /** Methods that can be checked with the PC camera. */
 export const PC_CAMERA: Method[] = ['reading_presence', 'pose_reps'];
+/** Methods only a phone can check (QR scanner, Health Connect / HealthKit). */
+export const PHONE_ONLY: Method[] = ['qr_anchor', 'health', 'food_photo', 'page_ocr', 'summary'];
 
 export function methodsForCheck(check: Check, minutes: number): Method[] {
   switch (check) {
@@ -200,13 +211,25 @@ export function methodsForCheck(check: Check, minutes: number): Method[] {
     case 'exercise': return ['pose_reps', 'honor_declaration'];
     case 'food': return ['food_photo', 'honor_declaration'];
     case 'pages': return ['page_ocr', 'summary', 'honor_declaration'];
+    case 'place': return ['qr_anchor', 'honor_declaration'];
+    case 'health': return ['health', 'honor_declaration'];
+    case 'witness': return ['witness'];
     case 'mark': return ['honor_declaration'];
     default: return methodsFor(minutes);
   }
 }
 
-/** Count-based checks (exercise, food) have no minutes. */
-export const usesMinutes = (check: Check): boolean => check === 'focus' || check === 'reading';
+/** The check a goal's methods came from (inverse of methodsForCheck). */
+export function checkOf(methods: Method[]): Check {
+  const tells: [Method, Check][] = [
+    ['reading_presence', 'reading'], ['page_ocr', 'pages'], ['pose_reps', 'exercise'], ['food_photo', 'food'],
+    ['qr_anchor', 'place'], ['health', 'health'], ['witness', 'witness'], ['focus_session', 'focus'],
+  ];
+  return tells.find(([m]) => methods.includes(m))?.[1] ?? 'mark';
+}
+
+/** Checks measured in minutes; the rest count times. */
+export const usesMinutes = (check: Check): boolean => check === 'focus' || check === 'reading' || check === 'health';
 
 export const ALL_DAYS = 0b111_1111;
 

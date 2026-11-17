@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 
 use nix::fcntl::AT_FDCWD;
 use nix::sys::fanotify::{EventFFlags, Fanotify, FanotifyResponse, InitFlags, MarkFlags, MaskFlags, Response};
-use procastinacioff_core::model::{Config, DayState};
+use procastinatioff_core::model::{Config, DayState};
 
 use super::apps::DesktopApps;
 use super::policy;

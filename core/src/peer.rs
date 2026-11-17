@@ -20,7 +20,7 @@ use base64::Engine;
 use hmac::{Hmac, Mac};
 use iroh::endpoint::{Connection, RecvStream, SendStream, presets};
 use iroh::{Endpoint, EndpointAddr, PublicKey, RelayMode, SecretKey};
-use procastinacioff_proto::{self as proto, Msg};
+use procastinatioff_proto::{self as proto, Msg};
 use sha2::Sha256;
 
 use crate::api::Core;

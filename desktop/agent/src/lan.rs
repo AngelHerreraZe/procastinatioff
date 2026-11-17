@@ -12,7 +12,7 @@ use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-use procastinacioff_core::api::Core;
+use procastinatioff_core::api::Core;
 
 use crate::clock::now_clock;
 

@@ -80,6 +80,11 @@ pub struct Goal {
     /// Domains this goal's FOCUS allows (e.g. "udemy.com").
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sites: Vec<String>,
+    /// Place goals: SHA-256 (hex) of the code on its QR (`goals::new_place_anchor`). Only the hash:
+    /// no device can show the QR again. Omitted when empty, like `apps`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[uniffi(default = "")]
+    pub anchor: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
@@ -367,6 +372,7 @@ impl Config {
                     weekdays: ALL_DAYS,
                     apps: vec![],
                     sites: vec![],
+                    anchor: String::new(),
                 },
                 Goal {
                     id: "eat-healthy".into(),
@@ -378,6 +384,7 @@ impl Config {
                     weekdays: ALL_DAYS,
                     apps: vec![],
                     sites: vec![],
+                    anchor: String::new(),
                 },
             ],
             free_days: SATURDAY | SUNDAY,

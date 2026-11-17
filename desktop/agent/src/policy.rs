@@ -4,7 +4,7 @@
 
 //! Blocking policy, pure and tested: decides whether a process is allowed. Does not touch Windows.
 
-use procastinacioff_core::model::{Config, DayState};
+use procastinatioff_core::model::{Config, DayState};
 
 /// How we identify an app on Windows.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,7 +111,7 @@ mod tests {
     use super::*;
 
     const WIN: &str = r"C:\Windows";
-    const INSTALL: &str = r"C:\Program Files\ProcastinaciOFF";
+    const INSTALL: &str = r"C:\Program Files\ProcastinatiOFF";
 
     fn app(path: &str, signer: Option<&str>) -> AppIdentity {
         let path = path.to_lowercase();
@@ -173,8 +173,8 @@ mod tests {
     #[test]
     fn a_folder_named_like_ours_is_not_ours() {
         let cfg = Config::example();
-        // "C:\Program Files\ProcastinaciOFF-falso\juego.exe" starts like the install folder
-        let fake = app(r"C:\Program Files\ProcastinaciOFF-falso\juego.exe", None);
+        // "C:\Program Files\ProcastinatiOFF-falso\juego.exe" starts like the install folder
+        let fake = app(r"C:\Program Files\ProcastinatiOFF-falso\juego.exe", None);
         assert_eq!(decide(&DayState::Locked, &fake, &cfg, INSTALL, WIN), Verdict::Block);
     }
 }

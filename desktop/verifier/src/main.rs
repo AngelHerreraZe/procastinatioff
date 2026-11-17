@@ -6,14 +6,14 @@
 //! capability: Windows denies it the network. Camera → frame in RAM → model → numbers → `verify` crate
 //! → ONE JSON line on stdout with the 5 fields of `VerificationResult`. Never writes to disk.
 //!
-//! Usage: procastinacioff-verifier --method (reading|pose) --goal <id> --target <min|reps>
-//!        procastinacioff-verifier --selftest-net     (audit: inside the AppContainer it MUST fail)
+//! Usage: procastinatioff-verifier --method (reading|pose) --goal <id> --target <min|reps>
+//!        procastinatioff-verifier --selftest-net     (audit: inside the AppContainer it MUST fail)
 
 mod models;
 
 use std::time::Duration;
 
-use procastinacioff_verify::result::VerificationResult;
+use procastinatioff_verify::result::VerificationResult;
 
 fn arg(name: &str) -> Option<String> {
     let args: Vec<String> = std::env::args().collect();
@@ -66,9 +66,9 @@ mod session {
     use nokhwa::Camera;
     use nokhwa::pixel_format::RgbFormat;
     use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
-    use procastinacioff_verify::pose::{Exercise, RepCounter};
-    use procastinacioff_verify::reading::{ReadingTracker, SAMPLE_EVERY_MS};
-    use procastinacioff_verify::result::{VMethod, VerificationResult, make_result};
+    use procastinatioff_verify::pose::{Exercise, RepCounter};
+    use procastinatioff_verify::reading::{ReadingTracker, SAMPLE_EVERY_MS};
+    use procastinatioff_verify::result::{VMethod, VerificationResult, make_result};
 
     use crate::models::{Frame, Models};
 
@@ -132,7 +132,7 @@ mod session {
 #[cfg(not(windows))]
 mod session {
     //! macOS/Linux: later.
-    use procastinacioff_verify::result::VerificationResult;
+    use procastinatioff_verify::result::VerificationResult;
 
     pub fn reading(_: &std::path::Path, _: &str, _: u16) -> Result<Option<VerificationResult>, String> {
         Err("Windows only for now".into())

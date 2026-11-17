@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use procastinacioff_core::api::Core;
-use procastinacioff_core::model::DayState;
+use procastinatioff_core::api::Core;
+use procastinatioff_core::model::DayState;
 
 use crate::clock::now_clock;
 use crate::common::{Grace, Shared, TICK, Upkeep, note_blocked};

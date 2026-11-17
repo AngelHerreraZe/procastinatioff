@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use procastinacioff_core::api::Core;
+use procastinatioff_core::api::Core;
 use windows_service::service::{
     ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
 };
@@ -20,8 +20,8 @@ use windows_service::{define_windows_service, service_dispatcher};
 
 use crate::{common, enforce, family, ipc_server, lan, secrets::DpapiStore};
 
-pub const SERVICE_NAME: &str = "ProcastinaciOFF";
-pub const DATA_DIR: &str = r"C:\ProgramData\ProcastinaciOFF";
+pub const SERVICE_NAME: &str = "ProcastinatiOFF";
+pub const DATA_DIR: &str = r"C:\ProgramData\ProcastinatiOFF";
 
 define_windows_service!(ffi_service_main, service_main);
 

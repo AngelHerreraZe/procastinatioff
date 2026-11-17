@@ -2,7 +2,7 @@
 <!-- Source language (English). Translators: copy this file to values-<lang>/strings.xml and translate the text only.
      Keep the names and the %1$s / %1$d placeholders. Do not translate entries marked translatable="false". -->
 <resources>
-    <string name="verifier_label">ProcastinaciOFF · Verifier</string>
+    <string name="verifier_label">ProcastinatiOFF · Verifier</string>
     <string name="models_missing">The models for this method are missing.</string>
     <string name="analyze_failed">The image could not be analyzed.</string>
     <string name="progress_minutes">%1$d of %2$d min</string>

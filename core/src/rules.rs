@@ -209,6 +209,8 @@ pub enum Denied {
     InvalidCode,
     #[error("no more concessions without network today")]
     TooManyGrants,
+    #[error("that QR is not this goal's place")]
+    WrongAnchor,
 }
 
 impl Denied {
@@ -241,6 +243,7 @@ impl Denied {
             Self::NoContact => "no_contact",
             Self::InvalidCode => "invalid_code",
             Self::TooManyGrants => "too_many_grants",
+            Self::WrongAnchor => "wrong_anchor",
         }
     }
 }
@@ -634,10 +637,45 @@ pub fn cmd_complete_goal(
     minutes: u16,
 ) -> Result<EventKind, Denied> {
     let goal = find_goal(history, facts, clock, goal_id)?;
-    if !goal.methods.contains(&method) || method == Method::FocusSession {
-        // FocusSession is only completed via cmd_end_focus (the core measures the time).
+    // FocusSession is only completed via cmd_end_focus (the core measures the time) and QrAnchor via
+    // cmd_complete_at_anchor (the core checks the code). Health must bring the goal's minutes.
+    if !goal.methods.contains(&method)
+        || matches!(method, Method::FocusSession | Method::QrAnchor)
+        || (method == Method::Health && minutes < goal.target_minutes)
+    {
         return Err(Denied::MethodNotAllowed);
     }
+    completion(history, facts, clock, &goal, method, score, minutes)
+}
+
+/// A place goal: the scanned QR must be the one whose hash the goal keeps.
+pub fn cmd_complete_at_anchor(
+    history: &ConfigHistory,
+    facts: &[Fact],
+    clock: Clock,
+    goal_id: &str,
+    code: &str,
+) -> Result<EventKind, Denied> {
+    let goal = find_goal(history, facts, clock, goal_id)?;
+    if !goal.methods.contains(&Method::QrAnchor) || goal.anchor.is_empty() {
+        return Err(Denied::MethodNotAllowed);
+    }
+    if crate::goals::anchor_hash(code) != goal.anchor {
+        return Err(Denied::WrongAnchor);
+    }
+    completion(history, facts, clock, &goal, Method::QrAnchor, 100, goal.target_minutes)
+}
+
+fn completion(
+    history: &ConfigHistory,
+    facts: &[Fact],
+    clock: Clock,
+    goal: &Goal,
+    method: Method,
+    score: u8,
+    minutes: u16,
+) -> Result<EventKind, Denied> {
+    let goal_id = goal.id.as_str();
     let st = status(history, facts, clock).ok_or(Denied::NotConfigured)?;
     if matches!(st.state, DayState::Sleep) {
         return Err(Denied::WrongState);
@@ -741,7 +779,63 @@ mod tests {
             weekdays: ALL_DAYS,
             apps: vec![],
             sites: vec![],
+            anchor: String::new(),
         }
+    }
+
+    /// The example configuration with a place goal ("gym", its QR's `code`) and a health goal (30 min).
+    fn place_and_health(code: &str) -> (ConfigHistory, Vec<Fact>) {
+        use crate::goals::{Check, anchor_hash, methods_for_check};
+        let mut cfg = Config::example();
+        let mut gym = goal("gym", GoalKind::Habit, 0);
+        gym.methods = methods_for_check(Check::Place, 0);
+        gym.anchor = anchor_hash(code);
+        let mut run = goal("run", GoalKind::Habit, 30);
+        run.methods = methods_for_check(Check::Health, 30);
+        cfg.goals.extend([gym, run]);
+        let mut h = ConfigHistory::default();
+        h.push(0, cfg);
+        (h, vec![])
+    }
+
+    #[test]
+    fn a_place_goal_needs_its_own_qr() {
+        let code = crate::goals::new_place_anchor().code;
+        let (h, mut f) = place_and_health(&code);
+        plan(&h, &mut f, at(7, 0));
+        let other = crate::goals::new_place_anchor().code;
+        assert_eq!(cmd_complete_at_anchor(&h, &f, at(8, 0), "gym", &other), Err(Denied::WrongAnchor));
+        // Not through the generic path, where nothing checks the code
+        assert_eq!(
+            cmd_complete_goal(&h, &f, at(8, 0), "gym", Method::QrAnchor, 100, 0),
+            Err(Denied::MethodNotAllowed)
+        );
+        let ev = cmd_complete_at_anchor(&h, &f, at(8, 0), "gym", &code).unwrap();
+        assert!(matches!(ev, EventKind::GoalCompleted { method: Method::QrAnchor, .. }));
+        // A goal without an anchor cannot be completed with any QR
+        assert_eq!(cmd_complete_at_anchor(&h, &f, at(8, 0), "read-30", &code), Err(Denied::MethodNotAllowed));
+    }
+
+    #[test]
+    fn a_health_goal_needs_its_minutes() {
+        let (h, mut f) = place_and_health("x");
+        plan(&h, &mut f, at(7, 0));
+        let done = |m| cmd_complete_goal(&h, &f, at(9, 0), "run", Method::Health, 100, m);
+        assert_eq!(done(29), Err(Denied::MethodNotAllowed));
+        assert!(done(30).is_ok());
+    }
+
+    #[test]
+    fn a_plan_cannot_swap_a_place_anchor() {
+        let code = crate::goals::new_place_anchor().code;
+        let (h, mut f) = place_and_health(&code);
+        let mine = crate::goals::new_place_anchor().code;
+        let mut gym = today_goals(&h, &f, at(7, 0)).into_iter().find(|g| g.id == "gym").unwrap();
+        gym.anchor = crate::goals::anchor_hash(&mine);
+        let ev = cmd_plan_day(&h, &f, at(7, 0), vec![gym]).unwrap();
+        record(&mut f, at(7, 0), ev);
+        assert_eq!(cmd_complete_at_anchor(&h, &f, at(8, 0), "gym", &mine), Err(Denied::WrongAnchor));
+        assert!(cmd_complete_at_anchor(&h, &f, at(8, 0), "gym", &code).is_ok());
     }
 
     #[test]

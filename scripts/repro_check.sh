@@ -21,13 +21,13 @@ for i in 1 2; do
   (
     cd "$W"
     RUSTFLAGS="--remap-path-prefix=$W=/build --remap-path-prefix=$CARGO_HOME=/cargo" \
-      CARGO_TARGET_DIR="$W/target" cargo build --release --locked -p procastinacioff-agent
+      CARGO_TARGET_DIR="$W/target" cargo build --release --locked -p procastinatioff-agent
   )
-  sha256sum "$W/target/release/procastinacioff-agent" | cut -d' ' -f1 >"$OUT/hash-$i"
+  sha256sum "$W/target/release/procastinatioff-agent" | cut -d' ' -f1 >"$OUT/hash-$i"
 done
 
 if diff -q "$OUT/hash-1" "$OUT/hash-2" >/dev/null; then
-  echo "REPRODUCIBLE procastinacioff-agent $(cat "$OUT/hash-1")"
+  echo "REPRODUCIBLE procastinatioff-agent $(cat "$OUT/hash-1")"
 else
   echo "NOT REPRODUCIBLE: $(cat "$OUT/hash-1") != $(cat "$OUT/hash-2")" >&2
   exit 1
